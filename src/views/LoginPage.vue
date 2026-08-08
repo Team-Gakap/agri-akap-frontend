@@ -37,7 +37,6 @@
               autocomplete="new-password">
             </ion-input>
             <ion-button fill="clear" slot="end" class="toggle-password-btn" @click="togglePassword">
-              <ion-icon :icon="showPassword ? eyeOff : eye" color="medium"></ion-icon>
             </ion-button>
           </ion-item>
         </div>
@@ -133,27 +132,25 @@ const login = async () => {
   text-align: center;
   margin-top: 8vh;
   margin-bottom: 2rem;
-  animation: fadeInDown 0.8s ease-out;
 }
 
 .logo-container {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 120px;
-  height: 120px;
+  width: 100px;
+  height: 100px;
   background: transparent; /* Fixed: Removed background gradient so logo shows fully */
   border-radius: 50%;
   box-shadow: 0 10px 20px rgba(45, 136, 77, 0.4);
   margin-bottom: 1rem;
-  animation: float 4s ease-in-out infinite;
   border: 4px solid rgba(255, 255, 255, 0.8);
   overflow: hidden; /* Fixed: Prevents the image edges from spilling out */
 }
 
 .logo-container img {
-  width: 100%; /* Fixed: Stretches image to container bounds */
-  height: 100%; /* Fixed: Stretches image to container bounds */
+  width: 130%; /* Fixed: Stretches image to container bounds */
+  height: 120%; /* Fixed: Stretches image to container bounds */
   object-fit: cover; /* Fixed: Fills the entire circle perfectly */
   display: block;
   border-radius: 50%;
@@ -285,32 +282,5 @@ const login = async () => {
   opacity: 0.9;
 }
 
-/* Keyframe Animations */
-@keyframes float {
-  0% { transform: translateY(0px); }
-  50% { transform: translateY(-8px); }
-  100% { transform: translateY(0px); }
-}
 
-@keyframes fadeInDown {
-  from {
-    opacity: 0;
-    transform: translateY(-20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes fadeInUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
 </style>

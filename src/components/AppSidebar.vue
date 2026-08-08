@@ -63,7 +63,7 @@ import {
   homeOutline, homeSharp, leafOutline, leafSharp, personOutline, personSharp,
   idCardOutline, megaphoneOutline, warningOutline, documentTextOutline,
   cubeOutline, fileTrayStackedOutline, shieldCheckmarkOutline, logOutOutline, mapOutline, mapSharp,
-  analyticsOutline, analyticsSharp,
+  analyticsOutline, analyticsSharp, cloudyOutline,
 } from "ionicons/icons";
 import { useAuthStore } from "@/stores/authStore";
 import { useSyncStore } from "@/stores/syncStore";
@@ -89,6 +89,7 @@ const appPages: NavPage[] = [
   { title: "Stock Management", url: "/admin/inventory", iosIcon: fileTrayStackedOutline, mdIcon: fileTrayStackedOutline },
   { title: "SMS Broadcast", url: "/admin/broadcasts", iosIcon: megaphoneOutline, mdIcon: megaphoneOutline },
   { title: "Agricultural Intelligence", url: "/admin/intelligence", iosIcon: leafOutline, mdIcon: leafSharp },
+  { title: "Precision Weather", url: "/admin/weather", iosIcon: cloudyOutline, mdIcon: cloudyOutline },
   { title: "GIS Map", url: "/admin/map", iosIcon: mapOutline, mdIcon: mapSharp },
   { title: "Damage Review", url: "/admin/damage-review", iosIcon: shieldCheckmarkOutline, mdIcon: shieldCheckmarkOutline },
   { title: "Executive Reporting", url: "/admin/executive-reporting", iosIcon: documentTextOutline, mdIcon: documentTextOutline },

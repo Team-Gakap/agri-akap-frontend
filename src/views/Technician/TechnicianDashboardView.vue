@@ -15,6 +15,8 @@
         </div>
       </header>
 
+      <WeatherWidget />
+
       <p class="section-label">What do you need to do?</p>
 
       <ion-card button class="action-card pest-card" @click="go('/tech/pest-queue')">
@@ -78,6 +80,7 @@ import {
   bugOutline, thunderstormOutline, qrCodeOutline, chevronForwardOutline,
 } from 'ionicons/icons';
 import { useAuthStore } from '@/stores/authStore';
+import WeatherWidget from '@/components/WeatherWidget.vue';
 
 const router = useRouter();
 const authStore = useAuthStore();

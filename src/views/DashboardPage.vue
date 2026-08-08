@@ -25,6 +25,8 @@
           <p class="text-muted">Real-time distribution analytics and audit trail.</p>
         </div>
 
+        <WeatherWidget />
+
         <div v-if="isLoading" class="loading-state">
           <ion-spinner name="crescent" color="primary"></ion-spinner>
           <p>Compiling reports...</p>
@@ -206,6 +208,7 @@ import {
 } from 'ionicons/icons';
 import axiosInstance from '@/utils/axios';
 import EmptyState from '@/components/EmptyState.vue';
+import WeatherWidget from '@/components/WeatherWidget.vue';
 
 const router = useRouter();
 const stats = ref<any>(null);
