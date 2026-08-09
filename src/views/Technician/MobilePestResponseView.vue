@@ -59,20 +59,25 @@
           <ion-card-subtitle>Hardware validation on-site</ion-card-subtitle>
         </ion-card-header>
         <ion-card-content>
-          <p v-if="state.photoDataUrl" class="status-ok">
+          <p v-if="state.photoPreviewSrc" class="status-ok">
             <ion-icon :icon="checkmarkCircleOutline"></ion-icon>
-            Geo-tagged photo captured
+            Photo evidence captured
           </p>
-          <img v-if="state.photoDataUrl" :src="state.photoDataUrl" alt="Field evidence" class="photo-preview" />
+          <img
+            v-if="state.photoPreviewSrc"
+            :src="state.photoPreviewSrc"
+            alt="Field evidence"
+            class="photo-preview"
+          />
           <ion-button
             expand="block"
             class="action-btn gold-outline"
             fill="outline"
             :disabled="capturingPhoto"
-            @click="captureGeoTaggedPhoto"
+            @click="capturePhotoEvidence"
           >
             <ion-icon slot="start" :icon="cameraOutline"></ion-icon>
-            {{ capturingPhoto ? 'Opening camera…' : 'Capture Geo-Tagged Photo' }}
+            {{ capturingPhoto ? 'Opening camera…' : 'Capture Photo Evidence' }}
           </ion-button>
 
           <p class="hw-status" v-if="state.latitude != null">
@@ -239,9 +244,16 @@ import {
 import {
   cameraOutline, locateOutline, qrCodeOutline, checkmarkCircleOutline,
 } from 'ionicons/icons';
-import { Geolocation } from '@capacitor/geolocation';
+import { Capacitor } from '@capacitor/core';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
 import { getPestReportById } from '@/data/technicianDispatchQueues';
+import {
+  fetchRealLocation,
+  ensureCameraPermission,
+  hideScannerBackground,
+  showScannerBackground,
+} from '@/composables/useNativeHardware';
 
 interface PestResponseState {
   target: {
@@ -252,7 +264,10 @@ interface PestResponseState {
     reportedPest: string;
     reportId: string;
   };
-  photoDataUrl: string | null;
+  /** Raw base64 from Camera (no data-URL prefix). */
+  photoBase64: string | null;
+  /** Bound to <img src> for preview. */
+  photoPreviewSrc: string | null;
   latitude: number | null;
   longitude: number | null;
   confirmedPest: string;
@@ -301,7 +316,8 @@ const defaultTarget = {
 
 const state = reactive<PestResponseState>({
   target: { ...defaultTarget },
-  photoDataUrl: null,
+  photoBase64: null,
+  photoPreviewSrc: null,
   latitude: null,
   longitude: null,
   confirmedPest: defaultTarget.reportedPest,
@@ -354,35 +370,47 @@ onMounted(() => {
   if (q.rsbsa) state.target.rsbsaNo = String(q.rsbsa);
 });
 
-const captureGeoTaggedPhoto = async () => {
+/** Capture field photo evidence as Base64 and preview before submit. */
+const capturePhotoEvidence = async () => {
   capturingPhoto.value = true;
   try {
     const photo = await Camera.getPhoto({
-      quality: 85,
+      quality: 90,
       allowEditing: false,
-      resultType: CameraResultType.DataUrl,
+      resultType: CameraResultType.Base64,
       source: CameraSource.Camera,
     });
-    state.photoDataUrl = photo.dataUrl || null;
+
+    const base64 = photo.base64String ?? null;
+    if (!base64) {
+      throw new Error('Empty camera payload');
+    }
+
+    const format = (photo.format || 'jpeg').toLowerCase();
+    state.photoBase64 = base64;
+    state.photoPreviewSrc = `data:image/${format};base64,${base64}`;
+
     if (state.latitude == null) {
       try {
-        const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 8000 });
+        const pos = await fetchRealLocation({ timeout: 8000 });
         state.latitude = pos.coords.latitude;
         state.longitude = pos.coords.longitude;
-      } catch {
-        // Photo saved; GPS optional on capture
+      } catch (err) {
+        console.warn('[AGRI-AKAP] GPS optional on photo capture:', err);
       }
     }
+
     const t = await toastController.create({
-      message: 'Geo-tagged photo captured.',
-      duration: 2000,
+      message: 'Photo evidence captured. Review preview before submitting.',
+      duration: 2200,
       color: 'success',
       position: 'top',
     });
     await t.present();
-  } catch {
+  } catch (err) {
+    console.warn('[AGRI-AKAP] Camera unavailable (web/native):', err);
     const t = await toastController.create({
-      message: 'Camera unavailable. Check device permissions.',
+      message: 'Camera unavailable. Check device permissions or try on a native build.',
       duration: 2500,
       color: 'warning',
       position: 'top',
@@ -396,7 +424,7 @@ const captureGeoTaggedPhoto = async () => {
 const lockGpsCoordinates = async () => {
   lockingGps.value = true;
   try {
-    const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 12000 });
+    const pos = await fetchRealLocation({ timeout: 12000 });
     state.latitude = pos.coords.latitude;
     state.longitude = pos.coords.longitude;
     const t = await toastController.create({
@@ -406,7 +434,8 @@ const lockGpsCoordinates = async () => {
       position: 'top',
     });
     await t.present();
-  } catch {
+  } catch (err) {
+    console.warn('[AGRI-AKAP] GPS lock failed:', err);
     const t = await toastController.create({
       message: 'Unable to lock GPS. Enable location services.',
       duration: 2500,
@@ -420,15 +449,68 @@ const lockGpsCoordinates = async () => {
 };
 
 const scanFarmerQr = async () => {
-  /** Placeholder — wire to @capacitor-mlkit/barcode-scanning via /tech/scanner flow. */
-  state.qrScanResult = state.target.rsbsaNo;
-  const t = await toastController.create({
-    message: 'Farmer QR verified (placeholder scan).',
-    duration: 2200,
-    color: 'primary',
-    position: 'top',
-  });
-  await t.present();
+  try {
+    if (!Capacitor.isNativePlatform()) {
+      console.warn('[AGRI-AKAP] QR scan native-only; using target RSBSA fallback on web.');
+      state.qrScanResult = state.target.rsbsaNo;
+      const t = await toastController.create({
+        message: 'Web fallback: using target farm RSBSA as verified ID.',
+        duration: 2200,
+        color: 'warning',
+        position: 'top',
+      });
+      await t.present();
+      return;
+    }
+
+    const allowed = await ensureCameraPermission();
+    if (!allowed) {
+      const t = await toastController.create({
+        message: 'Camera permission required to scan farmer QR.',
+        duration: 2400,
+        color: 'warning',
+        position: 'top',
+      });
+      await t.present();
+      return;
+    }
+
+    hideScannerBackground();
+    try {
+      const { barcodes } = await BarcodeScanner.scan();
+      const raw = barcodes[0]?.rawValue?.trim();
+      if (!raw) {
+        const t = await toastController.create({
+          message: 'No QR detected. Try again.',
+          duration: 2200,
+          color: 'warning',
+          position: 'top',
+        });
+        await t.present();
+        return;
+      }
+      state.qrScanResult = raw;
+      const t = await toastController.create({
+        message: 'Farmer QR verified for dispense.',
+        duration: 2200,
+        color: 'success',
+        position: 'top',
+      });
+      await t.present();
+    } finally {
+      showScannerBackground();
+    }
+  } catch (err) {
+    console.warn('[AGRI-AKAP] Pest QR scan failed:', err);
+    showScannerBackground();
+    const t = await toastController.create({
+      message: 'Scanner failed. Check camera permissions.',
+      duration: 2500,
+      color: 'danger',
+      position: 'top',
+    });
+    await t.present();
+  }
 };
 
 const submitReport = async () => {

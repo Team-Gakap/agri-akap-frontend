@@ -211,8 +211,10 @@ import {
   flaskOutline, cloudOfflineOutline,
 } from 'ionicons/icons';
 import { Geolocation } from '@capacitor/geolocation';
+import { Capacitor } from '@capacitor/core';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { fetchRealLocation as readGpsPosition, ensureLocationPermission } from '@/composables/useNativeHardware';
 
 /** Offline-queue-ready shapes (mock until IndexedDB sync wiring). */
 interface GeoPoint {
@@ -340,22 +342,33 @@ const redrawWalk = () => {
   }
 };
 
-const refreshLocation = async () => {
+/**
+ * Real device GPS: check/request permissions, then high-accuracy fix.
+ * Web browsers may still succeed via navigator.geolocation; failures toast without crashing.
+ */
+const fetchRealLocation = async (): Promise<{ lat: number; lng: number } | null> => {
   locating.value = true;
   try {
-    const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 10000 });
+    const pos = await readGpsPosition({ timeout: 12000 });
     const lat = pos.coords.latitude;
     const lng = pos.coords.longitude;
     currentPos.value = { lat, lng };
     setMarker(lat, lng);
-  } catch {
-    await toast('Unable to read GPS. Using Echague center.', 'warning');
-    currentPos.value = { lat: 16.7167, lng: 121.6833 };
-    setMarker(16.7167, 121.6833);
+    return { lat, lng };
+  } catch (err) {
+    console.warn('[AGRI-AKAP] GPS signal failed:', err);
+    await toast('GPS signal failed. Check location permissions and try again.', 'warning');
+    if (!currentPos.value) {
+      currentPos.value = { lat: 16.7167, lng: 121.6833 };
+      setMarker(16.7167, 121.6833);
+    }
+    return null;
   } finally {
     locating.value = false;
   }
 };
+
+const refreshLocation = () => fetchRealLocation();
 
 const addWalkPoint = (lat: number, lng: number) => {
   walkPoints.value.push({
@@ -396,6 +409,13 @@ const togglePerimeterWalk = async () => {
     return;
   }
 
+  const allowed = await ensureLocationPermission();
+  if (!allowed && Capacitor.isNativePlatform()) {
+    await toast('Location permission denied. Enable GPS for perimeter walks.', 'warning');
+    walking.value = false;
+    return;
+  }
+
   walking.value = true;
   await toast('Perimeter walk started — move along the boundary.', 'primary');
   try {
@@ -406,7 +426,8 @@ const togglePerimeterWalk = async () => {
         addWalkPoint(pos.coords.latitude, pos.coords.longitude);
       },
     );
-  } catch {
+  } catch (err) {
+    console.warn('[AGRI-AKAP] GPS watch unavailable (web fallback):', err);
     // Browser / web fallback: simulate a few points around current position
     const base = currentPos.value ?? { lat: 16.7167, lng: 121.6833 };
     const offsets = [

@@ -1,6 +1,18 @@
 /* AGRI-AKAP global styles — LGU Design System
    Applies the flat, modern government-standard look across all pages. */
 
+/* Transparent WebView while continuous / overlay barcode scanners run */
+body.barcode-scanner-active {
+  background: transparent !important;
+  --background: transparent !important;
+}
+body.barcode-scanner-active ion-app,
+body.barcode-scanner-active ion-content,
+body.barcode-scanner-active .ion-page {
+  background: transparent !important;
+  --background: transparent !important;
+}
+
 /* ── Base typography ─────────────────────────────────────────────── */
 body {
   font-family: var(--ion-font-family);

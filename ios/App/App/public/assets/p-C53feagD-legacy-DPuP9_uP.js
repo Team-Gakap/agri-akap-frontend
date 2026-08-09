@@ -1,0 +1,1 @@
+System.register([],function(e,t){return{setters:[],execute:function(){e("t",e=>e&&""!==e.dir?"rtl"===e.dir.toLowerCase():"rtl"===(null===document||void 0===document?void 0:document.dir.toLowerCase()))}}});
