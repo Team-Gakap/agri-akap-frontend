@@ -42,7 +42,7 @@ const routes: Array<RouteRecordRaw> = [
     children: [
       { path: "", redirect: "/admin/dashboard" },
       { path: "dashboard", name: "Dashboard", component: () => import("@/views/DashboardPage.vue") },
-      { path: "analytics", name: "Analytics", component: () => import("@/views/Analytics/AnalyticsPage.vue") },
+      { path: "analytics", name: "Analytics", component: () => import("@/views/Admin/AnalyticsDashboardView.vue") },
       { path: "farmers", name: "FarmersList", component: () => import("@/views/Admin/FarmerRegistryView.vue") },
       { path: "farmers/register", name: "FarmersRegister", component: () => import("@/views/Farmers/Registration_Form.vue") },
       { path: "farmers/legacy", name: "FarmersListLegacy", component: () => import("@/views/Farmers/FarmersListPage.vue") },

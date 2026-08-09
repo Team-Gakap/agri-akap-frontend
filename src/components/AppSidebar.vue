@@ -82,7 +82,7 @@ interface NavPage {
 
 const appPages: NavPage[] = [
   { title: "Analytics Dashboard", url: "/admin/dashboard", iosIcon: homeOutline, mdIcon: homeSharp },
-  { title: "Insights & Forecast", url: "/admin/analytics", iosIcon: analyticsOutline, mdIcon: analyticsSharp },
+  { title: "4-Tier Analytics", url: "/admin/analytics", iosIcon: analyticsOutline, mdIcon: analyticsSharp },
   { title: "RSBSA Masterlist", url: "/admin/farmers", iosIcon: personOutline, mdIcon: personSharp },
   { title: "ID Issuance", url: "/admin/id-issuance", iosIcon: idCardOutline, mdIcon: idCardOutline },
   { title: "Inventory & Programs", url: "/admin/programs", iosIcon: cubeOutline, mdIcon: cubeOutline },
