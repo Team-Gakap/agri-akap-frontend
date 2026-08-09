@@ -52,7 +52,7 @@ import {
 } from '@ionic/vue';
 import {
   homeOutline, leafOutline, bugOutline, shieldCheckmarkOutline, logOutOutline,
-  flowerOutline, basketOutline, thunderstormOutline,
+  flowerOutline, basketOutline, thunderstormOutline, peopleOutline,
 } from 'ionicons/icons';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -61,6 +61,7 @@ const route = useRoute();
 
 const pages = [
   { title: 'Barangay Dashboard', url: '/brgy/dashboard', icon: homeOutline },
+  { title: 'Farmer Masterlist', url: '/brgy/farmers', icon: peopleOutline },
   { title: 'Master Seasonal Planting Log', url: '/brgy/planting-ledger', icon: leafOutline },
   { title: 'Pest & Disease Monitoring Log', url: '/brgy/pest-monitoring', icon: bugOutline },
   { title: 'Standing Crop Log', url: '/brgy/standing-crop', icon: flowerOutline },

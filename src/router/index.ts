@@ -43,8 +43,9 @@ const routes: Array<RouteRecordRaw> = [
       { path: "", redirect: "/admin/dashboard" },
       { path: "dashboard", name: "Dashboard", component: () => import("@/views/DashboardPage.vue") },
       { path: "analytics", name: "Analytics", component: () => import("@/views/Analytics/AnalyticsPage.vue") },
-      { path: "farmers", name: "FarmersList", component: () => import("@/views/Farmers/FarmersListPage.vue") },
+      { path: "farmers", name: "FarmersList", component: () => import("@/views/Admin/FarmerRegistryView.vue") },
       { path: "farmers/register", name: "FarmersRegister", component: () => import("@/views/Farmers/Registration_Form.vue") },
+      { path: "farmers/legacy", name: "FarmersListLegacy", component: () => import("@/views/Farmers/FarmersListPage.vue") },
       { path: "id-issuance", name: "IdIssuance", component: () => import("@/views/Farmers/IdIssuancePage.vue") },
       { path: "programs", name: "Programs", component: () => import("@/views/Programs/ProgramsListPage.vue") },
       { path: "inventory", name: "Inventory", component: () => import("@/views/Programs/InventoryPage.vue") },
@@ -84,8 +85,9 @@ const routes: Array<RouteRecordRaw> = [
       { path: "damage", name: "DamageAssessment", component: () => import("@/views/Technician/DamageAssessmentPage.vue") },
       { path: "sync", name: "PendingSync", component: () => import("@/views/Sync/PendingSyncPage.vue") },
       { path: "home", name: "Home", component: () => import("@/views/HomePage.vue") },
-      { path: "farmers", name: "TechFarmersList", component: () => import("@/views/Farmers/FarmersListPage.vue") },
+      { path: "farmers", name: "TechFarmersList", component: () => import("@/views/Technician/MobileFarmerDirectoryView.vue") },
       { path: "farmers/register", name: "TechFarmersRegister", component: () => import("@/views/Farmers/Registration_Form.vue") },
+      { path: "farmer-directory", name: "MobileFarmerDirectory", component: () => import("@/views/Technician/MobileFarmerDirectoryView.vue") },
       { path: "programs", name: "TechPrograms", component: () => import("@/views/Programs/ProgramsListPage.vue") },
       { path: "map", name: "TechMap", component: () => import("@/views/Map/MapPage.vue") },
       { path: "profile", name: "TechProfile", component: () => import("@/views/Technician/ProfilePage.vue") },
@@ -100,6 +102,7 @@ const routes: Array<RouteRecordRaw> = [
     children: [
       { path: "", redirect: "/brgy/dashboard" },
       { path: "dashboard", name: "BrgyDashboard", component: () => import("@/views/Barangay/DashboardView.vue") },
+      { path: "farmers", name: "BrgyFarmerMasterlist", component: () => import("@/views/Barangay/BrgyFarmerMasterlistView.vue") },
       { path: "planting-ledger", name: "BrgyPlantingLedger", component: () => import("@/views/Barangay/PlantingLedgerView.vue") },
       { path: "pest-monitoring", name: "BrgyPestMonitoring", component: () => import("@/views/Barangay/PestMonitoringView.vue") },
       { path: "standing-crop", name: "BrgyStandingCrop", component: () => import("@/views/Barangay/StandingCropLogView.vue") },
@@ -124,7 +127,10 @@ const routes: Array<RouteRecordRaw> = [
   { path: "/id-issuance", redirect: "/admin/id-issuance" },
   {
     path: "/farmers",
-    redirect: legacy({ admin: "/admin/farmers", technician: "/tech/farmers" }, "/admin/farmers"),
+    redirect: legacy(
+      { admin: "/admin/farmers", technician: "/tech/farmers", barangay_official: "/brgy/farmers" },
+      "/admin/farmers",
+    ),
   },
   {
     path: "/farmers/register",

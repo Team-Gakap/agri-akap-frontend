@@ -66,6 +66,22 @@
           </div>
         </ion-card-content>
       </ion-card>
+
+      <ion-card button class="action-card directory-card" @click="go('/tech/farmer-directory')">
+        <ion-ripple-effect type="bounded"></ion-ripple-effect>
+        <ion-card-content>
+          <div class="card-row">
+            <div class="icon-wrap directory">
+              <ion-icon :icon="peopleOutline"></ion-icon>
+            </div>
+            <div class="card-copy">
+              <h2>Find Farmer</h2>
+              <p>Search RSBSA / name — open subsidy or profile actions.</p>
+            </div>
+            <ion-icon class="chevron" :icon="chevronForwardOutline"></ion-icon>
+          </div>
+        </ion-card-content>
+      </ion-card>
     </ion-content>
   </ion-page>
 </template>
@@ -77,7 +93,7 @@ import {
   IonPage, IonContent, IonCard, IonCardContent, IonIcon, IonRippleEffect,
 } from '@ionic/vue';
 import {
-  bugOutline, thunderstormOutline, qrCodeOutline, chevronForwardOutline,
+  bugOutline, thunderstormOutline, qrCodeOutline, chevronForwardOutline, peopleOutline,
 } from 'ionicons/icons';
 import { useAuthStore } from '@/stores/authStore';
 import WeatherWidget from '@/components/WeatherWidget.vue';
@@ -193,6 +209,11 @@ const go = (path: string) => router.push(path);
   color: #1a4731;
 }
 
+.icon-wrap.directory {
+  background: #fef3c7;
+  color: #92400e;
+}
+
 .card-copy {
   flex: 1;
   min-width: 0;
@@ -229,5 +250,9 @@ const go = (path: string) => router.push(path);
 
 .subsidy-card {
   border-left: 5px solid #1a4731;
+}
+
+.directory-card {
+  border-left: 5px solid #d4af37;
 }
 </style>
