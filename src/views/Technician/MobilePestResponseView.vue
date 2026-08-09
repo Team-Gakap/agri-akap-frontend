@@ -254,7 +254,8 @@ import {
   hideScannerBackground,
   showScannerBackground,
 } from '@/composables/useNativeHardware';
-import { queuePestReport } from '@/services/syncService';
+import { db, newUuid } from '@/database/db';
+import { syncAllPendingData } from '@/services/syncService';
 import { useSyncStore } from '@/stores/syncStore';
 
 interface PestResponseState {
@@ -524,9 +525,13 @@ const submitReport = async () => {
   if (!canSubmit.value || submitting.value) return;
   submitting.value = true;
   try {
-    const farmerKey = state.target.farmerId || state.target.rsbsaNo || state.qrScanResult || '';
-    await queuePestReport({
-      farmer_id: farmerKey,
+    const rsbsaId = state.target.rsbsaNo || state.qrScanResult || state.target.farmerId || '';
+
+    // Offline-first: persist to IndexedDB before any network call
+    await db.offline_pest_reports.add({
+      client_id: newUuid(),
+      rsbsa_id: rsbsaId,
+      farmer_id: state.target.farmerId || undefined,
       crop: state.target.crop,
       pest_name: state.confirmedPest,
       incidence: state.incidencePct,
@@ -539,23 +544,19 @@ const submitReport = async () => {
       report_id: state.target.reportId,
       item_distributed: state.itemDistributed || undefined,
       quantity: state.quantity || undefined,
+      sync_status: 'pending',
+      created_at: new Date().toISOString(),
     });
-    await syncStore.refreshCount();
-    if (syncStore.online) {
-      void syncStore.sync();
-    }
 
-    let message = 'Saved Locally. Will sync when online.';
-    let color: 'success' | 'danger' = 'success';
-    if (state.escalateOutbreak) {
-      color = 'danger';
-      message += ' Outbreak flagged for MAO on sync.';
+    await syncStore.refreshCount();
+    if (navigator.onLine) {
+      void syncAllPendingData().then(() => syncStore.refreshCount());
     }
 
     const t = await toastController.create({
-      message,
-      duration: 3500,
-      color,
+      message: 'Saved locally. Will sync when online.',
+      duration: 2800,
+      color: state.escalateOutbreak ? 'danger' : 'success',
       position: 'top',
     });
     await t.present();

@@ -10,6 +10,7 @@ export {
   type OfflineSyncStatus,
   type PendingDistribution,
   type PendingAssessment,
+  type OfflineDistribution,
   type OfflinePlantingLog,
   type OfflinePestReport,
   type OfflineFarmProfile,

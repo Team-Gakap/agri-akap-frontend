@@ -1,11 +1,15 @@
 /* AGRI-AKAP global styles — LGU Design System
    Applies the flat, modern government-standard look across all pages. */
 
-/* Transparent WebView while continuous / overlay barcode scanners run */
+/* Transparent WebView so native camera feed shows through during QR scan */
+body.scanner-active,
 body.barcode-scanner-active {
   background: transparent !important;
   --background: transparent !important;
 }
+body.scanner-active ion-app,
+body.scanner-active ion-content,
+body.scanner-active .ion-page,
 body.barcode-scanner-active ion-app,
 body.barcode-scanner-active ion-content,
 body.barcode-scanner-active .ion-page {

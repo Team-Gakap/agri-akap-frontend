@@ -53,9 +53,9 @@ export async function ensureCameraPermission(): Promise<boolean> {
 
 /** Transparent WebView helpers for continuous camera scanners. */
 export function hideScannerBackground() {
-  document.querySelector('body')?.classList.add('barcode-scanner-active');
+  document.body.classList.add('scanner-active', 'barcode-scanner-active');
 }
 
 export function showScannerBackground() {
-  document.querySelector('body')?.classList.remove('barcode-scanner-active');
+  document.body.classList.remove('scanner-active', 'barcode-scanner-active');
 }

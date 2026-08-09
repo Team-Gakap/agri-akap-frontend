@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { isOnline, flushQueue, pendingCount } from '@/services/syncService';
+import { isOnline, syncAllPendingData, pendingCount } from '@/services/syncService';
 
 export const useSyncStore = defineStore('sync', () => {
   const online = ref(isOnline());
@@ -19,7 +19,7 @@ export const useSyncStore = defineStore('sync', () => {
     if (isSyncing.value || !online.value) return;
     isSyncing.value = true;
     try {
-      const { synced, failed } = await flushQueue();
+      const { synced, failed } = await syncAllPendingData();
       lastSyncAt.value = new Date().toISOString();
       if (synced || failed) {
         lastMessage.value = `Synced ${synced} record(s)` + (failed ? `, ${failed} failed` : '');
