@@ -81,6 +81,36 @@
           </ion-card-content>
         </ion-card>
 
+        <h3 class="section-title" v-if="plantingLogs.length">Planting Logs ({{ plantingLogs.length }})</h3>
+        <ion-card v-for="p in plantingLogs" :key="p.client_id" class="item-card">
+          <ion-card-content>
+            <div class="item-head">
+              <strong>{{ p.farmer_name || p.crop_type }}</strong>
+              <StatusBadge :status="p.sync_status" />
+            </div>
+            <p class="item-sub">{{ p.variety }} · {{ p.area_planted }} ha · {{ p.date_planted }}</p>
+            <p class="item-meta">Queued {{ formatDate(p.created_at) }}</p>
+            <ion-button size="small" fill="clear" color="danger" @click="removePlanting(p.id!)">
+              <ion-icon slot="start" :icon="trashOutline"></ion-icon> Discard
+            </ion-button>
+          </ion-card-content>
+        </ion-card>
+
+        <h3 class="section-title" v-if="pestReports.length">Pest Reports ({{ pestReports.length }})</h3>
+        <ion-card v-for="p in pestReports" :key="p.client_id" class="item-card">
+          <ion-card-content>
+            <div class="item-head">
+              <strong>{{ p.pest_name || p.crop }}</strong>
+              <StatusBadge :status="p.sync_status" />
+            </div>
+            <p class="item-sub">{{ p.severity }} · {{ p.incidence }}% · {{ p.is_outbreak ? 'Outbreak' : 'Routine' }}</p>
+            <p class="item-meta">Queued {{ formatDate(p.created_at) }}</p>
+            <ion-button size="small" fill="clear" color="danger" @click="removePest(p.id!)">
+              <ion-icon slot="start" :icon="trashOutline"></ion-icon> Discard
+            </ion-button>
+          </ion-card-content>
+        </ion-card>
+
         <EmptyState
           v-if="syncStore.pending === 0"
           variant="sync"
@@ -158,7 +188,13 @@ import {
 import {
   syncOutline, trashOutline, cloudDoneOutline, cloudOfflineOutline,
 } from 'ionicons/icons';
-import { db, type PendingDistribution, type PendingAssessment } from '@/services/db';
+import {
+  db,
+  type PendingDistribution,
+  type PendingAssessment,
+  type OfflinePlantingLog,
+  type OfflinePestReport,
+} from '@/services/db';
 import { useSyncStore } from '@/stores/syncStore';
 import axiosInstance from '@/utils/axios';
 import StatusBadge from '@/components/StatusBadge.vue';
@@ -167,6 +203,8 @@ import EmptyState from '@/components/EmptyState.vue';
 const syncStore = useSyncStore();
 const distributions = ref<PendingDistribution[]>([]);
 const assessments = ref<PendingAssessment[]>([]);
+const plantingLogs = ref<OfflinePlantingLog[]>([]);
+const pestReports = ref<OfflinePestReport[]>([]);
 const activeTab = ref('queue');
 let timer: number | undefined;
 
@@ -185,6 +223,8 @@ const contribData = ref<any>(null);
 const load = async () => {
   distributions.value = await db.pendingDistributions.orderBy('created_at').reverse().toArray();
   assessments.value = await db.pendingAssessments.orderBy('created_at').reverse().toArray();
+  plantingLogs.value = await db.offline_planting_logs.orderBy('created_at').reverse().toArray();
+  pestReports.value = await db.offline_pest_reports.orderBy('created_at').reverse().toArray();
   await syncStore.refreshCount();
 };
 
@@ -200,6 +240,16 @@ const removeDistribution = async (id: string) => {
 
 const removeAssessment = async (id: string) => {
   await db.pendingAssessments.delete(id);
+  await load();
+};
+
+const removePlanting = async (id: number) => {
+  await db.offline_planting_logs.delete(id);
+  await load();
+};
+
+const removePest = async (id: number) => {
+  await db.offline_pest_reports.delete(id);
   await load();
 };
 

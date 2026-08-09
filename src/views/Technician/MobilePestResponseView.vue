@@ -254,9 +254,12 @@ import {
   hideScannerBackground,
   showScannerBackground,
 } from '@/composables/useNativeHardware';
+import { queuePestReport } from '@/services/syncService';
+import { useSyncStore } from '@/stores/syncStore';
 
 interface PestResponseState {
   target: {
+    farmerId: string;
     farmerName: string;
     rsbsaNo: string;
     barangay: string;
@@ -281,6 +284,7 @@ interface PestResponseState {
 }
 
 const route = useRoute();
+const syncStore = useSyncStore();
 const capturingPhoto = ref(false);
 const lockingGps = ref(false);
 const submitting = ref(false);
@@ -306,6 +310,7 @@ const interventionItems = [
 
 /** Mock barangay-synced report — replace with API/queue payload later. */
 const defaultTarget = {
+  farmerId: '',
   farmerName: 'Reyes, Maria Lopez',
   rsbsaNo: '01-28-03-005-000034',
   barangay: 'San Fabian',
@@ -346,6 +351,7 @@ onMounted(() => {
     const report = getPestReportById(id);
     if (report) {
       state.target = {
+        farmerId: (report as any).farmerId || '',
         farmerName: report.farmerName,
         rsbsaNo: report.rsbsaNo,
         barangay: report.barangay,
@@ -359,6 +365,7 @@ onMounted(() => {
   }
 
   const q = route.query;
+  if (q.farmerId) state.target.farmerId = String(q.farmerId);
   if (q.farmer) state.target.farmerName = String(q.farmer);
   if (q.barangay) state.target.barangay = String(q.barangay);
   if (q.crop) state.target.crop = String(q.crop);
@@ -517,19 +524,47 @@ const submitReport = async () => {
   if (!canSubmit.value || submitting.value) return;
   submitting.value = true;
   try {
-    await new Promise((r) => setTimeout(r, 500));
+    const farmerKey = state.target.farmerId || state.target.rsbsaNo || state.qrScanResult || '';
+    await queuePestReport({
+      farmer_id: farmerKey,
+      crop: state.target.crop,
+      pest_name: state.confirmedPest,
+      incidence: state.incidencePct,
+      severity: state.severity,
+      advisory: state.advisories.join(', '),
+      is_outbreak: state.escalateOutbreak,
+      photo_base64: state.photoBase64,
+      lat: state.latitude,
+      lng: state.longitude,
+      report_id: state.target.reportId,
+      item_distributed: state.itemDistributed || undefined,
+      quantity: state.quantity || undefined,
+    });
+    await syncStore.refreshCount();
+    if (syncStore.online) {
+      void syncStore.sync();
+    }
 
-    let message = 'Inspection Logged. Synced to MAO Dashboard.';
+    let message = 'Saved Locally. Will sync when online.';
     let color: 'success' | 'danger' = 'success';
     if (state.escalateOutbreak) {
       color = 'danger';
-      message += ' Outbreak Alert Sent to MAO!';
+      message += ' Outbreak flagged for MAO on sync.';
     }
 
     const t = await toastController.create({
       message,
       duration: 3500,
       color,
+      position: 'top',
+    });
+    await t.present();
+  } catch (err) {
+    console.warn('[AGRI-AKAP] Failed to queue pest report:', err);
+    const t = await toastController.create({
+      message: 'Could not save locally. Please try again.',
+      duration: 2500,
+      color: 'danger',
       position: 'top',
     });
     await t.present();

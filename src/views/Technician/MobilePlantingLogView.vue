@@ -138,35 +138,13 @@ import {
   formatBirthday,
   type FarmerOption,
 } from '@/composables/useBarangayFarmerSearch';
-
-/** Mock queue shape aligned with future tbl_planting_logs. */
-interface PlantingLogPayload {
-  id: string;
-  source: 'technician_mobile';
-  farmer_id: string;
-  rsbsa_no: string;
-  surname: string;
-  first_name: string;
-  middle_name: string;
-  ext_name: string;
-  birthdate: string;
-  farmer_address: string;
-  crop: string;
-  variety: string;
-  area_planted: number;
-  date_of_planting: string;
-  planting_status: string;
-  water_source: string;
-  latitude: number | null;
-  longitude: number | null;
-  synced: false;
-  captured_at: string;
-}
+import { queuePlantingLog } from '@/services/syncService';
+import { useSyncStore } from '@/stores/syncStore';
 
 const farmerSearch = useBarangayFarmerSearch(() => null, { requireBarangay: false });
+const syncStore = useSyncStore();
 const capturingGps = ref(false);
 const saving = ref(false);
-const sessionQueue = ref<PlantingLogPayload[]>([]);
 
 const form = reactive({
   farmer_id: '',
@@ -245,33 +223,25 @@ const saveRecord = async () => {
   if (!canSave.value || saving.value) return;
   saving.value = true;
   try {
-    const payload: PlantingLogPayload = {
-      id: crypto.randomUUID(),
-      source: 'technician_mobile',
+    await queuePlantingLog({
       farmer_id: form.farmer_id,
       rsbsa_no: form.rsbsa_no,
-      surname: form.surname,
-      first_name: form.first_name,
-      middle_name: form.middle_name,
-      ext_name: form.ext_name,
-      birthdate: form.birthdate,
-      farmer_address: form.farmer_address,
-      crop: form.crop,
+      farmer_name: `${form.surname}, ${form.first_name} ${form.middle_name}`.trim(),
+      crop_type: form.crop,
       variety: form.variety,
       area_planted: Number(form.area_planted),
-      date_of_planting: form.date_of_planting,
-      planting_status: form.planting_status,
+      date_planted: form.date_of_planting,
+      status: form.planting_status,
       water_source: form.water_source,
       latitude: form.latitude,
       longitude: form.longitude,
-      synced: false,
-      captured_at: new Date().toISOString(),
-    };
-    sessionQueue.value.push(payload);
-    // Mock offline-first sync confirmation (no live API yet)
-    await new Promise((r) => setTimeout(r, 450));
+    });
+    await syncStore.refreshCount();
+    if (syncStore.online) {
+      void syncStore.sync();
+    }
     const t = await toastController.create({
-      message: 'Record Synced to LGU Masterlist',
+      message: 'Saved Locally. Will sync when online.',
       duration: 2800,
       color: 'success',
       position: 'top',
@@ -292,6 +262,15 @@ const saveRecord = async () => {
     form.ext_name = '';
     form.birthdate = '';
     form.farmer_address = '';
+  } catch (err) {
+    console.warn('[AGRI-AKAP] Failed to queue planting log:', err);
+    const t = await toastController.create({
+      message: 'Could not save locally. Please try again.',
+      duration: 2500,
+      color: 'danger',
+      position: 'top',
+    });
+    await t.present();
   } finally {
     saving.value = false;
   }
