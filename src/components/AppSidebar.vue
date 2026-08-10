@@ -63,7 +63,7 @@ import {
   homeOutline, homeSharp, leafOutline, leafSharp, personOutline, personSharp,
   idCardOutline, megaphoneOutline, warningOutline, documentTextOutline,
   cubeOutline, fileTrayStackedOutline, shieldCheckmarkOutline, logOutOutline, mapOutline, mapSharp,
-  analyticsOutline, analyticsSharp, cloudyOutline,
+  cloudyOutline,
 } from "ionicons/icons";
 import { useAuthStore } from "@/stores/authStore";
 import { useSyncStore } from "@/stores/syncStore";
@@ -81,8 +81,7 @@ interface NavPage {
 }
 
 const appPages: NavPage[] = [
-  { title: "Analytics Dashboard", url: "/admin/dashboard", iosIcon: homeOutline, mdIcon: homeSharp },
-  { title: "4-Tier Analytics", url: "/admin/analytics", iosIcon: analyticsOutline, mdIcon: analyticsSharp },
+  { title: "Dashboard", url: "/admin/dashboard", iosIcon: homeOutline, mdIcon: homeSharp },
   { title: "RSBSA Masterlist", url: "/admin/farmers", iosIcon: personOutline, mdIcon: personSharp },
   { title: "ID Issuance", url: "/admin/id-issuance", iosIcon: idCardOutline, mdIcon: idCardOutline },
   { title: "Inventory & Programs", url: "/admin/programs", iosIcon: cubeOutline, mdIcon: cubeOutline },
