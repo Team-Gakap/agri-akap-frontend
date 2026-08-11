@@ -5,7 +5,7 @@
         <ion-buttons slot="start">
           <ion-menu-button></ion-menu-button>
         </ion-buttons>
-        <ion-title>Hyper-Local Climate Monitor</ion-title>
+        <ion-title>Climate Monitor</ion-title>
         <ion-buttons slot="end">
           <ion-button fill="clear" :disabled="loading" @click="loadData">
             <ion-icon slot="icon-only" :icon="refreshOutline"></ion-icon>
@@ -18,9 +18,9 @@
       <div class="wrap">
         <header class="page-head">
           <div>
-            <h2>Hyper-Local Climate Monitor</h2>
+            <h2>Climate Monitor</h2>
             <p>
-              Bird’s-eye view of Echague barangays —
+              Climate view of Echague barangays —
               <span v-if="forecastDate">{{ forecastDate }}</span>
               <span v-if="usingMock"> · sample data</span>
             </p>
@@ -406,7 +406,7 @@ onMounted(loadData);
   color: #fff;
 }
 
-.leg.safe { background: #15803d; }
+.leg.safe { background: #163665; }
 .leg.watch { background: #ca8a04; }
 .leg.warn { background: #ea580c; }
 .leg.danger { background: #b91c1c; }
@@ -418,8 +418,8 @@ onMounted(loadData);
 
 .metric-segment ion-segment-button {
   --color: #1a4731;
-  --color-checked: #fff;
-  --indicator-color: #1a4731;
+  --color-checked: #44b319;
+  --indicator-color: #000000;
   min-width: 140px;
   font-size: 0.72rem;
   font-weight: 700;
@@ -428,7 +428,7 @@ onMounted(loadData);
 .metric-hint {
   margin: 0 0 1rem;
   font-size: 0.82rem;
-  color: #64748b;
+  color: #48515e;
 }
 
 .loading-box {
@@ -502,7 +502,7 @@ onMounted(loadData);
   margin-top: 0.35rem;
 }
 
-.lvl-safe { background: linear-gradient(145deg, #166534, #15803d); }
+.lvl-safe { background: linear-gradient(145deg, #163665, #163665); }
 .lvl-watch { background: linear-gradient(145deg, #a16207, #ca8a04); }
 .lvl-warn { background: linear-gradient(145deg, #c2410c, #ea580c); }
 .lvl-danger { background: linear-gradient(145deg, #991b1b, #dc2626); }

@@ -5,7 +5,7 @@
         <ion-buttons slot="start">
           <ion-menu-button></ion-menu-button>
         </ion-buttons>
-        <ion-title>MAO Command Center</ion-title>
+        <ion-title>Dashboard</ion-title>
         <ion-buttons slot="end">
           <ion-button :disabled="loading" @click="fetchOverview">
             <ion-icon slot="icon-only" :icon="refreshOutline"></ion-icon>
@@ -35,21 +35,18 @@
             <div class="kpi-grid">
               <ion-card class="kpi-card">
                 <ion-card-content>
-                  <ion-icon :icon="peopleOutline" class="kpi-icon"></ion-icon>
                   <p class="kpi-value">{{ fmt(dashboardData.descriptive?.total_farmers) }}</p>
                   <p class="kpi-label">Total Farmers</p>
                 </ion-card-content>
               </ion-card>
               <ion-card class="kpi-card gold">
                 <ion-card-content>
-                  <ion-icon :icon="leafOutline" class="kpi-icon"></ion-icon>
                   <p class="kpi-value">{{ fmt(dashboardData.descriptive?.total_hectares) }} <small>ha</small></p>
                   <p class="kpi-label">Active Hectares</p>
                 </ion-card-content>
               </ion-card>
               <ion-card class="kpi-card">
                 <ion-card-content>
-                  <ion-icon :icon="giftOutline" class="kpi-icon"></ion-icon>
                   <p class="kpi-value">{{ fmt(dashboardData.descriptive?.active_subsidies) }}</p>
                   <p class="kpi-label">Subsidy Releases (90d)</p>
                 </ion-card-content>

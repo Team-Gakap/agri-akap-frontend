@@ -18,7 +18,7 @@
       <div class="inv-wrapper">
 
         <div class="page-intro">
-          <h2>Executive Inventory Control</h2>
+          <h2>Inventory Control</h2>
           <p>Log incoming regional deliveries, set minimum reorder limits, and map active distribution cycles to target barangays.</p>
         </div>
 

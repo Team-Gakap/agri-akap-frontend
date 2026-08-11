@@ -341,6 +341,7 @@ onMounted(async () => {
 }
 
 .panel-head h3 {
+  color: #d1e0d6;
   margin: 0;
   font-size: 1rem;
   font-weight: 600;

@@ -12,7 +12,7 @@
     <ion-content class="page-bg ion-padding">
       <div class="wrap">
         <div class="header-section">
-          <h2>Hyper-Local Agro-Meteorology</h2>
+          <h2>Agro-Meteorology</h2>
           <p>Open-Meteo forecasts for all 64 Echague barangays — ET0, root-zone moisture, and wind for spraying advisories.</p>
         </div>
 

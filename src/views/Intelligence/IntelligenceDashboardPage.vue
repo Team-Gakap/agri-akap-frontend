@@ -17,7 +17,7 @@
     <ion-content class="auth-bg ion-padding">
       <div class="dashboard-wrapper">
         <div class="header-section mb-4">
-          <h2>Threat & Soil Monitoring</h2>
+          <h2>Soil Monitoring</h2>
           <p class="text-muted">Live pest alerts and monoculture rotation risks across the municipality.</p>
         </div>
 

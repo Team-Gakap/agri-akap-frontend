@@ -3,7 +3,7 @@
     <ion-card-content>
       <div class="weather-head">
         <div class="head-copy">
-          <p class="eyebrow">Hyper-Local Climate · Echague</p>
+          <p class="eyebrow">Climate · Echague</p>
           <h3 class="title">{{ today?.status || 'Weather' }}</h3>
           <p class="date" v-if="today">{{ formatDate(today.forecast_date) }} · {{ selectedBarangay }}</p>
         </div>

@@ -88,10 +88,10 @@ const appPages: NavPage[] = [
   { title: "Stock Management", url: "/admin/inventory", iosIcon: fileTrayStackedOutline, mdIcon: fileTrayStackedOutline },
   { title: "SMS Broadcast", url: "/admin/broadcasts", iosIcon: megaphoneOutline, mdIcon: megaphoneOutline },
   { title: "Agricultural Intelligence", url: "/admin/intelligence", iosIcon: leafOutline, mdIcon: leafSharp },
-  { title: "Precision Weather", url: "/admin/weather", iosIcon: cloudyOutline, mdIcon: cloudyOutline },
+  { title: "Weather", url: "/admin/weather", iosIcon: cloudyOutline, mdIcon: cloudyOutline },
   { title: "GIS Map", url: "/admin/map", iosIcon: mapOutline, mdIcon: mapSharp },
   { title: "Damage Review", url: "/admin/damage-review", iosIcon: shieldCheckmarkOutline, mdIcon: shieldCheckmarkOutline },
-  { title: "Executive Reporting", url: "/admin/executive-reporting", iosIcon: documentTextOutline, mdIcon: documentTextOutline },
+  { title: "Reporting", url: "/admin/executive-reporting", iosIcon: documentTextOutline, mdIcon: documentTextOutline },
   { title: "Statutory Reports", url: "/admin/reports", iosIcon: documentTextOutline, mdIcon: documentTextOutline },
 ];
 

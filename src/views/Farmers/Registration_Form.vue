@@ -434,7 +434,7 @@
                 <ion-button fill="outline" size="small" class="gps-btn mt6"
                   :disabled="plot.locating" @click="useCurrentLocation(idx)">
                   <span v-if="plot.locating">Locating…</span>
-                  <span v-else>📍 Use current location</span>
+                  <span v-else>Use current location</span>
                 </ion-button>
               </div>
             </div>
