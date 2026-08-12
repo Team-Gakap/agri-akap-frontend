@@ -5,7 +5,7 @@
         <ion-buttons slot="start">
           <ion-menu-button></ion-menu-button>
         </ion-buttons>
-        <ion-title>RSBSA Registry</ion-title>
+        <ion-title>Manage Farmers</ion-title>
         <ion-buttons slot="end">
           <ion-button fill="clear" @click="goToRegistration">
             <ion-icon slot="icon-only" :icon="addOutline"></ion-icon>

@@ -36,19 +36,19 @@
               <ion-card class="kpi-card">
                 <ion-card-content>
                   <p class="kpi-value">{{ fmt(dashboardData.descriptive?.total_farmers) }}</p>
-                  <p class="kpi-label">Total Farmers</p>
+                  <p class="kpi-label">Registered Farmers</p>
                 </ion-card-content>
               </ion-card>
               <ion-card class="kpi-card gold">
                 <ion-card-content>
                   <p class="kpi-value">{{ fmt(dashboardData.descriptive?.total_hectares) }} <small>ha</small></p>
-                  <p class="kpi-label">Active Hectares</p>
+                  <p class="kpi-label">Cultivated Land Area</p>
                 </ion-card-content>
               </ion-card>
               <ion-card class="kpi-card">
                 <ion-card-content>
                   <p class="kpi-value">{{ fmt(dashboardData.descriptive?.active_subsidies) }}</p>
-                  <p class="kpi-label">Subsidy Releases (90d)</p>
+                  <p class="kpi-label">Recent Distributions (90d)</p>
                 </ion-card-content>
               </ion-card>
             </div>
@@ -58,7 +58,7 @@
             <div class="mid-col"> 
               <ion-card class="panel-card">
                 <ion-card-header>
-                  <ion-card-title>Pest / Damage by Crop Stage</ion-card-title>
+                  <ion-card-title>Crop Health Incidents</ion-card-title>
                 </ion-card-header>
                 <ion-card-content>
                   <div class="chart-box">
@@ -72,7 +72,7 @@
             <div class="mid-col">
               <ion-card class="panel-card">
                 <ion-card-header>
-                  <ion-card-title>Upcoming Harvest Projections</ion-card-title>
+                  <ion-card-title>Harvest Forecasts</ion-card-title>
                 </ion-card-header>
                 <ion-card-content>
                   <div class="chart-box">
@@ -158,7 +158,7 @@
                 :auto-grow="true"
                 :value="smsForm.message"
                 @ionInput="(e: any) => smsForm.message = e.detail.value"
-                rows=6
+                rows =6
               ></ion-textarea>
             </ion-item>
           </ion-list>

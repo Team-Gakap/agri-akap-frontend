@@ -59,12 +59,23 @@ import {
   IonContent, IonIcon, IonItem, IonLabel, IonList, IonMenu, IonMenuToggle,
   IonTitle, IonToolbar, IonHeader, IonBadge,
 } from "@ionic/vue";
+
+// Imported the updated, context-accurate icons
 import {
-  homeOutline, homeSharp, leafOutline, leafSharp, personOutline, personSharp,
-  idCardOutline, megaphoneOutline, warningOutline, documentTextOutline,
-  cubeOutline, fileTrayStackedOutline, shieldCheckmarkOutline, logOutOutline, mapOutline, mapSharp,
-  cloudyOutline,
+  homeOutline, homeSharp, 
+  peopleOutline, peopleSharp, 
+  idCardOutline, 
+  cubeOutline, 
+  fileTrayStackedOutline, 
+  chatbubbleEllipsesOutline, 
+  barChartOutline, barChartSharp, 
+  mapOutline, mapSharp,
+  clipboardOutline, clipboardSharp, 
+  documentTextOutline, documentTextSharp,
+  cloudyOutline, 
+  warningOutline, logOutOutline
 } from "ionicons/icons";
+
 import { useAuthStore } from "@/stores/authStore";
 import { useSyncStore } from "@/stores/syncStore";
 
@@ -80,25 +91,27 @@ interface NavPage {
   badge?: boolean;
 }
 
+// Strictly noun-based labels and filtered scope
 const appPages: NavPage[] = [
   { title: "Dashboard", url: "/admin/dashboard", iosIcon: homeOutline, mdIcon: homeSharp },
-  { title: "RSBSA Masterlist", url: "/admin/farmers", iosIcon: personOutline, mdIcon: personSharp },
-  { title: "ID Issuance", url: "/admin/id-issuance", iosIcon: idCardOutline, mdIcon: idCardOutline },
-  { title: "Inventory & Programs", url: "/admin/programs", iosIcon: cubeOutline, mdIcon: cubeOutline },
-  { title: "Stock Management", url: "/admin/inventory", iosIcon: fileTrayStackedOutline, mdIcon: fileTrayStackedOutline },
-  { title: "SMS Broadcast", url: "/admin/broadcasts", iosIcon: megaphoneOutline, mdIcon: megaphoneOutline },
-  { title: "Agricultural Intelligence", url: "/admin/intelligence", iosIcon: leafOutline, mdIcon: leafSharp },
+  { title: "Farmer Registry", url: "/admin/farmers", iosIcon: peopleOutline, mdIcon: peopleSharp },
+  { title: "ID Card Production", url: "/admin/id-issuance", iosIcon: idCardOutline, mdIcon: idCardOutline },
+  { title: "Subsidy Campaigns", url: "/admin/programs", iosIcon: cubeOutline, mdIcon: cubeOutline },
+  { title: "Warehouse Inventory", url: "/admin/inventory", iosIcon: fileTrayStackedOutline, mdIcon: fileTrayStackedOutline },
+  { title: "Text Notifications", url: "/admin/broadcasts", iosIcon: chatbubbleEllipsesOutline, mdIcon: chatbubbleEllipsesOutline },
   { title: "Weather", url: "/admin/weather", iosIcon: cloudyOutline, mdIcon: cloudyOutline },
-  { title: "GIS Map", url: "/admin/map", iosIcon: mapOutline, mdIcon: mapSharp },
-  { title: "Damage Review", url: "/admin/damage-review", iosIcon: shieldCheckmarkOutline, mdIcon: shieldCheckmarkOutline },
-  { title: "Reporting", url: "/admin/executive-reporting", iosIcon: documentTextOutline, mdIcon: documentTextOutline },
-  { title: "Statutory Reports", url: "/admin/reports", iosIcon: documentTextOutline, mdIcon: documentTextOutline },
+  { title: "Crop Analytics", url: "/admin/intelligence", iosIcon: barChartOutline, mdIcon: barChartSharp },
+  { title: "Farm Mapping", url: "/admin/map", iosIcon: mapOutline, mdIcon: mapSharp },
+  { title: "Damage Assessments", url: "/admin/damage-review", iosIcon: clipboardOutline, mdIcon: clipboardSharp },
+  { title: "Executive Reports", url: "/admin/executive-reporting", iosIcon: documentTextOutline, mdIcon: documentTextSharp },
+  { title: "Official Documents", url: "/admin/reports", iosIcon: documentTextOutline, mdIcon: documentTextSharp },
 ];
 
 const handleLogout = () => authStore.logout();
 </script>
 
 <style scoped>
+/* Keeping your existing styles exactly as they were */
 .brand {
   display: flex;
   flex-direction: column;
@@ -159,5 +172,4 @@ ion-content {
   .menu-label { display: none !important; }
   .sidebar-icon { font-size: 22px; margin: 0 auto !important; margin-inline-end: 0 !important; }
   ion-item ion-icon[slot="start"] { margin: 0 auto !important; margin-inline-end: 0 !important; }
-}
-</style>
+}</style>

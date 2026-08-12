@@ -5,7 +5,7 @@
         <ion-buttons slot="start">
           <ion-menu-button></ion-menu-button>
         </ion-buttons>
-        <ion-title>RSBSA Farmer Masterlist</ion-title>
+        <ion-title>Farmer Registry</ion-title>
         <ion-buttons slot="end">
           <ion-button fill="clear" @click="router.push('/admin/farmers/register')">
             <ion-icon slot="icon-only" :icon="addOutline"></ion-icon>
@@ -27,7 +27,7 @@
         <div class="toolbar-row">
           <div>
             <h1>Official Registry</h1>
-            <p>Upload the DA RSBSA Excel masterlist or browse enrolled farmers.</p>
+            <p>DA Masterlist and Farmer Database</p>
           </div>
           <div class="actions">
             <input
@@ -61,18 +61,18 @@
 
         <div v-else class="table-card">
           <div class="table-meta">
-            <span>{{ meta.total.toLocaleString() }} farmers</span>
+            <span>Total registered farmers: {{ meta.total.toLocaleString() }}</span>
             <span v-if="search">Filtered by “{{ search }}”</span>
           </div>
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>RSBSA No.</th>
+                  <th>RSBSA Reference Number</th>
                   <th>Farmer Name</th>
                   <th>Barangay</th>
-                  <th>Mobile</th>
-                  <th>Plots</th>
+                  <th>Contact Number</th>
+                  <th>Registered Parcels</th>
                 </tr>
               </thead>
               <tbody>
