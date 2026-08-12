@@ -17,7 +17,7 @@
              ═══════════════════════════════════════════════════════ -->
         <div class="header-section no-print">
           <h2>Farmer ID Issuance</h2>
-          <p class="text-muted">Filter, select, and batch-print official RSBSA QR identification cards.</p>
+          <p class="text-muted">Card Selection and Printing Options</p>
           <div class="color-legend">
             <span class="legend-title">ID Color Codes:</span>
             <span class="legend-item"><span class="swatch" :style="{ background: CATEGORY.regular.color }"></span>Regular</span>
@@ -38,7 +38,7 @@
                   <!-- 1. Filter Bar: Search + Barangay -->
                   <div class="list-filter-bar">
                     <ion-searchbar
-                      placeholder="Search name or RSBSA..."
+                      placeholder="Farmer Name or RSBSA Number"
                       @ionInput="handleSearch"
                       :debounce="400"
                       class="list-searchbar"
@@ -67,7 +67,7 @@
                       @change="toggleSelectAll"
                     />
                     <span class="select-all-label">
-                      {{ selectedIds.size > 0 ? `${selectedIds.size} selected` : 'Select All' }}
+                      {{ selectedIds.size > 0 ? `${selectedIds.size} selected` : 'All Farmers' }}
                     </span>
                     <span v-if="selectedIds.size > 0" class="clear-link" @click="clearSelection">Clear</span>
                   </div>
@@ -140,7 +140,7 @@
                   </div>
                   <ion-button color="dark" size="small" @click="printSingleId(previewFarmer)">
                     <ion-icon slot="start" :icon="printOutline"></ion-icon>
-                    Print This ID
+                    Printout
                   </ion-button>
                 </div>
 
@@ -224,7 +224,7 @@
               </div>
               <button class="bulk-print-btn" @click="printBatchIds">
                 <ion-icon :icon="printOutline"></ion-icon>
-                Print {{ selectedIds.size }} Selected ID{{ selectedIds.size !== 1 ? 's' : '' }}
+                Print Batch
               </button>
             </div>
           </div>
