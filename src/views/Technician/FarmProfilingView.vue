@@ -5,7 +5,7 @@
         <ion-buttons slot="start">
           <ion-menu-button></ion-menu-button>
         </ion-buttons>
-        <ion-title>Farm Profiling</ion-title>
+        <ion-title>Measure Farm</ion-title>
         <ion-buttons slot="end">
           <ion-button @click="refreshLocation" :disabled="locating">
             <ion-icon slot="icon-only" :icon="locateOutline"></ion-icon>
@@ -32,7 +32,7 @@
       <div class="ion-padding panel">
         <ion-button expand="block" class="geotag-link" router-link="/tech/geo-tag">
           <ion-icon slot="start" :icon="locateOutline"></ion-icon>
-          Register Farm Geo-Tag
+          Pin Farm Location
         </ion-button>
 
         <!-- Perimeter walk -->

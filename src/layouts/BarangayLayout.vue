@@ -60,13 +60,13 @@ const authStore = useAuthStore();
 const route = useRoute();
 
 const pages = [
-  { title: 'Barangay Dashboard', url: '/brgy/dashboard', icon: homeOutline },
-  { title: 'Farmer Masterlist', url: '/brgy/farmers', icon: peopleOutline },
-  { title: 'Master Seasonal Planting Log', url: '/brgy/planting-ledger', icon: leafOutline },
-  { title: 'Pest & Disease Monitoring Log', url: '/brgy/pest-monitoring', icon: bugOutline },
-  { title: 'Standing Crop Log', url: '/brgy/standing-crop', icon: flowerOutline },
-  { title: 'Harvesting Log', url: '/brgy/harvesting', icon: basketOutline },
-  { title: 'Damage & Calamity Assessment', url: '/brgy/calamity-assessment', icon: thunderstormOutline },
+  { title: 'Dashboard', url: '/brgy/dashboard', icon: homeOutline },
+  { title: 'Farmers', url: '/brgy/farmers', icon: peopleOutline },
+  { title: 'Planting Records', url: '/brgy/planting-ledger', icon: leafOutline },
+  { title: 'Pest Reports', url: '/brgy/pest-monitoring', icon: bugOutline },
+  { title: 'Standing Crops', url: '/brgy/standing-crop', icon: flowerOutline },
+  { title: 'Harvest Records', url: '/brgy/harvesting', icon: basketOutline },
+  { title: 'Calamity Damage', url: '/brgy/calamity-assessment', icon: thunderstormOutline },
   { title: 'Damage Review', url: '/brgy/damage-review', icon: shieldCheckmarkOutline },
 ];
 

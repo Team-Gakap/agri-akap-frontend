@@ -5,12 +5,12 @@
         <ion-buttons slot="start">
           <ion-back-button default-href="/tech/dashboard"></ion-back-button>
         </ion-buttons>
-        <ion-title>Farmer Directory</ion-title>
+        <ion-title>Find Farmer</ion-title>
       </ion-toolbar>
       <ion-toolbar color="primary">
         <ion-searchbar
           v-model="query"
-          placeholder="Type RSBSA or last name…"
+          placeholder="Type farmer number or last name…"
           :debounce="450"
           show-clear-button="focus"
           @ionInput="onSearch"
@@ -21,7 +21,7 @@
 
     <ion-content class="page-bg">
       <p class="hint">
-        Search the Echague RSBSA registry. Results load only when you type (not the full list).
+        Search farmers in Echague. Results appear when you type.
       </p>
 
       <div v-if="!query.trim()" class="idle">
@@ -93,7 +93,7 @@ const formatName = (f: any) => {
 
 const sheetButtons = computed(() => [
   {
-    text: 'Dispense Subsidy',
+    text: 'Give Subsidy',
     handler: () => {
       const id = selected.value?.id;
       if (!id) return;
@@ -101,7 +101,7 @@ const sheetButtons = computed(() => [
     },
   },
   {
-    text: 'Open Scanner / Release',
+    text: 'Scan ID / Release',
     handler: () => {
       const id = selected.value?.id;
       if (!id) return;
@@ -109,7 +109,7 @@ const sheetButtons = computed(() => [
     },
   },
   {
-    text: 'View Profile (ID Issuance context)',
+    text: 'View Farmer Profile',
     handler: () => {
       const id = selected.value?.id;
       if (!id) return;

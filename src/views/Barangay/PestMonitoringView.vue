@@ -5,11 +5,11 @@
         <ion-buttons slot="start">
           <ion-menu-button></ion-menu-button>
         </ion-buttons>
-        <ion-title>Pest &amp; Disease Monitoring Log</ion-title>
+        <ion-title>Pest Reports</ion-title>
         <ion-buttons slot="end">
           <ion-button class="export-btn no-print" :disabled="!entries.length" @click="exportForm">
             <ion-icon slot="start" :icon="printOutline"></ion-icon>
-            Export Official Form
+            Print Form
           </ion-button>
         </ion-buttons>
       </ion-toolbar>
@@ -23,18 +23,19 @@
 
         <ion-select
           class="field crop-field"
-          label="Crop (print header)"
+          label="Crop Type"
           label-placement="stacked"
           interface="popover"
           :value="crop"
-          @ionChange="(e: any) => crop = e.detail.value"
+          @ionChange="onCropChange"
         >
           <ion-select-option value="Corn">Corn</ion-select-option>
           <ion-select-option value="Rice">Rice</ion-select-option>
         </ion-select>
 
         <div class="form-card">
-          <h3>Encode Inspection</h3>
+          <h3>Add Report — {{ crop }}</h3>
+          <p class="crop-hint">Only farmers with a {{ crop }} farm plot can be added on this form.</p>
 
           <div class="search-box">
             <ion-input
@@ -72,12 +73,12 @@
               label-placement="stacked"
               interface="popover"
               :value="form.plot_id"
-              :disabled="!farmerSearch.selected.value"
+              :disabled="!farmerSearch.selected.value || !matchingPlots.length"
               @ionChange="onPlotChange"
             >
-              <ion-select-option value="">Select plot</ion-select-option>
+              <ion-select-option value="">Select {{ crop }} plot</ion-select-option>
               <ion-select-option
-                v-for="p in farmerSearch.selected.value?.plots || []"
+                v-for="p in matchingPlots"
                 :key="p.id"
                 :value="p.id"
               >
@@ -98,7 +99,7 @@
           </div>
 
           <ion-button expand="block" class="add-btn" :disabled="!canAdd" @click="addEntry">
-            Add to Ledger
+            {{ saving ? 'Saving…' : 'Add to Ledger' }}
           </ion-button>
         </div>
 
@@ -155,7 +156,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, defineAsyncComponent } from 'vue';
+import { ref, reactive, computed, defineAsyncComponent, onMounted } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
   IonButton, IonIcon, IonInput, IonSelect, IonSelectOption, toastController,
@@ -168,10 +169,13 @@ import {
   type FarmerOption,
 } from '@/composables/useBarangayFarmerSearch';
 import EmptyState from '@/components/EmptyState.vue';
+import apiClient from '@/utils/axios';
 const PestMonitoringPrint = defineAsyncComponent(() => import('@/components/PestMonitoringPrint.vue'));
 
 interface PestEntry {
   id: string;
+  farmer_id?: string;
+  plot_id?: string;
   rsbsa_no: string;
   surname: string;
   first_name: string;
@@ -191,11 +195,14 @@ interface PestEntry {
 
 const authStore = useAuthStore();
 const assignedBarangay = computed(() => authStore.user?.assigned_barangay || null);
-const farmerSearch = useBarangayFarmerSearch(() => assignedBarangay.value);
-
 const crop = ref('Corn');
+const farmerSearch = useBarangayFarmerSearch(() => assignedBarangay.value, {
+  commodity: () => crop.value,
+});
+
 const entries = ref<PestEntry[]>([]);
 const printRows = ref<any[]>([]);
+const saving = ref(false);
 
 const form = reactive({
   farmer_id: '',
@@ -218,19 +225,82 @@ const form = reactive({
   photo_preview: null as string | null,
 });
 
+const matchingPlots = computed(() => farmerSearch.plotsForCommodity(crop.value));
+
 const canAdd = computed(() =>
   !!form.farmer_id
+  && !!form.plot_id
   && !!form.area_planted
   && !!form.days_after_planting
   && form.area_damage_pct !== ''
   && !!form.damage_by
   && !!form.date_of_inspection
+  && !saving.value
 );
+
+const mapFarmerAddress = (f: any) =>
+  [f?.permanent_house_no, f?.permanent_street, f?.permanent_brgy, f?.permanent_city, f?.permanent_province]
+    .filter(Boolean)
+    .join(', ') || f?.permanent_brgy || '';
+
+const loadLedger = async () => {
+  try {
+    const res = await apiClient.get('/pest-monitoring', {
+      params: { per_page: 200, crop_type: crop.value || undefined },
+    });
+    const rows = res.data?.data?.data ?? [];
+    entries.value = rows.map((r: any) => {
+      const farmer = r.farmer || {};
+      return {
+        id: r.id,
+        farmer_id: r.farmer_id,
+        plot_id: r.farm_plot_id || '',
+        rsbsa_no: farmer.rsbsa_no || '',
+        surname: farmer.surname || '',
+        first_name: farmer.first_name || '',
+        middle_name: farmer.middle_name || '',
+        ext_name: farmer.ext_name || '',
+        birthdate_display: formatBirthday(farmer.birthdate || ''),
+        farmer_address: mapFarmerAddress(farmer),
+        farm_location: r.farm_location || r.farm_plot?.location_brgy || farmer.permanent_brgy || '',
+        area_planted: Number(r.area_planted) || 0,
+        variety: r.variety || '',
+        days_after_planting: Number(r.days_after_planting) || 0,
+        area_damage_pct: Number(r.area_damage_pct ?? r.incidence) || 0,
+        damage_by: r.pest_name || '',
+        date_of_inspection: r.date_of_inspection?.slice?.(0, 10) || r.date_of_inspection || '',
+        photo_preview: null,
+      } as PestEntry;
+    });
+  } catch {
+    entries.value = [];
+  }
+};
+
+const onCropChange = async (e: any) => {
+  crop.value = e.detail.value;
+  resetForm();
+  await loadLedger();
+};
 
 const onSelectFarmer = async (f: FarmerOption) => {
   await farmerSearch.selectFarmer(f);
   const sel = farmerSearch.selected.value;
   if (!sel) return;
+
+  const plots = farmerSearch.plotsForCommodity(crop.value);
+  if (!plots.length) {
+    farmerSearch.clearSelection();
+    const t = await toastController.create({
+      message: `This farmer has no ${crop.value} plot. Switch Crop Type or choose another farmer.`,
+      color: 'warning',
+      duration: 2800,
+      position: 'top',
+    });
+    await t.present();
+    return;
+  }
+
   form.farmer_id = sel.id;
   form.rsbsa_no = sel.rsbsa_no;
   form.surname = sel.surname;
@@ -243,23 +313,19 @@ const onSelectFarmer = async (f: FarmerOption) => {
   form.plot_id = '';
   form.farm_location = sel.barangay;
   form.area_planted = '';
-  if (sel.plots.length === 1) {
-    form.plot_id = sel.plots[0].id;
-    form.farm_location = sel.plots[0].location_brgy || sel.barangay;
-    form.area_planted = String(sel.plots[0].size_ha || '');
-    if (sel.plots[0].commodity === 'Corn' || sel.plots[0].commodity === 'Rice') {
-      crop.value = sel.plots[0].commodity;
-    }
+  if (plots.length === 1) {
+    form.plot_id = plots[0].id;
+    form.farm_location = plots[0].location_brgy || sel.barangay;
+    form.area_planted = String(plots[0].size_ha || '');
   }
 };
 
 const onPlotChange = (e: any) => {
   form.plot_id = e.detail.value;
-  const p = farmerSearch.selected.value?.plots.find((x) => x.id === form.plot_id);
+  const p = matchingPlots.value.find((x) => x.id === form.plot_id);
   if (p) {
     form.farm_location = p.location_brgy || form.farm_location;
     form.area_planted = String(p.size_ha || form.area_planted);
-    if (p.commodity === 'Corn' || p.commodity === 'Rice') crop.value = p.commodity;
   }
 };
 
@@ -301,27 +367,69 @@ const resetForm = () => {
 
 const addEntry = async () => {
   if (!canAdd.value) return;
-  entries.value.push({
-    id: crypto.randomUUID(),
-    rsbsa_no: form.rsbsa_no,
-    surname: form.surname,
-    first_name: form.first_name,
-    middle_name: form.middle_name,
-    ext_name: form.ext_name,
-    birthdate_display: form.birthdate_display,
-    farmer_address: form.farmer_address,
-    farm_location: form.farm_location,
-    area_planted: Number(form.area_planted),
-    variety: form.variety,
-    days_after_planting: Number(form.days_after_planting),
-    area_damage_pct: Number(form.area_damage_pct),
-    damage_by: form.damage_by,
-    date_of_inspection: form.date_of_inspection,
-    photo_preview: form.photo_preview,
-  });
-  resetForm();
-  const t = await toastController.create({ message: 'Inspection added.', color: 'success', duration: 1800, position: 'top' });
-  await t.present();
+  const plotOk = matchingPlots.value.some((p) => p.id === form.plot_id);
+  if (!plotOk) {
+    const t = await toastController.create({
+      message: `Select a ${crop.value} farm plot before encoding.`,
+      color: 'warning',
+      duration: 2400,
+      position: 'top',
+    });
+    await t.present();
+    return;
+  }
+  saving.value = true;
+  const id = crypto.randomUUID();
+  try {
+    await apiClient.post('/pest-monitoring', {
+      id,
+      farmer_id: form.farmer_id,
+      farm_plot_id: form.plot_id || undefined,
+      crop: crop.value,
+      variety: form.variety || undefined,
+      area_planted: Number(form.area_planted),
+      days_after_planting: Number(form.days_after_planting),
+      area_damage_pct: Number(form.area_damage_pct),
+      damage_by: form.damage_by,
+      date_of_inspection: form.date_of_inspection,
+      farm_location: form.farm_location,
+      photo_base64: form.photo_preview || undefined,
+    });
+
+    entries.value.unshift({
+      id,
+      farmer_id: form.farmer_id,
+      plot_id: form.plot_id,
+      rsbsa_no: form.rsbsa_no,
+      surname: form.surname,
+      first_name: form.first_name,
+      middle_name: form.middle_name,
+      ext_name: form.ext_name,
+      birthdate_display: form.birthdate_display,
+      farmer_address: form.farmer_address,
+      farm_location: form.farm_location,
+      area_planted: Number(form.area_planted),
+      variety: form.variety,
+      days_after_planting: Number(form.days_after_planting),
+      area_damage_pct: Number(form.area_damage_pct),
+      damage_by: form.damage_by,
+      date_of_inspection: form.date_of_inspection,
+      photo_preview: form.photo_preview,
+    });
+    resetForm();
+    const t = await toastController.create({ message: 'Pest inspection saved.', color: 'success', duration: 1800, position: 'top' });
+    await t.present();
+  } catch (e: any) {
+    const t = await toastController.create({
+      message: e?.response?.data?.message || 'Failed to save pest inspection.',
+      color: 'danger',
+      duration: 2800,
+      position: 'top',
+    });
+    await t.present();
+  } finally {
+    saving.value = false;
+  }
 };
 
 const removeEntry = (i: number) => {
@@ -347,6 +455,10 @@ const exportForm = async () => {
   }));
   setTimeout(() => window.print(), 350);
 };
+
+onMounted(() => {
+  void loadLedger();
+});
 </script>
 
 <style scoped>
@@ -368,6 +480,7 @@ const exportForm = async () => {
   padding: 1rem; margin-bottom: 1rem;
 }
 .form-card h3, .table-card h3 { margin: 0 0 0.75rem; color: #1a4731; font-weight: 800; }
+.crop-hint { margin: -0.35rem 0 0.85rem; font-size: 0.82rem; color: #64748b; }
 .search-box { position: relative; margin-bottom: 0.75rem; }
 .hint { font-size: 0.8rem; color: #94a3b8; margin-top: 4px; }
 .suggest {

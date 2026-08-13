@@ -5,21 +5,21 @@
         <ion-buttons slot="start">
           <ion-menu-button></ion-menu-button>
         </ion-buttons>
-        <ion-title>Extension Services</ion-title>
+        <ion-title>Farmer Training</ion-title>
       </ion-toolbar>
     </ion-header>
 
     <ion-content class="ion-padding page-bg">
-      <p class="lede">Community outreach and LGU field forms for on-site encoding.</p>
+      <p class="lede">Record planting and pest visits while you are in the field.</p>
 
-      <h3 class="section">LGU Field Forms</h3>
+      <h3 class="section">Field Forms</h3>
       <ion-card class="hub-card" button @click="router.push('/tech/planting-log')">
         <ion-card-content>
           <div class="hub-row">
             <ion-icon :icon="leafOutline" class="hub-icon"></ion-icon>
             <div>
-              <h2>Planting Log</h2>
-              <p>Rice/Corn · status · water source · GPS</p>
+              <h2>Planting Records</h2>
+              <p>Rice or corn · status · water source</p>
             </div>
           </div>
         </ion-card-content>
@@ -30,8 +30,8 @@
           <div class="hub-row">
             <ion-icon :icon="bugOutline" class="hub-icon pest"></ion-icon>
             <div>
-              <h2>Pest &amp; Disease Validation</h2>
-              <p>Damage % · GPS pin · photo evidence</p>
+              <h2>Check Pests</h2>
+              <p>Damage, location, and photo</p>
             </div>
           </div>
         </ion-card-content>

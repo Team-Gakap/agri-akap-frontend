@@ -22,7 +22,7 @@
     <ion-content class="exec-content ion-padding">
       <div class="suite-header no-print">
         <h2>MAO Executive Reporting</h2>
-        <p>Aggregate barangay-encoded planting, pest, and damage data for official LGU export.</p>
+        <p>Live planting, pest, and damage records encoded by barangay officials (and field sync).</p>
       </div>
 
       <ion-segment
@@ -92,7 +92,15 @@
           <span class="row-badge">{{ filteredRows.length }} row(s)</span>
         </div>
 
-        <div class="table-scroll">
+        <div v-if="loading" class="table-state">
+          <ion-spinner name="crescent" color="primary"></ion-spinner>
+          <p>Loading encoded records…</p>
+        </div>
+        <div v-else-if="loadError" class="table-state error">
+          <p>{{ loadError }}</p>
+          <ion-button size="small" @click="fetchRows">Retry</ion-button>
+        </div>
+        <div v-else class="table-scroll">
           <table class="data-table">
             <thead>
               <tr>
@@ -104,7 +112,7 @@
             <tbody>
               <tr v-if="!filteredRows.length">
                 <td :colspan="activeColumns.length" class="empty-cell">
-                  No records match the current filters. Adjust barangay, date range, or crop type.
+                  No encoded records match the current filters. Encode planting, pest, or calamity data in the Barangay Portal, then refresh.
                 </td>
               </tr>
               <tr v-for="(row, i) in filteredRows" :key="i">
@@ -139,7 +147,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import {
   IonPage,
   IonHeader,
@@ -156,6 +164,7 @@ import {
   IonSelect,
   IonSelectOption,
   IonInput,
+  IonSpinner,
   toastController,
 } from '@ionic/vue';
 import { printOutline } from 'ionicons/icons';
@@ -165,9 +174,10 @@ import {
   REPORT_CATEGORY_LABELS,
   type ExecutiveReportCategory,
 } from '@/constants/executiveReportingColumns';
-import { filterMockExecutiveRows, type ExecutiveReportRow } from '@/data/executiveReportingMock';
 import apiClient from '@/utils/axios';
 import { useAuthStore } from '@/stores/authStore';
+
+export type ExecutiveReportRow = Record<string, string | number>;
 
 const categories: { id: ExecutiveReportCategory; shortLabel: string }[] = [
   { id: 'crop_production', shortLabel: 'Crop Production' },
@@ -179,11 +189,14 @@ const categories: { id: ExecutiveReportCategory; shortLabel: string }[] = [
 const authStore = useAuthStore();
 const activeCategory = ref<ExecutiveReportCategory>('crop_production');
 const barangays = ref<string[]>([]);
+const rows = ref<ExecutiveReportRow[]>([]);
+const loading = ref(false);
+const loadError = ref('');
 
 const filters = reactive({
   barangay: '',
-  dateFrom: '2026-07-01',
-  dateTo: '2026-07-31',
+  dateFrom: '',
+  dateTo: '',
   cropType: '',
 });
 
@@ -199,15 +212,38 @@ const printPayload = ref<{
 const activeColumns = computed(() => columnsForCategory(activeCategory.value));
 const activeCategoryLabel = computed(() => REPORT_CATEGORY_LABELS[activeCategory.value]);
 const preparedBy = computed(() => authStore.userName ?? 'MAO Administrator');
+const filteredRows = computed(() => rows.value);
 
-const filteredRows = computed(() =>
-  filterMockExecutiveRows(activeCategory.value, {
-    barangay: filters.barangay,
-    cropType: filters.cropType,
-    dateFrom: filters.dateFrom,
-    dateTo: filters.dateTo,
-  }),
-);
+let fetchTimer: ReturnType<typeof setTimeout> | undefined;
+
+async function fetchRows() {
+  loading.value = true;
+  loadError.value = '';
+  try {
+    const res = await apiClient.get('/executive-reports', {
+      params: {
+        category: activeCategory.value,
+        barangay: filters.barangay || undefined,
+        crop_type: filters.cropType || undefined,
+        date_from: filters.dateFrom || undefined,
+        date_to: filters.dateTo || undefined,
+      },
+    });
+    rows.value = res.data?.data?.rows ?? [];
+  } catch (e: any) {
+    rows.value = [];
+    loadError.value = e?.response?.data?.message || 'Failed to load encoded report data.';
+  } finally {
+    loading.value = false;
+  }
+}
+
+function scheduleFetch() {
+  clearTimeout(fetchTimer);
+  fetchTimer = setTimeout(() => {
+    void fetchRows();
+  }, 250);
+}
 
 function onCategoryChange(e: CustomEvent) {
   const val = e.detail.value as ExecutiveReportCategory;
@@ -243,13 +279,19 @@ async function exportToPdf() {
   setTimeout(() => window.print(), 350);
 }
 
+watch(
+  () => [activeCategory.value, filters.barangay, filters.dateFrom, filters.dateTo, filters.cropType],
+  () => scheduleFetch(),
+);
+
 onMounted(async () => {
   try {
     const res = await apiClient.get('/farmers/barangays');
     barangays.value = (res.data?.data ?? []).filter(Boolean);
   } catch {
-    barangays.value = ['San Fabian', 'Soyung (Poblacion)', 'Annafunan'];
+    barangays.value = [];
   }
+  await fetchRows();
 });
 </script>
 
@@ -354,6 +396,20 @@ onMounted(async () => {
   font-weight: 700;
   padding: 0.2rem 0.6rem;
   border-radius: 999px;
+}
+
+.table-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2.5rem 1rem;
+  color: #4b5563;
+}
+
+.table-state.error {
+  color: #b91c1c;
 }
 
 .table-scroll {

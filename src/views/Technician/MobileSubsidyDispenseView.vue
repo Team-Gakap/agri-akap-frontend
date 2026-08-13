@@ -5,7 +5,7 @@
         <ion-buttons slot="start">
           <ion-back-button default-href="/tech/dashboard"></ion-back-button>
         </ion-buttons>
-        <ion-title>Subsidy Dispense</ion-title>
+        <ion-title>Give Subsidy</ion-title>
       </ion-toolbar>
     </ion-header>
 
@@ -15,8 +15,8 @@
         <div class="icon-wrap">
           <ion-icon :icon="qrCodeOutline"></ion-icon>
         </div>
-        <h2>Scan Farmer QR ID</h2>
-        <p>Scan the farmer's RSBSA QR to load their profile, then continue to program release.</p>
+        <h2>Scan Farmer ID</h2>
+        <p>Scan the farmer’s ID card to open their profile, then give the subsidy.</p>
       </div>
 
       <ion-button expand="block" class="scan-btn" :disabled="lookingUp" @click="startScan">

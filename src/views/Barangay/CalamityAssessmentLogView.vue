@@ -5,11 +5,11 @@
         <ion-buttons slot="start">
           <ion-menu-button></ion-menu-button>
         </ion-buttons>
-        <ion-title>Damage &amp; Calamity Assessment</ion-title>
+        <ion-title>Calamity Damage</ion-title>
         <ion-buttons slot="end">
           <ion-button class="export-btn no-print" :disabled="!entries.length" @click="exportForm">
             <ion-icon slot="start" :icon="printOutline"></ion-icon>
-            Export Calamity Damage Report
+            Print Form
           </ion-button>
         </ion-buttons>
       </ion-toolbar>
@@ -22,7 +22,7 @@
         </div>
 
         <div class="form-card">
-          <h3>Encode Calamity Damage Entry</h3>
+          <h3>Add Record</h3>
 
           <div class="event-bar">
             <ion-input
@@ -129,7 +129,7 @@
           </div>
 
           <ion-button expand="block" class="add-btn" :disabled="!canAdd" @click="addEntry">
-            Add to Ledger
+            {{ saving ? 'Saving…' : 'Add to Ledger' }}
           </ion-button>
         </div>
 
@@ -192,7 +192,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, defineAsyncComponent } from 'vue';
+import { ref, reactive, computed, defineAsyncComponent, onMounted } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
   IonButton, IonIcon, IonInput, IonSelect, IonSelectOption, toastController,
@@ -204,6 +204,7 @@ import {
   type FarmerOption,
 } from '@/composables/useBarangayFarmerSearch';
 import EmptyState from '@/components/EmptyState.vue';
+import apiClient from '@/utils/axios';
 
 const CalamityAssessmentPrint = defineAsyncComponent(() => import('@/components/CalamityAssessmentPrint.vue'));
 
@@ -232,6 +233,7 @@ const entries = ref<CalamityEntry[]>([]);
 const printRows = ref<Record<string, string | number>[]>([]);
 const printEventName = ref('');
 const printEventDate = ref('');
+const saving = ref(false);
 const yieldLossManual = ref(false);
 
 const form = reactive({
@@ -272,10 +274,52 @@ const canAdd = computed(() =>
   !!form.calamity_event
   && !!form.calamity_date
   && !!form.farmer_id
+  && !!form.plot_id
   && !!form.area_planted
   && !!form.area_damaged
   && form.est_yield_loss_pct !== ''
+  && !saving.value
 );
+
+function inferCalamityType(name: string): string {
+  const n = name.toLowerCase();
+  if (n.includes('typhoon') || n.includes('bagyo')) return 'Typhoon';
+  if (n.includes('flood') || n.includes('baha')) return 'Flood';
+  if (n.includes('drought') || n.includes('el nino') || n.includes('elnino')) return 'Drought';
+  if (n.includes('pest')) return 'Pest Outbreak';
+  if (n.includes('hail')) return 'Hail';
+  return 'Other';
+}
+
+const loadLedger = async () => {
+  try {
+    const res = await apiClient.get('/damage-assessments', {
+      params: { per_page: 200, barangay: assignedBarangay.value || undefined },
+    });
+    const rows = res.data?.data?.data ?? [];
+    entries.value = rows.map((r: any) => {
+      const farmer = r.farmer || {};
+      return {
+        id: r.id,
+        calamity_event: r.calamity_name || r.calamity_type || '',
+        calamity_date: r.date_of_calamity?.slice?.(0, 10) || r.date_of_calamity || '',
+        rsbsa_no: farmer.rsbsa_no || '',
+        surname: farmer.surname || '',
+        first_name: farmer.first_name || '',
+        middle_name: farmer.middle_name || '',
+        ext_name: farmer.ext_name || '',
+        farm_location: r.farm_plot?.location_brgy || farmer.permanent_brgy || '',
+        crop_type: r.farm_plot?.commodity || '',
+        crop_stage: r.crop_stage || '',
+        area_planted: Number(r.area_planted_ha ?? r.farm_plot?.size_ha) || 0,
+        area_damaged: Number(r.area_destroyed_ha) || 0,
+        est_yield_loss_pct: Number(r.damage_percentage) || 0,
+      } as CalamityEntry;
+    });
+  } catch {
+    entries.value = [];
+  }
+};
 
 const totalDamaged = computed(() =>
   entries.value.reduce((s, e) => s + Number(e.area_damaged || 0), 0)
@@ -359,25 +403,52 @@ const resetFarmerForm = () => {
 
 const addEntry = async () => {
   if (!canAdd.value) return;
-  entries.value.push({
-    id: crypto.randomUUID(),
-    calamity_event: form.calamity_event,
-    calamity_date: form.calamity_date,
-    rsbsa_no: form.rsbsa_no,
-    surname: form.surname,
-    first_name: form.first_name,
-    middle_name: form.middle_name,
-    ext_name: form.ext_name,
-    farm_location: form.farm_location,
-    crop_type: form.crop_type,
-    crop_stage: form.crop_stage,
-    area_planted: Number(form.area_planted),
-    area_damaged: Number(form.area_damaged),
-    est_yield_loss_pct: Number(form.est_yield_loss_pct),
-  });
-  resetFarmerForm();
-  const t = await toastController.create({ message: 'Calamity assessment added.', color: 'success', duration: 1800, position: 'top' });
-  await t.present();
+  saving.value = true;
+  const id = crypto.randomUUID();
+  try {
+    await apiClient.post('/damage-assessments', {
+      id,
+      farm_plot_id: form.plot_id,
+      farmer_id: form.farmer_id,
+      calamity_type: inferCalamityType(form.calamity_event),
+      calamity_name: form.calamity_event,
+      crop_stage: form.crop_stage,
+      area_destroyed_ha: Number(form.area_damaged),
+      area_planted_ha: Number(form.area_planted),
+      date_of_calamity: form.calamity_date,
+      damage_percentage: Number(form.est_yield_loss_pct),
+    });
+
+    entries.value.unshift({
+      id,
+      calamity_event: form.calamity_event,
+      calamity_date: form.calamity_date,
+      rsbsa_no: form.rsbsa_no,
+      surname: form.surname,
+      first_name: form.first_name,
+      middle_name: form.middle_name,
+      ext_name: form.ext_name,
+      farm_location: form.farm_location,
+      crop_type: form.crop_type,
+      crop_stage: form.crop_stage,
+      area_planted: Number(form.area_planted),
+      area_damaged: Number(form.area_damaged),
+      est_yield_loss_pct: Number(form.est_yield_loss_pct),
+    });
+    resetFarmerForm();
+    const t = await toastController.create({ message: 'Calamity assessment saved.', color: 'success', duration: 1800, position: 'top' });
+    await t.present();
+  } catch (e: any) {
+    const t = await toastController.create({
+      message: e?.response?.data?.message || 'Failed to save calamity assessment. Select a farm plot.',
+      color: 'danger',
+      duration: 2800,
+      position: 'top',
+    });
+    await t.present();
+  } finally {
+    saving.value = false;
+  }
 };
 
 const exportForm = async () => {
@@ -400,6 +471,10 @@ const exportForm = async () => {
   }));
   setTimeout(() => window.print(), 350);
 };
+
+onMounted(() => {
+  void loadLedger();
+});
 </script>
 
 <style scoped>

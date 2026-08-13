@@ -15,6 +15,7 @@
       <ion-toolbar color="primary">
         <ion-searchbar
           placeholder="Search name, RSBSA, barangay…"
+          :value="search"
           :debounce="400"
           @ionInput="onSearch"
           style="--background:#fff;--color:#0f172a;"
@@ -119,7 +120,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
   IonButton, IonIcon, IonSearchbar, IonSpinner, toastController,
@@ -128,6 +129,7 @@ import { addOutline, cloudUploadOutline, refreshOutline } from 'ionicons/icons';
 import apiClient from '@/utils/axios';
 
 const router = useRouter();
+const route = useRoute();
 const fileInput = ref<HTMLInputElement | null>(null);
 
 const farmers = ref<any[]>([]);
@@ -210,7 +212,11 @@ const onFileSelected = async (e: Event) => {
   }
 };
 
-onMounted(() => fetchFarmers());
+onMounted(() => {
+  const initialSearch = String(route.query.search ?? '').trim();
+  if (initialSearch) search.value = initialSearch;
+  fetchFarmers();
+});
 </script>
 
 <style scoped>

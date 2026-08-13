@@ -5,11 +5,11 @@
         <ion-buttons slot="start">
           <ion-menu-button></ion-menu-button>
         </ion-buttons>
-        <ion-title>Harvesting Log</ion-title>
+        <ion-title>Harvest Records</ion-title>
         <ion-buttons slot="end">
           <ion-button class="export-btn no-print" :disabled="!entries.length" @click="exportForm">
             <ion-icon slot="start" :icon="printOutline"></ion-icon>
-            Export Harvesting Report
+            Print Form
           </ion-button>
         </ion-buttons>
       </ion-toolbar>
@@ -22,7 +22,7 @@
         </div>
 
         <div class="form-card">
-          <h3>Encode Harvest Record</h3>
+          <h3>Add Record</h3>
 
           <div class="search-box">
             <ion-input

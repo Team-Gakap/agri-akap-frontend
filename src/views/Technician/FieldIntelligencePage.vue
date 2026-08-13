@@ -5,7 +5,7 @@
         <ion-buttons slot="start">
           <ion-menu-button></ion-menu-button>
         </ion-buttons>
-        <ion-title>Field Intelligence</ion-title>
+        <ion-title>Field Reports</ion-title>
       </ion-toolbar>
       <ion-toolbar color="primary">
         <ion-segment v-model="activeTab" color="light">
@@ -25,25 +25,25 @@
         <div class="lgu-links">
           <ion-button expand="block" class="lgu-btn" router-link="/tech/planting-log">
             <ion-icon slot="start" :icon="leafOutline"></ion-icon>
-            LGU Planting Log
+            Planting Records
           </ion-button>
           <ion-button expand="block" class="lgu-btn response" router-link="/tech/pest-response">
             <ion-icon slot="start" :icon="medkitOutline"></ion-icon>
-            Pest &amp; Disease Response
+            Pest Response
           </ion-button>
           <ion-button expand="block" class="lgu-btn calamity" router-link="/tech/calamity-rdana">
             <ion-icon slot="start" :icon="thunderstormOutline"></ion-icon>
-            RDANA — Calamity Assessment
+            Calamity Damage
           </ion-button>
           <ion-button expand="block" fill="outline" class="lgu-btn outline" router-link="/tech/pest-validation">
             <ion-icon slot="start" :icon="bugOutline"></ion-icon>
-            Pest &amp; Disease Validation
+            Check Pests
           </ion-button>
         </div>
 
         <!-- ── CROP LOG TAB ── -->
         <div v-if="activeTab === 'crop'" class="animate-fade">
-          <p class="tab-desc">Record current plantings and soil health to monitor depletion risk.</p>
+          <p class="tab-desc">Record what is planted now and the condition of the soil.</p>
 
           <div v-if="plotsError" class="error-note">{{ plotsError }}</div>
 

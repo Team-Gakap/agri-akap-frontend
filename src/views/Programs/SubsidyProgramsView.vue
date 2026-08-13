@@ -1,0 +1,745 @@
+<template>
+  <ion-page>
+    <ion-header>
+      <ion-toolbar color="primary">
+        <ion-buttons slot="start">
+          <ion-menu-button></ion-menu-button>
+        </ion-buttons>
+        <ion-title>Subsidy Campaigns</ion-title>
+        <ion-buttons slot="end">
+          <ion-button :disabled="loading" @click="fetchPrograms">
+            <ion-icon slot="icon-only" :icon="refreshOutline"></ion-icon>
+          </ion-button>
+        </ion-buttons>
+      </ion-toolbar>
+    </ion-header>
+
+    <ion-content class="page-bg">
+      <div class="shell">
+        <div class="page-head">
+          <div>
+            <h1>Subsidy Programs</h1>
+            <p>Create a campaign, auto-generate the RSBSA masterlist, then open the spreadsheet view.</p>
+          </div>
+          <ion-button class="create-btn" @click="openCreate">
+            <ion-icon slot="start" :icon="addOutline"></ion-icon>
+            New Program
+          </ion-button>
+        </div>
+
+        <div v-if="loading" class="center-state">
+          <ion-spinner name="crescent" color="primary"></ion-spinner>
+          <p>Loading programs&hellip;</p>
+        </div>
+
+        <div v-else-if="error" class="center-state error">
+          <p>{{ error }}</p>
+          <ion-button size="small" @click="fetchPrograms">Retry</ion-button>
+        </div>
+
+        <div v-else-if="!programs.length" class="empty-panel">
+          <h2>No subsidy programs yet</h2>
+          <p>Create a Rice or Corn campaign to start building an auto-generated beneficiary masterlist.</p>
+          <ion-button class="create-btn" @click="openCreate">+ New Program</ion-button>
+        </div>
+
+        <div v-else class="program-list">
+          <article v-for="p in programs" :key="p.id" class="program-row">
+            <div class="row-main">
+              <div class="title-line">
+                <h2>{{ p.program_name }}</h2>
+                <span class="status-pill" :class="statusClass(p.status)">{{ p.status }}</span>
+                <span v-if="p.is_low_stock" class="status-pill low-stock">
+                  <ion-icon :icon="alertCircleOutline"></ion-icon> Low Stock
+                </span>
+              </div>
+              <p class="meta">
+                {{ p.target_crop }} &middot;
+                {{ p.items_per_hectare }} items/ha &middot;
+                cap {{ Number(p.max_hectares_limit).toFixed(2) }} ha
+              </p>
+
+              <div class="stock-line">
+                <span class="stock-num">{{ fmt(p.remaining_quantity) }}</span>
+                <span class="stock-of">/ {{ fmt(p.total_quantity) }} {{ p.unit_of_measurement }} in stock</span>
+              </div>
+              <div class="mini-progress">
+                <div
+                  class="mini-fill stock"
+                  :class="{ danger: p.is_low_stock }"
+                  :style="{ width: stockPct(p) + '%' }"
+                ></div>
+              </div>
+
+              <p class="counts">
+                <strong>{{ p.beneficiaries_count }}</strong> beneficiaries
+                <span class="dot">·</span>
+                <strong>{{ p.claimed_count }}</strong> claimed
+                <span class="dot">·</span>
+                {{ claimedPct(p) }}% complete
+              </p>
+              <div class="mini-progress">
+                <div class="mini-fill" :style="{ width: claimedPct(p) + '%' }"></div>
+              </div>
+            </div>
+            <div class="row-actions">
+              <ion-button size="small" fill="solid" class="open-btn" @click="openMasterlist(p.id)">
+                Open Masterlist
+              </ion-button>
+              <ion-button
+                size="small"
+                fill="outline"
+                class="gen-btn"
+                :disabled="p.status === 'Completed' || generatingId === p.id"
+                @click="confirmGenerate(p)"
+              >
+                {{ generatingId === p.id ? 'Generating…' : 'Auto-Generate' }}
+              </ion-button>
+              <ion-button size="small" fill="outline" class="gen-btn" @click="openRestock(p)">
+                <ion-icon slot="start" :icon="addCircleOutline"></ion-icon>
+                Log Delivery
+              </ion-button>
+              <ion-button size="small" fill="clear" class="settings-btn" @click="openSettings(p)">
+                <ion-icon slot="start" :icon="settingsOutline"></ion-icon>
+                Stock Settings
+              </ion-button>
+            </div>
+          </article>
+        </div>
+
+        <p class="legacy-note">
+          Warehouse stock campaigns remain at
+          <a href="#" @click.prevent="router.push('/admin/programs')">/admin/programs</a>
+          and
+          <a href="#" @click.prevent="router.push('/admin/inventory')">Inventory</a>.
+        </p>
+      </div>
+
+      <ion-modal :is-open="createOpen" @didDismiss="createOpen = false">
+        <ion-header>
+          <ion-toolbar color="primary">
+            <ion-title>New Subsidy Program</ion-title>
+            <ion-buttons slot="end">
+              <ion-button @click="createOpen = false">Close</ion-button>
+            </ion-buttons>
+          </ion-toolbar>
+        </ion-header>
+        <ion-content class="ion-padding">
+          <ion-list>
+            <ion-item>
+              <ion-input
+                label="Program Name *"
+                label-placement="stacked"
+                :value="form.program_name"
+                @ionInput="(e: any) => form.program_name = e.detail.value"
+                placeholder="e.g. 2026 Wet Season Rice Seeds"
+              ></ion-input>
+            </ion-item>
+            <ion-item>
+              <ion-select
+                label="Target Crop *"
+                label-placement="stacked"
+                interface="popover"
+                :value="form.target_crop"
+                @ionChange="(e: any) => form.target_crop = e.detail.value"
+              >
+                <ion-select-option value="Rice">Rice</ion-select-option>
+                <ion-select-option value="Corn">Corn</ion-select-option>
+              </ion-select>
+            </ion-item>
+            <ion-item>
+              <ion-input
+                type="number"
+                label="Max Hectares Limit *"
+                label-placement="stacked"
+                :value="form.max_hectares_limit"
+                @ionInput="(e: any) => form.max_hectares_limit = Number(e.detail.value)"
+                min="0.01"
+                step="0.01"
+              ></ion-input>
+            </ion-item>
+            <ion-item>
+              <ion-input
+                type="number"
+                label="Items per Hectare *"
+                label-placement="stacked"
+                :value="form.items_per_hectare"
+                @ionInput="(e: any) => form.items_per_hectare = Number(e.detail.value)"
+                min="1"
+                step="1"
+              ></ion-input>
+            </ion-item>
+            <ion-item>
+              <ion-select
+                label="Initial Status"
+                label-placement="stacked"
+                interface="popover"
+                :value="form.status"
+                @ionChange="(e: any) => form.status = e.detail.value"
+              >
+                <ion-select-option value="Draft">Draft</ion-select-option>
+                <ion-select-option value="Active">Active</ion-select-option>
+              </ion-select>
+            </ion-item>
+
+            <h3 class="section-label">Warehouse Stock</h3>
+
+            <ion-item>
+              <ion-input
+                label="Unit of Measurement"
+                label-placement="stacked"
+                :value="form.unit_of_measurement"
+                @ionInput="(e: any) => form.unit_of_measurement = e.detail.value"
+                placeholder="e.g. Bags, Sacks, Kg"
+              ></ion-input>
+            </ion-item>
+            <ion-item>
+              <ion-input
+                type="number"
+                label="Initial Stock on Hand"
+                label-placement="stacked"
+                :value="form.total_quantity"
+                @ionInput="(e: any) => form.total_quantity = Number(e.detail.value)"
+                min="0"
+                step="1"
+                placeholder="0"
+              ></ion-input>
+            </ion-item>
+            <ion-item>
+              <ion-input
+                type="number"
+                label="Reorder Level (optional)"
+                label-placement="stacked"
+                :value="form.reorder_level"
+                @ionInput="(e: any) => form.reorder_level = e.detail.value === '' ? null : Number(e.detail.value)"
+                min="0"
+                step="1"
+                placeholder="Alert when stock falls below this"
+              ></ion-input>
+            </ion-item>
+          </ion-list>
+
+          <p v-if="formError" class="form-error">{{ formError }}</p>
+
+          <ion-button expand="block" class="save-btn" :disabled="saving" @click="createProgram">
+            {{ saving ? 'Saving…' : 'Create Program' }}
+          </ion-button>
+        </ion-content>
+      </ion-modal>
+
+      <!-- LOG DELIVERY MODAL -->
+      <ion-modal :is-open="restockOpen" @didDismiss="restockOpen = false">
+        <ion-header>
+          <ion-toolbar color="primary">
+            <ion-title>Log Incoming Delivery</ion-title>
+            <ion-buttons slot="end">
+              <ion-button @click="restockOpen = false">Close</ion-button>
+            </ion-buttons>
+          </ion-toolbar>
+        </ion-header>
+        <ion-content class="ion-padding">
+          <div v-if="activeProgram">
+            <p class="modal-program">{{ activeProgram.program_name }}</p>
+            <p class="modal-hint">
+              Current stock:
+              <strong>{{ fmt(activeProgram.remaining_quantity) }} {{ activeProgram.unit_of_measurement }}</strong>
+            </p>
+
+            <ion-item class="modal-input">
+              <ion-input
+                type="number"
+                :value="restockQty"
+                @ionInput="(e: any) => restockQty = e.detail.value === '' ? null : Number(e.detail.value)"
+                :label="`Units Delivered (${activeProgram.unit_of_measurement}) *`"
+                label-placement="floating"
+                placeholder="e.g., 500"
+                min="1"
+              ></ion-input>
+            </ion-item>
+
+            <ion-button expand="block" class="save-btn" :disabled="savingRestock || !(Number(restockQty) >= 1)" @click="submitRestock">
+              <ion-icon slot="start" :icon="addCircleOutline"></ion-icon>
+              {{ savingRestock ? 'Saving…' : 'Add to Stock' }}
+            </ion-button>
+          </div>
+        </ion-content>
+      </ion-modal>
+
+      <!-- STOCK SETTINGS MODAL -->
+      <ion-modal :is-open="settingsOpen" @didDismiss="settingsOpen = false">
+        <ion-header>
+          <ion-toolbar color="primary">
+            <ion-title>Stock Settings</ion-title>
+            <ion-buttons slot="end">
+              <ion-button @click="settingsOpen = false">Close</ion-button>
+            </ion-buttons>
+          </ion-toolbar>
+        </ion-header>
+        <ion-content class="ion-padding">
+          <div v-if="activeProgram">
+            <p class="modal-program">{{ activeProgram.program_name }}</p>
+
+            <ion-item class="modal-input">
+              <ion-input
+                :value="settingsUnit"
+                @ionInput="(e: any) => settingsUnit = e.detail.value"
+                label="Unit of Measurement"
+                label-placement="floating"
+              ></ion-input>
+            </ion-item>
+
+            <ion-item class="modal-input">
+              <ion-input
+                type="number"
+                :value="settingsReorder"
+                @ionInput="(e: any) => settingsReorder = e.detail.value === '' ? null : Number(e.detail.value)"
+                :label="`Minimum Reorder Level (${activeProgram.unit_of_measurement})`"
+                label-placement="floating"
+                placeholder="Leave blank to disable alerts"
+                min="0"
+              ></ion-input>
+            </ion-item>
+
+            <ion-button expand="block" class="save-btn" :disabled="savingSettings" @click="submitSettings">
+              <ion-icon slot="start" :icon="saveOutline"></ion-icon>
+              {{ savingSettings ? 'Saving…' : 'Save Settings' }}
+            </ion-button>
+          </div>
+        </ion-content>
+      </ion-modal>
+    </ion-content>
+  </ion-page>
+</template>
+
+<script setup lang="ts">
+import { ref, reactive, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import {
+  IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
+  IonButton, IonIcon, IonSpinner, IonModal, IonList, IonItem, IonInput, IonSelect,
+  IonSelectOption, toastController, alertController,
+} from '@ionic/vue';
+import {
+  refreshOutline, addOutline, alertCircleOutline, addCircleOutline, settingsOutline, saveOutline,
+} from 'ionicons/icons';
+import apiClient from '@/utils/axios';
+
+interface SubsidyProgramRow {
+  id: string;
+  program_name: string;
+  target_crop: string;
+  max_hectares_limit: number;
+  items_per_hectare: number;
+  status: string;
+  unit_of_measurement: string;
+  total_quantity: number;
+  remaining_quantity: number;
+  reorder_level: number | null;
+  is_low_stock: boolean;
+  beneficiaries_count: number;
+  claimed_count: number;
+  created_at?: string;
+}
+
+const router = useRouter();
+const programs = ref<SubsidyProgramRow[]>([]);
+const loading = ref(true);
+const saving = ref(false);
+const generatingId = ref<string | null>(null);
+const error = ref('');
+const formError = ref('');
+const createOpen = ref(false);
+
+const activeProgram = ref<SubsidyProgramRow | null>(null);
+const restockOpen = ref(false);
+const settingsOpen = ref(false);
+
+const restockQty = ref<number | null>(null);
+const savingRestock = ref(false);
+
+const settingsUnit = ref('');
+const settingsReorder = ref<number | null>(null);
+const savingSettings = ref(false);
+
+const form = reactive({
+  program_name: '',
+  target_crop: 'Rice',
+  max_hectares_limit: 2,
+  items_per_hectare: 2,
+  status: 'Draft',
+  unit_of_measurement: 'Bags',
+  total_quantity: 0,
+  reorder_level: null as number | null,
+});
+
+const toast = async (message: string, color: 'success' | 'warning' | 'danger' | 'primary' = 'success') => {
+  const t = await toastController.create({ message, duration: 2800, color, position: 'top' });
+  await t.present();
+};
+
+const fmt = (v: any) => Number(v ?? 0).toLocaleString('en-PH');
+
+const claimedPct = (p: SubsidyProgramRow) =>
+  p.beneficiaries_count ? Math.round((p.claimed_count / p.beneficiaries_count) * 100) : 0;
+
+const stockPct = (p: SubsidyProgramRow) =>
+  p.total_quantity ? Math.max(0, Math.min(100, Math.round((p.remaining_quantity / p.total_quantity) * 100))) : 0;
+
+const statusClass = (status: string) => {
+  if (status === 'Active') return 'active';
+  if (status === 'Completed') return 'completed';
+  return 'draft';
+};
+
+const fetchPrograms = async () => {
+  loading.value = true;
+  error.value = '';
+  try {
+    const res = await apiClient.get('/subsidies');
+    programs.value = res.data?.data ?? [];
+  } catch (e: any) {
+    error.value = e?.response?.data?.message || 'Could not load subsidy programs. Run migrations if tables are missing.';
+  } finally {
+    loading.value = false;
+  }
+};
+
+const openCreate = () => {
+  form.program_name = '';
+  form.target_crop = 'Rice';
+  form.max_hectares_limit = 2;
+  form.items_per_hectare = 2;
+  form.status = 'Draft';
+  form.unit_of_measurement = 'Bags';
+  form.total_quantity = 0;
+  form.reorder_level = null;
+  formError.value = '';
+  createOpen.value = true;
+};
+
+const createProgram = async () => {
+  formError.value = '';
+  if (!form.program_name.trim()) {
+    formError.value = 'Program name is required.';
+    return;
+  }
+  if (!form.max_hectares_limit || form.max_hectares_limit <= 0) {
+    formError.value = 'Max hectares must be greater than 0.';
+    return;
+  }
+  if (!form.items_per_hectare || form.items_per_hectare < 1) {
+    formError.value = 'Items per hectare must be at least 1.';
+    return;
+  }
+
+  saving.value = true;
+  try {
+    const res = await apiClient.post('/subsidies', {
+      program_name: form.program_name.trim(),
+      target_crop: form.target_crop,
+      max_hectares_limit: form.max_hectares_limit,
+      items_per_hectare: form.items_per_hectare,
+      status: form.status,
+      unit_of_measurement: form.unit_of_measurement.trim() || 'Bags',
+      total_quantity: form.total_quantity || 0,
+      reorder_level: form.reorder_level,
+    });
+    createOpen.value = false;
+    const id = res.data?.data?.id;
+    if (id) {
+      try {
+        const gen = await apiClient.post(`/subsidies/${id}/generate-masterlist`);
+        await toast(gen.data?.message || 'Program created and masterlist generated.', 'success');
+      } catch {
+        await toast(res.data?.message || 'Program created.', 'success');
+      }
+      await fetchPrograms();
+      await router.push(`/admin/subsidies/${id}/masterlist`);
+    } else {
+      await toast(res.data?.message || 'Program created.', 'success');
+      await fetchPrograms();
+    }
+  } catch (e: any) {
+    const msg = e?.response?.data?.message
+      || Object.values(e?.response?.data?.errors ?? {}).flat().join(' ')
+      || 'Failed to create program.';
+    formError.value = String(msg);
+  } finally {
+    saving.value = false;
+  }
+};
+
+const openMasterlist = (id: string) => {
+  router.push(`/admin/subsidies/${id}/masterlist`);
+};
+
+const confirmGenerate = async (p: SubsidyProgramRow) => {
+  const alert = await alertController.create({
+    header: 'Auto-Generate Masterlist',
+    message: `Scan active ${p.target_crop} planting logs and add newly eligible farmers to “${p.program_name}”?`,
+    buttons: [
+      { text: 'Cancel', role: 'cancel' },
+      { text: 'Generate', handler: () => generateMasterlist(p.id) },
+    ],
+  });
+  await alert.present();
+};
+
+const generateMasterlist = async (id: string) => {
+  generatingId.value = id;
+  try {
+    const res = await apiClient.post(`/subsidies/${id}/generate-masterlist`);
+    await toast(res.data?.message || 'Masterlist generated.', 'success');
+    await fetchPrograms();
+  } catch (e: any) {
+    await toast(e?.response?.data?.message || 'Failed to generate masterlist.', 'danger');
+  } finally {
+    generatingId.value = null;
+  }
+};
+
+const openRestock = (p: SubsidyProgramRow) => {
+  activeProgram.value = p;
+  restockQty.value = null;
+  restockOpen.value = true;
+};
+
+const submitRestock = async () => {
+  if (!activeProgram.value || !(Number(restockQty.value) >= 1)) return;
+  savingRestock.value = true;
+  try {
+    const res = await apiClient.post(`/subsidies/${activeProgram.value.id}/restock`, {
+      quantity_added: Number(restockQty.value),
+    });
+    await toast(res.data?.message || 'Delivery logged.', 'success');
+    restockOpen.value = false;
+    await fetchPrograms();
+  } catch (e: any) {
+    await toast(e?.response?.data?.message || 'Failed to log delivery.', 'danger');
+  } finally {
+    savingRestock.value = false;
+  }
+};
+
+const openSettings = (p: SubsidyProgramRow) => {
+  activeProgram.value = p;
+  settingsUnit.value = p.unit_of_measurement || 'Bags';
+  settingsReorder.value = p.reorder_level ?? null;
+  settingsOpen.value = true;
+};
+
+const submitSettings = async () => {
+  if (!activeProgram.value) return;
+  savingSettings.value = true;
+  try {
+    const res = await apiClient.patch(`/subsidies/${activeProgram.value.id}/config`, {
+      unit_of_measurement: settingsUnit.value.trim() || undefined,
+      reorder_level: settingsReorder.value,
+    });
+    await toast(res.data?.message || 'Stock settings updated.', 'success');
+    settingsOpen.value = false;
+    await fetchPrograms();
+  } catch (e: any) {
+    await toast(e?.response?.data?.message || 'Failed to update settings.', 'danger');
+  } finally {
+    savingSettings.value = false;
+  }
+};
+
+onMounted(() => fetchPrograms());
+</script>
+
+<style scoped>
+.page-bg { --background: #f4f5f8; }
+.shell {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 1rem 1rem 2rem;
+}
+.page-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1.1rem;
+}
+.page-head h1 {
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 900;
+  color: #1a4731;
+}
+.page-head p {
+  margin: 0.25rem 0 0;
+  color: #64748b;
+  font-size: 0.9rem;
+  max-width: 34rem;
+}
+.create-btn {
+  --background: #1a4731;
+  --color: #fff;
+  text-transform: none;
+  font-weight: 800;
+  margin: 0;
+}
+.center-state {
+  text-align: center;
+  padding: 3rem 1rem;
+  color: #64748b;
+}
+.center-state.error { color: #b91c1c; }
+.empty-panel {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 2rem 1.25rem;
+  text-align: center;
+}
+.empty-panel h2 {
+  margin: 0;
+  color: #1a4731;
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+.empty-panel p {
+  color: #64748b;
+  margin: 0.5rem 0 1rem;
+}
+.program-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.program-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+}
+.row-main { min-width: 0; flex: 1; }
+.title-line {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-wrap: wrap;
+}
+.title-line h2 {
+  margin: 0;
+  font-size: 1.02rem;
+  font-weight: 800;
+  color: #1a4731;
+}
+.status-pill {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.status-pill.draft { background: #f1f5f9; color: #475569; }
+.status-pill.active { background: #dcfce7; color: #166534; }
+.status-pill.completed { background: #e2e8f0; color: #334155; }
+.status-pill.low-stock {
+  background: #fee2e2;
+  color: #b91c1c;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.status-pill.low-stock ion-icon { font-size: 0.85rem; }
+.meta, .counts {
+  margin: 0.2rem 0 0;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+.counts strong { color: #1a4731; }
+.dot { margin: 0 0.25rem; }
+.stock-line {
+  margin: 0.5rem 0 0;
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+.stock-num { font-size: 1rem; font-weight: 800; color: #1a4731; }
+.stock-of { font-size: 0.78rem; color: #94a3b8; font-weight: 600; }
+.mini-progress {
+  margin-top: 0.3rem;
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+  max-width: 280px;
+}
+.mini-fill {
+  height: 100%;
+  background: #1a4731;
+}
+.mini-fill.stock { background: #d4af37; }
+.mini-fill.stock.danger { background: #dc2626; }
+.row-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 150px;
+}
+.open-btn {
+  --background: #1a4731;
+  --color: #fff;
+  text-transform: none;
+  font-weight: 700;
+  margin: 0;
+}
+.gen-btn {
+  --border-color: #1a4731;
+  --color: #1a4731;
+  text-transform: none;
+  font-weight: 700;
+  margin: 0;
+}
+.settings-btn {
+  --color: #64748b;
+  text-transform: none;
+  font-weight: 600;
+  font-size: 0.82rem;
+  margin: 0;
+}
+.section-label {
+  margin: 1rem 0 0.35rem 0.9rem;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #94a3b8;
+}
+.modal-program { font-weight: 800; color: #1a4731; font-size: 1.15rem; margin: 0 0 4px; }
+.modal-hint { color: #64748b; font-size: 0.85rem; margin: 4px 0 1rem; }
+.modal-input { --background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 0.8rem; }
+.legacy-note {
+  margin-top: 1.25rem;
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+.legacy-note a { color: #1a4731; font-weight: 700; }
+.form-error {
+  color: #b91c1c;
+  font-size: 0.88rem;
+  margin: 0.75rem 0 0;
+}
+.save-btn {
+  --background: #1a4731;
+  text-transform: none;
+  font-weight: 800;
+  margin-top: 1rem;
+}
+@media (max-width: 720px) {
+  .page-head { flex-direction: column; }
+  .program-row { flex-direction: column; align-items: stretch; }
+  .row-actions { flex-direction: row; min-width: 0; }
+  .row-actions ion-button { flex: 1; }
+}
+</style>

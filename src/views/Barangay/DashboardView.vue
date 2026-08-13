@@ -5,15 +5,15 @@
         <ion-buttons slot="start">
           <ion-menu-button></ion-menu-button>
         </ion-buttons>
-        <ion-title>Barangay Dashboard</ion-title>
+        <ion-title>Dashboard</ion-title>
       </ion-toolbar>
     </ion-header>
 
     <ion-content class="ion-padding dash-bg">
       <div class="wrapper">
-        <h2>Barangay Portal</h2>
+        <h2>Your Barangay</h2>
         <p class="subtitle">
-          Quick stats for your barangay will appear here. Use the sidebar to encode planting and pest monitoring records.
+          A quick summary of your area. Use the menu to record planting, pests, harvest, and damage.
         </p>
 
         <div class="kpi-row">

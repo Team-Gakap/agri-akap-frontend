@@ -5,7 +5,7 @@
         <ion-buttons slot="start">
           <ion-menu-button></ion-menu-button>
         </ion-buttons>
-        <ion-title>Sync &amp; Activity Trail</ion-title>
+        <ion-title>Unsent Records</ion-title>
         <ion-buttons slot="end">
           <ion-chip :color="syncStore.online ? 'success' : 'medium'" outline>
             <ion-icon :icon="syncStore.online ? cloudDoneOutline : cloudOfflineOutline"></ion-icon>

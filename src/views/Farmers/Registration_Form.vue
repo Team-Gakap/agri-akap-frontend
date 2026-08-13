@@ -41,7 +41,7 @@
           </div>
           <div class="field-wrap">
             <label class="flabel">RSBSA NO.</label>
-            <ion-input v-model="farmer.rsbsa_no" class="finput" placeholder="Auto-generated" />
+            <ion-input v-model="farmer.rsbsa_no" class="finput" readonly placeholder="Auto-generated on enrollment" />
           </div>
         </div>
 
@@ -800,6 +800,8 @@ const generateTransactionCode = () => {
 // Trigger when the page loads
 onMounted(() => {
   farmer.transaction_code = generateTransactionCode();
+  // RSBSA is assigned by the API on enroll (see FarmerController::store)
+  farmer.rsbsa_no = "";
 });
 
 /* validation */
@@ -857,16 +859,22 @@ const submitForm = async () => {
   errorMsg.value = ""; // clear previous errors
 
   try {
-    // FIX 1: Exact payload match to Laravel's StoreFarmerRequest
+    // Send null RSBSA so the API assigns a unique sequential number
+    // (ConvertEmptyStringsToNull previously saved blank enrollments as null).
     const payload = {
       ...farmer,
-      plots: farmPlots
+      rsbsa_no: null,
+      plots: farmPlots,
     };
 
     const res = await axiosInstance.post('/farmers', payload);
     
     if (res.data.status === 'success' || res.status === 200 || res.status === 201) {
-      await showToast('Farmer enrolled successfully!', 'success');
+      const assigned = res.data?.data?.rsbsa_no;
+      await showToast(
+        assigned ? `Farmer enrolled. RSBSA: ${assigned}` : 'Farmer enrolled successfully!',
+        'success',
+      );
       router.push(farmersHome.value);
     }
   } catch (err: any) {

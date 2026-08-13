@@ -5,7 +5,7 @@
         <ion-buttons slot="start">
           <ion-menu-button></ion-menu-button>
         </ion-buttons>
-        <ion-title>Barangay Farmer Masterlist</ion-title>
+        <ion-title>Farmers</ion-title>
       </ion-toolbar>
       <ion-toolbar color="primary">
         <ion-searchbar
@@ -20,14 +20,14 @@
     <ion-content class="page-bg">
       <div class="shell">
         <header class="intro">
-          <p class="eyebrow">Read-only · Scoped to your barangay</p>
+          <p class="eyebrow">Your barangay only</p>
           <h1>{{ barangayLabel }}</h1>
-          <p class="lede">Constituents enrolled under your RSBSA jurisdiction.</p>
+          <p class="lede">Farmers registered in your barangay.</p>
         </header>
 
         <div v-if="loading && !farmers.length" class="center-state">
           <ion-spinner name="crescent" color="primary"></ion-spinner>
-          <p>Loading constituents…</p>
+          <p>Loading farmers…</p>
         </div>
 
         <div v-else-if="error" class="center-state error">
@@ -105,7 +105,7 @@ const search = ref('');
 const meta = ref({ current_page: 1, last_page: 1, total: 0 });
 
 const barangayLabel = computed(
-  () => authStore.user?.assigned_barangay || 'Your Barangay Masterlist',
+  () => authStore.user?.assigned_barangay || 'Your Barangay Farmers',
 );
 
 const formatName = (f: any) => {

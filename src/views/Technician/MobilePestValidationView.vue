@@ -5,7 +5,7 @@
         <ion-buttons slot="start">
           <ion-back-button default-href="/tech/field"></ion-back-button>
         </ion-buttons>
-        <ion-title>Pest Validation</ion-title>
+        <ion-title>Check Pests</ion-title>
       </ion-toolbar>
     </ion-header>
 
@@ -117,7 +117,7 @@
       </ion-card>
 
       <ion-button expand="block" class="save-btn" :disabled="!canSave || saving" @click="saveRecord">
-        {{ saving ? 'Saving…' : 'Save to LGU Masterlist' }}
+        {{ saving ? 'Saving…' : 'Save Record' }}
       </ion-button>
     </ion-content>
   </ion-page>

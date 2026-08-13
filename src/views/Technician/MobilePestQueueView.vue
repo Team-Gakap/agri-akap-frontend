@@ -5,7 +5,7 @@
         <ion-buttons slot="start">
           <ion-back-button default-href="/tech/dashboard"></ion-back-button>
         </ion-buttons>
-        <ion-title>Pest Validation Queue</ion-title>
+        <ion-title>Pest Reports</ion-title>
       </ion-toolbar>
     </ion-header>
 
@@ -29,7 +29,7 @@
       </div>
 
       <p class="queue-meta ion-padding-horizontal">
-        {{ filteredReports.length }} pending validation(s)
+        {{ filteredReports.length }} report(s) waiting to be checked
       </p>
 
       <ion-list v-if="filteredReports.length" class="queue-list ion-padding-horizontal">

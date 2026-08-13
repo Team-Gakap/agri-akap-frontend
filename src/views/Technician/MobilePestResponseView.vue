@@ -5,7 +5,7 @@
         <ion-buttons slot="start">
           <ion-back-button :default-href="backHref"></ion-back-button>
         </ion-buttons>
-        <ion-title>Pest &amp; Disease Response</ion-title>
+        <ion-title>Pest Response</ion-title>
       </ion-toolbar>
     </ion-header>
 
@@ -181,8 +181,8 @@
       <ion-card class="step-card">
         <ion-card-header>
           <div class="step-badge">4</div>
-          <ion-card-title>Intervention Distribution</ion-card-title>
-          <ion-card-subtitle>Dispense inputs to the affected farmer</ion-card-subtitle>
+          <ion-card-title>Give Aid</ion-card-title>
+          <ion-card-subtitle>Give seeds or fertilizer to this farmer</ion-card-subtitle>
         </ion-card-header>
         <ion-card-content>
           <p v-if="state.qrScanResult" class="status-ok">
@@ -191,7 +191,7 @@
           </p>
           <ion-button expand="block" class="action-btn gold" fill="solid" @click="scanFarmerQr">
             <ion-icon slot="start" :icon="qrCodeOutline"></ion-icon>
-            Scan Farmer QR to Dispense Item
+            Scan Farmer ID to Give Item
           </ion-button>
 
           <ion-item class="field-item" lines="none">

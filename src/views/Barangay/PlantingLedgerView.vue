@@ -5,11 +5,11 @@
         <ion-buttons slot="start">
           <ion-menu-button></ion-menu-button>
         </ion-buttons>
-        <ion-title>Master Seasonal Planting Log</ion-title>
+        <ion-title>Planting Records</ion-title>
         <ion-buttons slot="end">
           <ion-button class="export-btn no-print" :disabled="!entries.length" @click="exportForm">
             <ion-icon slot="start" :icon="printOutline"></ion-icon>
-            Export Official Form
+            Print Form
           </ion-button>
         </ion-buttons>
       </ion-toolbar>
@@ -28,14 +28,14 @@
             label-placement="stacked"
             interface="popover"
             :value="crop"
-            @ionChange="(e: any) => crop = e.detail.value"
+            @ionChange="onCropChange"
           >
             <ion-select-option value="Rice">Rice</ion-select-option>
             <ion-select-option value="Corn">Corn</ion-select-option>
           </ion-select>
           <ion-select
             class="field grow"
-            label="Official Form Mode"
+            label="Form Type"
             label-placement="stacked"
             interface="popover"
             :value="mode"
@@ -49,7 +49,8 @@
         </div>
 
         <div class="form-card">
-          <h3>Encode Entry</h3>
+          <h3>Add Record — {{ crop }}</h3>
+          <p class="crop-hint">Only farmers with a {{ crop }} farm plot can be added on this form.</p>
 
           <div class="search-box">
             <ion-input
@@ -91,12 +92,12 @@
               label-placement="stacked"
               interface="popover"
               :value="form.plot_id"
-              :disabled="!farmerSearch.selected.value"
+              :disabled="!farmerSearch.selected.value || !matchingPlots.length"
               @ionChange="onPlotChange"
             >
-              <ion-select-option value="">Select plot</ion-select-option>
+              <ion-select-option value="">Select {{ crop }} plot</ion-select-option>
               <ion-select-option
-                v-for="p in farmerSearch.selected.value?.plots || []"
+                v-for="p in matchingPlots"
                 :key="p.id"
                 :value="p.id"
               >
@@ -118,7 +119,7 @@
           </div>
 
           <ion-button expand="block" class="add-btn" :disabled="!canAdd" @click="addEntry">
-            Add to Ledger
+            {{ saving ? 'Saving…' : 'Add to Ledger' }}
           </ion-button>
         </div>
 
@@ -179,7 +180,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, defineAsyncComponent } from 'vue';
+import { ref, reactive, computed, defineAsyncComponent, onMounted } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
   IonButton, IonIcon, IonInput, IonSelect, IonSelectOption, toastController,
@@ -194,11 +195,13 @@ import {
 import type { PlantingPrintMode } from '@/components/PlantingLedgerPrint.vue';
 import StatusBadge from '@/components/StatusBadge.vue';
 import EmptyState from '@/components/EmptyState.vue';
+import apiClient from '@/utils/axios';
 const PlantingLedgerPrint = defineAsyncComponent(() => import('@/components/PlantingLedgerPrint.vue'));
 
 interface PlantingEntry {
   id: string;
   farmer_id: string;
+  plot_id?: string;
   rsbsa_no: string;
   surname: string;
   first_name: string;
@@ -218,12 +221,16 @@ interface PlantingEntry {
 
 const authStore = useAuthStore();
 const assignedBarangay = computed(() => authStore.user?.assigned_barangay || null);
-const farmerSearch = useBarangayFarmerSearch(() => assignedBarangay.value);
-
 const crop = ref('Rice');
+const farmerSearch = useBarangayFarmerSearch(() => assignedBarangay.value, {
+  commodity: () => crop.value,
+});
+
 const mode = ref<PlantingPrintMode>('already_planted');
 const entries = ref<PlantingEntry[]>([]);
 const printRows = ref<Record<string, string | number>[]>([]);
+const saving = ref(false);
+const loadingLedger = ref(false);
 
 const form = reactive({
   farmer_id: '',
@@ -244,71 +251,26 @@ const form = reactive({
   remarks: '',
 });
 
+const matchingPlots = computed(() => farmerSearch.plotsForCommodity(crop.value));
+
 const canAdd = computed(() =>
-  !!form.farmer_id && !!form.area_planted && !!form.date_of_planting
+  !!form.farmer_id
+  && !!form.plot_id
+  && !!form.area_planted
+  && !!form.date_of_planting
+  && !saving.value
 );
 
 const totalHa = computed(() =>
   entries.value.reduce((s, e) => s + Number(e.area_planted || 0), 0)
 );
 
-const onSelectFarmer = async (f: FarmerOption) => {
-  await farmerSearch.selectFarmer(f);
-  const sel = farmerSearch.selected.value;
-  if (!sel) return;
-  form.farmer_id = sel.id;
-  form.rsbsa_no = sel.rsbsa_no;
-  form.surname = sel.surname;
-  form.first_name = sel.first_name;
-  form.middle_name = sel.middle_name;
-  form.ext_name = sel.ext_name;
-  form.birthdate = sel.birthdate;
-  form.birthdate_display = formatBirthday(sel.birthdate);
-  form.farmer_address = sel.address;
-  form.plot_id = '';
-  form.farm_location = sel.barangay;
-  form.area_planted = '';
-  if (sel.plots.length === 1) {
-    form.plot_id = sel.plots[0].id;
-    form.farm_location = sel.plots[0].location_brgy || sel.barangay;
-    form.area_planted = String(sel.plots[0].size_ha || '');
-    if (sel.plots[0].commodity === 'Corn' || sel.plots[0].commodity === 'Rice') {
-      crop.value = sel.plots[0].commodity;
-    }
-  }
-};
+const mapFarmerAddress = (f: any) =>
+  [f?.permanent_house_no, f?.permanent_street, f?.permanent_brgy, f?.permanent_city, f?.permanent_province]
+    .filter(Boolean)
+    .join(', ') || f?.permanent_brgy || '';
 
-const onPlotChange = (e: any) => {
-  form.plot_id = e.detail.value;
-  const p = farmerSearch.selected.value?.plots.find((x) => x.id === form.plot_id);
-  if (p) {
-    form.farm_location = p.location_brgy || form.farm_location;
-    form.area_planted = String(p.size_ha || form.area_planted);
-    if (p.commodity === 'Corn' || p.commodity === 'Rice') crop.value = p.commodity;
-  }
-};
-
-const addEntry = async () => {
-  if (!canAdd.value) return;
-  entries.value.push({
-    id: crypto.randomUUID(),
-    farmer_id: form.farmer_id,
-    rsbsa_no: form.rsbsa_no,
-    surname: form.surname,
-    first_name: form.first_name,
-    middle_name: form.middle_name,
-    ext_name: form.ext_name,
-    birthdate: form.birthdate,
-    birthdate_display: form.birthdate_display,
-    farmer_address: form.farmer_address,
-    farm_location: form.farm_location,
-    crop: crop.value,
-    area_planted: Number(form.area_planted),
-    date_of_planting: form.date_of_planting,
-    planting_status: form.planting_status,
-    water_source: form.water_source,
-    remarks: form.remarks,
-  });
+const resetEncodeForm = () => {
   farmerSearch.clearSelection();
   form.farmer_id = '';
   form.rsbsa_no = '';
@@ -324,8 +286,158 @@ const addEntry = async () => {
   form.area_planted = '';
   form.date_of_planting = '';
   form.remarks = '';
-  const t = await toastController.create({ message: 'Entry added to ledger.', color: 'success', duration: 1800, position: 'top' });
-  await t.present();
+};
+
+const onCropChange = async (e: any) => {
+  crop.value = e.detail.value;
+  resetEncodeForm();
+};
+
+const loadLedger = async () => {
+  loadingLedger.value = true;
+  try {
+    const res = await apiClient.get('/planting-logs', { params: { per_page: 200 } });
+    const rows = res.data?.data?.data ?? [];
+    entries.value = rows.map((r: any) => {
+      const farmer = r.farmer || {};
+      return {
+        id: r.id,
+        farmer_id: r.farmer_id,
+        plot_id: r.farm_plot_id || '',
+        rsbsa_no: farmer.rsbsa_no || '',
+        surname: farmer.surname || '',
+        first_name: farmer.first_name || '',
+        middle_name: farmer.middle_name || '',
+        ext_name: farmer.ext_name || '',
+        birthdate: farmer.birthdate || '',
+        birthdate_display: formatBirthday(farmer.birthdate || ''),
+        farmer_address: mapFarmerAddress(farmer),
+        farm_location: r.farm_location || r.farm_plot?.location_brgy || farmer.permanent_brgy || '',
+        crop: r.crop_type || 'Rice',
+        area_planted: Number(r.area_planted) || 0,
+        date_of_planting: r.date_planted?.slice?.(0, 10) || r.date_planted || '',
+        planting_status: r.status || 'Active',
+        water_source: r.water_source || '',
+        remarks: r.remarks || '',
+      } as PlantingEntry;
+    });
+  } catch {
+    entries.value = [];
+  } finally {
+    loadingLedger.value = false;
+  }
+};
+
+const onSelectFarmer = async (f: FarmerOption) => {
+  await farmerSearch.selectFarmer(f);
+  const sel = farmerSearch.selected.value;
+  if (!sel) return;
+
+  const plots = farmerSearch.plotsForCommodity(crop.value);
+  if (!plots.length) {
+    farmerSearch.clearSelection();
+    const t = await toastController.create({
+      message: `This farmer has no ${crop.value} plot. Switch Crop Type or choose another farmer.`,
+      color: 'warning',
+      duration: 2800,
+      position: 'top',
+    });
+    await t.present();
+    return;
+  }
+
+  form.farmer_id = sel.id;
+  form.rsbsa_no = sel.rsbsa_no;
+  form.surname = sel.surname;
+  form.first_name = sel.first_name;
+  form.middle_name = sel.middle_name;
+  form.ext_name = sel.ext_name;
+  form.birthdate = sel.birthdate;
+  form.birthdate_display = formatBirthday(sel.birthdate);
+  form.farmer_address = sel.address;
+  form.plot_id = '';
+  form.farm_location = sel.barangay;
+  form.area_planted = '';
+  if (plots.length === 1) {
+    form.plot_id = plots[0].id;
+    form.farm_location = plots[0].location_brgy || sel.barangay;
+    form.area_planted = String(plots[0].size_ha || '');
+  }
+};
+
+const onPlotChange = (e: any) => {
+  form.plot_id = e.detail.value;
+  const p = matchingPlots.value.find((x) => x.id === form.plot_id);
+  if (p) {
+    form.farm_location = p.location_brgy || form.farm_location;
+    form.area_planted = String(p.size_ha || form.area_planted);
+  }
+};
+
+const addEntry = async () => {
+  if (!canAdd.value) return;
+  const plotOk = matchingPlots.value.some((p) => p.id === form.plot_id);
+  if (!plotOk) {
+    const t = await toastController.create({
+      message: `Select a ${crop.value} farm plot before encoding.`,
+      color: 'warning',
+      duration: 2400,
+      position: 'top',
+    });
+    await t.present();
+    return;
+  }
+  saving.value = true;
+  const id = crypto.randomUUID();
+  try {
+    await apiClient.post('/planting-logs', {
+      id,
+      farmer_id: form.farmer_id,
+      farm_plot_id: form.plot_id || undefined,
+      crop_type: crop.value,
+      variety: 'Unspecified',
+      area_planted: Number(form.area_planted),
+      date_planted: form.date_of_planting,
+      status: form.planting_status,
+      water_source: form.water_source,
+      farm_location: form.farm_location,
+      remarks: form.remarks,
+    });
+
+    entries.value.unshift({
+      id,
+      farmer_id: form.farmer_id,
+      plot_id: form.plot_id,
+      rsbsa_no: form.rsbsa_no,
+      surname: form.surname,
+      first_name: form.first_name,
+      middle_name: form.middle_name,
+      ext_name: form.ext_name,
+      birthdate: form.birthdate,
+      birthdate_display: form.birthdate_display,
+      farmer_address: form.farmer_address,
+      farm_location: form.farm_location,
+      crop: crop.value,
+      area_planted: Number(form.area_planted),
+      date_of_planting: form.date_of_planting,
+      planting_status: form.planting_status,
+      water_source: form.water_source,
+      remarks: form.remarks,
+    });
+    resetEncodeForm();
+    const t = await toastController.create({ message: 'Planting entry saved.', color: 'success', duration: 1800, position: 'top' });
+    await t.present();
+  } catch (e: any) {
+    const t = await toastController.create({
+      message: e?.response?.data?.message || 'Failed to save planting entry.',
+      color: 'danger',
+      duration: 2800,
+      position: 'top',
+    });
+    await t.present();
+  } finally {
+    saving.value = false;
+  }
 };
 
 const filteredForExport = computed(() => {
@@ -367,6 +479,10 @@ const exportForm = async () => {
   }));
   setTimeout(() => window.print(), 350);
 };
+
+onMounted(() => {
+  void loadLedger();
+});
 </script>
 
 <style scoped>
@@ -393,6 +509,7 @@ const exportForm = async () => {
   padding: 1rem; margin-bottom: 1rem;
 }
 .form-card h3, .table-head h3 { margin: 0 0 0.75rem; color: #1a4731; font-weight: 800; }
+.crop-hint { margin: -0.35rem 0 0.85rem; font-size: 0.82rem; color: #64748b; }
 .search-box { position: relative; margin-bottom: 0.75rem; }
 .hint { font-size: 0.8rem; color: #94a3b8; margin-top: 4px; }
 .suggest {

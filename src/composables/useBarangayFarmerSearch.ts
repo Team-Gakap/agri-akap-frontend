@@ -16,7 +16,11 @@ export interface FarmerOption {
 
 export function useBarangayFarmerSearch(
   assignedBarangay: () => string | null | undefined,
-  options: { requireBarangay?: boolean } = {},
+  options: {
+    requireBarangay?: boolean;
+    /** When set, search only returns farmers with a matching farm-plot commodity. */
+    commodity?: () => string | null | undefined;
+  } = {},
 ) {
   const requireBarangay = options.requireBarangay !== false;
   const query = ref('');
@@ -62,10 +66,12 @@ export function useBarangayFarmerSearch(
     }
     searching.value = true;
     try {
+      const commodity = options.commodity?.()?.trim() || undefined;
       const res = await apiClient.get('/farmers', {
         params: {
           search: term || undefined,
           barangay: brgy || undefined,
+          commodity: commodity || undefined,
           per_page: 15,
         },
       });
@@ -100,6 +106,15 @@ export function useBarangayFarmerSearch(
     }
   };
 
+  /** Plots for the selected farmer that match the active crop form. */
+  const plotsForCommodity = (commodity: string) => {
+    const crop = commodity.trim().toLowerCase();
+    if (!crop) return selected.value?.plots || [];
+    return (selected.value?.plots || []).filter(
+      (p) => p.commodity.trim().toLowerCase() === crop,
+    );
+  };
+
   const clearSelection = () => {
     selected.value = null;
     query.value = '';
@@ -116,6 +131,7 @@ export function useBarangayFarmerSearch(
     selectFarmer,
     clearSelection,
     search,
+    plotsForCommodity,
   };
 }
 

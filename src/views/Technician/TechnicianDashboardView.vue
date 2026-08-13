@@ -27,8 +27,8 @@
               <ion-icon :icon="bugOutline"></ion-icon>
             </div>
             <div class="card-copy">
-              <h2>Report Pest or Disease</h2>
-              <p>Validate barangay pest reports — ground-truth &amp; intervene.</p>
+              <h2>Check Pests</h2>
+              <p>Review pest reports from barangays and check them in the field.</p>
             </div>
             <ion-icon class="chevron" :icon="chevronForwardOutline"></ion-icon>
           </div>
@@ -43,8 +43,8 @@
               <ion-icon :icon="thunderstormOutline"></ion-icon>
             </div>
             <div class="card-copy">
-              <h2>Assess Calamity Damage</h2>
-              <p>RDANA queue — validate barangay disaster reports on-site.</p>
+              <h2>Check Calamity Damage</h2>
+              <p>Review disaster reports from barangays and check them on site.</p>
             </div>
             <ion-icon class="chevron" :icon="chevronForwardOutline"></ion-icon>
           </div>
@@ -59,8 +59,8 @@
               <ion-icon :icon="qrCodeOutline"></ion-icon>
             </div>
             <div class="card-copy">
-              <h2>Dispense Subsidy</h2>
-              <p>Scan Farmer QR ID to release seeds/fertilizer.</p>
+              <h2>Give Subsidy</h2>
+              <p>Scan the farmer’s ID card to give seeds or fertilizer.</p>
             </div>
             <ion-icon class="chevron" :icon="chevronForwardOutline"></ion-icon>
           </div>
@@ -76,7 +76,7 @@
             </div>
             <div class="card-copy">
               <h2>Find Farmer</h2>
-              <p>Search RSBSA / name — open subsidy or profile actions.</p>
+              <p>Search by name or farmer number.</p>
             </div>
             <ion-icon class="chevron" :icon="chevronForwardOutline"></ion-icon>
           </div>

@@ -5,7 +5,7 @@
         <ion-buttons slot="start">
           <ion-menu-button></ion-menu-button>
         </ion-buttons>
-        <ion-title>Agricultural Map</ion-title>
+        <ion-title>Farm Map</ion-title>
         <ion-buttons slot="end">
           <ion-button @click="loadData" :disabled="isLoading">
             <ion-icon slot="icon-only" :icon="refreshOutline"></ion-icon>

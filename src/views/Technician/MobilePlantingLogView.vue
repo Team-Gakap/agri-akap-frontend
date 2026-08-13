@@ -5,7 +5,7 @@
         <ion-buttons slot="start">
           <ion-back-button default-href="/tech/field"></ion-back-button>
         </ion-buttons>
-        <ion-title>Planting Log</ion-title>
+        <ion-title>Planting Records</ion-title>
       </ion-toolbar>
       <ion-toolbar color="primary">
         <ion-segment :value="form.crop" color="light" @ionChange="(e: any) => form.crop = e.detail.value">
@@ -118,7 +118,7 @@
       </ion-card>
 
       <ion-button expand="block" class="save-btn" :disabled="!canSave || saving" @click="saveRecord">
-        {{ saving ? 'Saving…' : 'Save to LGU Masterlist' }}
+        {{ saving ? 'Saving…' : 'Save Record' }}
       </ion-button>
     </ion-content>
   </ion-page>

@@ -2,14 +2,14 @@
   <ion-page>
     <ion-content class="ion-padding page-bg">
       <header class="page-head">
-        <h1>Sync History</h1>
-        <p>Past field logs synced to the MAO dashboard will appear here.</p>
+        <h1>History</h1>
+        <p>Past field work sent to the MAO office will appear here.</p>
       </header>
 
       <div class="empty-state">
         <ion-icon :icon="timeOutline"></ion-icon>
-        <h2>No synced logs yet</h2>
-        <p>Complete a pest response, RDANA assessment, or subsidy release — synced records will show in this timeline.</p>
+        <h2>No records yet</h2>
+        <p>After you check pests, record calamity damage, or give a subsidy, those records will show here.</p>
       </div>
     </ion-content>
   </ion-page>

@@ -5,7 +5,7 @@
         <ion-buttons slot="start">
           <ion-menu-button></ion-menu-button>
         </ion-buttons>
-        <ion-title>Disaster Assessment</ion-title>
+        <ion-title>Report Damage</ion-title>
         <ion-buttons slot="end">
           <ion-chip :color="syncStore.online ? 'light' : 'warning'">
             <ion-icon :icon="syncStore.online ? cloudDoneOutline : cloudOfflineOutline"></ion-icon>

@@ -68,8 +68,6 @@ import {
   cubeOutline, 
   fileTrayStackedOutline, 
   chatbubbleEllipsesOutline, 
-  barChartOutline, barChartSharp, 
-  mapOutline, mapSharp,
   clipboardOutline, clipboardSharp, 
   documentTextOutline, documentTextSharp,
   cloudyOutline, 
@@ -96,15 +94,10 @@ const appPages: NavPage[] = [
   { title: "Dashboard", url: "/admin/dashboard", iosIcon: homeOutline, mdIcon: homeSharp },
   { title: "Farmer Registry", url: "/admin/farmers", iosIcon: peopleOutline, mdIcon: peopleSharp },
   { title: "ID Card Production", url: "/admin/id-issuance", iosIcon: idCardOutline, mdIcon: idCardOutline },
-  { title: "Subsidy Campaigns", url: "/admin/programs", iosIcon: cubeOutline, mdIcon: cubeOutline },
-  { title: "Warehouse Inventory", url: "/admin/inventory", iosIcon: fileTrayStackedOutline, mdIcon: fileTrayStackedOutline },
+  { title: "Subsidy Campaigns", url: "/admin/subsidies", iosIcon: cubeOutline, mdIcon: cubeOutline },
   { title: "Text Notifications", url: "/admin/broadcasts", iosIcon: chatbubbleEllipsesOutline, mdIcon: chatbubbleEllipsesOutline },
   { title: "Weather", url: "/admin/weather", iosIcon: cloudyOutline, mdIcon: cloudyOutline },
-  { title: "Crop Analytics", url: "/admin/intelligence", iosIcon: barChartOutline, mdIcon: barChartSharp },
-  { title: "Farm Mapping", url: "/admin/map", iosIcon: mapOutline, mdIcon: mapSharp },
-  { title: "Damage Assessments", url: "/admin/damage-review", iosIcon: clipboardOutline, mdIcon: clipboardSharp },
   { title: "Executive Reports", url: "/admin/executive-reporting", iosIcon: documentTextOutline, mdIcon: documentTextSharp },
-  { title: "Official Documents", url: "/admin/reports", iosIcon: documentTextOutline, mdIcon: documentTextSharp },
 ];
 
 const handleLogout = () => authStore.logout();

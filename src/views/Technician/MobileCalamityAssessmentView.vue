@@ -5,7 +5,7 @@
         <ion-buttons slot="start">
           <ion-back-button :default-href="backHref"></ion-back-button>
         </ion-buttons>
-        <ion-title>RDANA — Calamity Assessment</ion-title>
+        <ion-title>Calamity Damage</ion-title>
       </ion-toolbar>
     </ion-header>
 

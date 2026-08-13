@@ -5,136 +5,154 @@
         <ion-buttons slot="start">
           <ion-menu-button></ion-menu-button>
         </ion-buttons>
-        <ion-title>Dashboard</ion-title>
+        <ion-title>Command Center</ion-title>
         <ion-buttons slot="end">
-          <ion-button :disabled="loading" @click="fetchOverview">
+          <ion-button :disabled="loading" @click="fetchAll">
             <ion-icon slot="icon-only" :icon="refreshOutline"></ion-icon>
           </ion-button>
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
 
-    <ion-content class="page-bg">
+    <ion-content class="dashboard-bg ion-padding">
       <div class="shell">
         <header class="intro">
-          <p class="eyebrow">LGU Echague · Municipal Agriculture Office</p>
+          <p class="eyebrow">LGU Echague &middot; Municipal Agriculture Office</p>
+          <h1>Municipal Command Center</h1>
         </header>
 
         <div v-if="loading" class="center-state">
           <ion-spinner name="crescent" color="primary"></ion-spinner>
-          <p>Loading live overview…</p>
+          <p>Loading live overview&hellip;</p>
         </div>
 
         <div v-else-if="error" class="center-state error">
           <p>{{ error }}</p>
-          <ion-button @click="fetchOverview">Retry</ion-button>
+          <ion-button @click="fetchAll">Retry</ion-button>
         </div>
 
-        <template v-else>
-          <section class="section" aria-label="Descriptive analytics">
-            <div class="kpi-grid">
-              <ion-card class="kpi-card">
-                <ion-card-content>
-                  <p class="kpi-value">{{ fmt(dashboardData.descriptive?.total_farmers) }}</p>
-                  <p class="kpi-label">Registered Farmers</p>
-                </ion-card-content>
-              </ion-card>
-              <ion-card class="kpi-card gold">
-                <ion-card-content>
-                  <p class="kpi-value">{{ fmt(dashboardData.descriptive?.total_hectares) }} <small>ha</small></p>
-                  <p class="kpi-label">Cultivated Land Area</p>
-                </ion-card-content>
-              </ion-card>
-              <ion-card class="kpi-card">
-                <ion-card-content>
-                  <p class="kpi-value">{{ fmt(dashboardData.descriptive?.active_subsidies) }}</p>
-                  <p class="kpi-label">Recent Distributions (90d)</p>
-                </ion-card-content>
-              </ion-card>
-            </div>
-          </section>
+        <div v-else class="grid-shell">
+          <!-- ── Row 1: Descriptive KPIs ─────────────────────────────────── -->
+          <ion-card class="kpi-card span-3">
+            <ion-card-content>
+              <div class="kpi-icon-wrap kpi-tone-green">
+                <ion-icon :icon="peopleOutline"></ion-icon>
+              </div>
+              <p class="kpi-value">{{ fmt(descriptive.total_farmers) }}</p>
+              <p class="kpi-label">Registered Farmers</p>
+            </ion-card-content>
+          </ion-card>
 
-          <section class="section mid-grid" aria-label="Diagnostic and predictive analytics">
-            <div class="mid-col"> 
-              <ion-card class="panel-card">
-                <ion-card-header>
-                  <ion-card-title>Crop Health Incidents</ion-card-title>
-                </ion-card-header>
-                <ion-card-content>
-                  <div class="chart-box">
-                    <Doughnut :data="pestChartData" :options="doughnutOptions" />
-                  </div>
-                  <p v-if="!pestStageRows.length" class="empty-note">No pest_monitoring data yet.</p>
-                </ion-card-content>
-              </ion-card>
-            </div>
+          <ion-card class="kpi-card span-3">
+            <ion-card-content>
+              <div class="kpi-icon-wrap kpi-tone-gold">
+                <ion-icon :icon="leafOutline"></ion-icon>
+              </div>
+              <p class="kpi-value">{{ fmt(descriptive.total_hectares) }} <small>ha</small></p>
+              <p class="kpi-label">Active Hectares</p>
+            </ion-card-content>
+          </ion-card>
 
-            <div class="mid-col">
-              <ion-card class="panel-card">
-                <ion-card-header>
-                  <ion-card-title>Harvest Forecasts</ion-card-title>
-                </ion-card-header>
-                <ion-card-content>
-                  <div class="chart-box">
-                    <Bar :data="harvestChartData" :options="barOptions" />
-                  </div>
-                  <p v-if="!harvestRows.length" class="empty-note">No Active planting logs for forecast.</p>
-                </ion-card-content>
-              </ion-card>
+          <ion-card class="kpi-card span-3">
+            <ion-card-content>
+              <div class="kpi-icon-wrap kpi-tone-danger">
+                <ion-icon :icon="warningOutline"></ion-icon>
+              </div>
+              <p class="kpi-value">{{ fmt(descriptive.active_calamities_pests) }}</p>
+              <p class="kpi-label">Active Calamities / Pests</p>
+            </ion-card-content>
+          </ion-card>
 
-              <ion-card class="panel-card risk-card">
-                <ion-card-header>
-                  <ion-card-title>Weather Risk Radar</ion-card-title>
-                  <ion-card-subtitle>Next 3 days · Flood / Drought flags</ion-card-subtitle>
-                </ion-card-header>
-                <ion-card-content>
-                  <ion-list lines="full" class="risk-list">
-                    <ion-item v-for="r in weatherRisks" :key="r.barangay">
-                      <ion-label>
-                        <h3>{{ r.barangay }}</h3>
-                        <p>{{ (r.risks || []).join(' · ') }}</p>
-                      </ion-label>
-                      <ion-badge slot="end" :color="riskBadgeColor(r)">{{ r.precipitation_probability }}%</ion-badge>
-                    </ion-item>
-                    <ion-item v-if="!weatherRisks.length">
-                      <ion-label><p>No barangays above risk thresholds.</p></ion-label>
-                    </ion-item>
-                  </ion-list>
-                </ion-card-content>
-              </ion-card>
-            </div>
-          </section>
+          <ion-card class="kpi-card span-3">
+            <ion-card-content>
+              <div class="kpi-icon-wrap kpi-tone-slate">
+                <ion-icon :icon="cubeOutline"></ion-icon>
+              </div>
+              <p class="kpi-value">{{ fmt(descriptive.pending_subsidy_releases) }}</p>
+              <p class="kpi-label">Pending Subsidy Releases</p>
+            </ion-card-content>
+          </ion-card>
 
-          <section class="section" aria-label="Prescriptive actions">
-            <ion-card class="action-card">
+          <!-- ── Row 2: GIS Map (8) + Charts (4) ─────────────────────────── -->
+          <ion-card class="panel-card span-8 map-panel">
+            <ion-card-header>
+              <ion-card-title>Municipal GIS &amp; Outbreak Radar</ion-card-title>
+              <ion-card-subtitle>Active pest outbreaks &middot; Severe crop damage</ion-card-subtitle>
+            </ion-card-header>
+            <ion-card-content class="map-content">
+              <div class="map-shell">
+                <div v-if="mapLoading" class="map-loading"><ion-spinner name="crescent"></ion-spinner></div>
+                <div ref="mapEl" class="map-canvas"></div>
+              </div>
+              <div class="map-legend">
+                <span class="legend-chip"><i class="dot pest"></i>Active pest outbreak</span>
+                <span class="legend-chip"><i class="dot damage"></i>Severe damage (&ge;50%)</span>
+                <span v-if="!mapMarkerCount" class="legend-chip muted">No high-priority markers right now.</span>
+              </div>
+            </ion-card-content>
+          </ion-card>
+
+          <div class="span-4 chart-col">
+            <ion-card class="panel-card">
+              <ion-card-header>
+                <ion-card-title>Crop Distribution</ion-card-title>
+                <ion-card-subtitle>Rice vs Corn (farm plots)</ion-card-subtitle>
+              </ion-card-header>
               <ion-card-content>
-                <ion-list lines="none" class="alert-list">
-                  <ion-item v-for="(alert, i) in alerts" :key="i" class="alert-item">
-                    <ion-label class="ion-text-wrap">
-                      <ion-badge color="warning">{{ alert.type }}</ion-badge>
-                      <h2>{{ alert.barangay || 'LGU-wide' }}</h2>
-                      <p>{{ alert.message }}</p>
-                    </ion-label>
-                    <ion-button slot="end" class="sms-btn" @click="openSmsModal(alert)">
-                      Draft SMS Advisory
-                    </ion-button>
-                  </ion-item>
-                  <ion-item v-if="!alerts.length">
-                    <ion-label>
-                      <p>No automated recommendations from the current predictive feed.</p>
-                    </ion-label>
-                  </ion-item>
-                </ion-list>
+                <div class="chart-box small">
+                  <Doughnut :data="cropChartData" :options="doughnutOptions" />
+                </div>
+                <p v-if="!cropRows.length" class="empty-note">No farm plot data yet.</p>
               </ion-card-content>
             </ion-card>
-          </section>
-        </template>
+
+            <ion-card class="panel-card">
+              <ion-card-header>
+                <ion-card-title>Recent Subsidy Distributions</ion-card-title>
+                <ion-card-subtitle>By barangay &middot; last 90 days</ion-card-subtitle>
+              </ion-card-header>
+              <ion-card-content>
+                <div class="chart-box small">
+                  <Bar :data="distributionChartData" :options="barOptions" />
+                </div>
+                <p v-if="!distributionRows.length" class="empty-note">No recent distributions.</p>
+              </ion-card-content>
+            </ion-card>
+          </div>
+
+          <!-- ── Row 3: Agricultural Intelligence / Action Center ────────── -->
+          <ion-card class="panel-card span-12 action-card">
+            <ion-card-header>
+              <ion-card-title>Agricultural Intelligence &amp; Prescriptive Actions</ion-card-title>
+              <ion-card-subtitle>Critical system-generated insights only</ion-card-subtitle>
+            </ion-card-header>
+            <ion-card-content>
+              <ion-list lines="none" class="alert-list">
+                <ion-item v-for="(alert, i) in alerts" :key="i" class="alert-item">
+                  <ion-label class="ion-text-wrap">
+                    <ion-badge :color="alertColor(alert)">{{ alertLabel(alert) }}</ion-badge>
+                    <h2>{{ alert.barangay || 'LGU-wide' }}</h2>
+                    <p>{{ alert.message }}</p>
+                  </ion-label>
+                  <ion-button slot="end" fill="outline" class="sms-btn" @click="openSmsModal(alert)">
+                    Trigger SMS Advisory
+                  </ion-button>
+                </ion-item>
+                <ion-item v-if="!alerts.length">
+                  <ion-label>
+                    <p>No critical alerts. All monitored indicators are within normal range.</p>
+                  </ion-label>
+                </ion-item>
+              </ion-list>
+            </ion-card-content>
+          </ion-card>
+        </div>
       </div>
 
       <ion-modal :is-open="smsOpen" @didDismiss="smsOpen = false">
         <ion-header>
           <ion-toolbar color="primary">
-            <ion-title>Draft SMS Advisory</ion-title>
+            <ion-title>Trigger SMS Advisory</ion-title>
             <ion-buttons slot="end">
               <ion-button @click="smsOpen = false">Close</ion-button>
             </ion-buttons>
@@ -158,7 +176,7 @@
                 :auto-grow="true"
                 :value="smsForm.message"
                 @ionInput="(e: any) => smsForm.message = e.detail.value"
-                rows =6
+                :rows="6"
               ></ion-textarea>
             </ion-item>
           </ion-list>
@@ -180,7 +198,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
@@ -188,7 +206,7 @@ import {
   IonCardContent, IonList, IonItem, IonLabel, IonBadge, IonModal, IonInput, IonTextarea,
   toastController,
 } from '@ionic/vue';
-import { refreshOutline, peopleOutline, leafOutline, giftOutline } from 'ionicons/icons';
+import { refreshOutline, peopleOutline, leafOutline, warningOutline, cubeOutline } from 'ionicons/icons';
 import { Doughnut, Bar } from 'vue-chartjs';
 import {
   Chart as ChartJS,
@@ -200,25 +218,31 @@ import {
   CategoryScale,
   LinearScale,
 } from 'chart.js';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import apiClient from '@/utils/axios';
 
 ChartJS.register(Title, Tooltip, Legend, ArcElement, BarElement, CategoryScale, LinearScale);
 
 const LGU_GREEN = '#1a4731';
 const LGU_GOLD = '#d4af37';
+const ECHAGUE: [number, number] = [16.7053, 121.6772];
 
 const router = useRouter();
 const loading = ref(true);
 const error = ref('');
 const sendingSms = ref(false);
 const smsOpen = ref(false);
+const mapLoading = ref(false);
+const mapMarkerCount = ref(0);
+const mapEl = ref<HTMLDivElement | null>(null);
 
-const dashboardData = reactive<any>({
-  descriptive: {},
-  diagnostic: { pest_breakdown: [] },
-  predictive: { harvest_forecast: [], weather_risk: [] },
-  prescriptive: { alerts: [] },
-});
+let map: L.Map | null = null;
+
+const descriptive = reactive<any>({});
+const diagnostic = reactive<any>({ pest_breakdown: [], crop_distribution: [], distributions_by_barangay: [] });
+const predictive = reactive<any>({ harvest_forecast: [], weather_risk: [] });
+const prescriptive = reactive<any>({ alerts: [] });
 
 const smsForm = reactive({
   barangay: '',
@@ -227,53 +251,44 @@ const smsForm = reactive({
 
 const fmt = (v: any) => Number(v ?? 0).toLocaleString('en-PH');
 
-const pestStageRows = computed(() => {
-  const map = new Map<string, number>();
-  for (const row of dashboardData.diagnostic?.pest_breakdown ?? []) {
-    const key = row.crop_stage || 'Unspecified';
-    map.set(key, (map.get(key) || 0) + Number(row.total || 0));
-  }
-  return [...map.entries()].map(([crop_stage, total]) => ({ crop_stage, total }));
-});
+const cropRows = computed(() => diagnostic.crop_distribution ?? []);
+const distributionRows = computed(() => diagnostic.distributions_by_barangay ?? []);
+const alerts = computed(() => prescriptive.alerts ?? []);
 
-const harvestRows = computed(() => dashboardData.predictive?.harvest_forecast ?? []);
-const weatherRisks = computed(() => dashboardData.predictive?.weather_risk ?? []);
-const alerts = computed(() => dashboardData.prescriptive?.alerts ?? []);
-
-const pestChartData = computed(() => {
-  const rows = pestStageRows.value;
-  const palette = [LGU_GREEN, LGU_GOLD, '#2d6a4f', '#e8c96a', '#40916c', '#94a3b8'];
+const cropChartData = computed(() => {
+  const rows = cropRows.value;
+  const palette = [LGU_GREEN, LGU_GOLD, '#94a3b8', '#40916c', '#e8c96a'];
   return {
-    labels: rows.map((r) => r.crop_stage),
+    labels: rows.map((r: any) => r.commodity),
     datasets: [{
-      data: rows.map((r) => r.total),
-      backgroundColor: rows.map((_, i) => palette[i % palette.length]),
+      data: rows.map((r: any) => r.total_plots),
+      backgroundColor: rows.map((_: any, i: number) => palette[i % palette.length]),
       borderWidth: 0,
       hoverOffset: 6,
     }],
   };
 });
 
-const harvestChartData = computed(() => ({
-  labels: harvestRows.value.map((r: any) => r.crop_type),
+const distributionChartData = computed(() => ({
+  labels: distributionRows.value.map((r: any) => r.barangay),
   datasets: [{
-    label: 'Estimated harvest (kg)',
-    data: harvestRows.value.map((r: any) => r.estimated_harvest_kg),
+    label: 'Distributions',
+    data: distributionRows.value.map((r: any) => r.total),
     backgroundColor: LGU_GREEN,
     hoverBackgroundColor: LGU_GOLD,
     borderRadius: 8,
-    maxBarThickness: 42,
+    maxBarThickness: 30,
   }],
 }));
 
 const doughnutOptions = {
   responsive: true,
   maintainAspectRatio: false,
-  cutout: '60%',
+  cutout: '65%',
   plugins: {
     legend: {
       position: 'bottom' as const,
-      labels: { color: LGU_GREEN, usePointStyle: true, boxWidth: 10 },
+      labels: { color: LGU_GREEN, usePointStyle: true, boxWidth: 8, font: { size: 11 } },
     },
   },
 };
@@ -281,24 +296,94 @@ const doughnutOptions = {
 const barOptions = {
   responsive: true,
   maintainAspectRatio: false,
+  indexAxis: 'y' as const,
   plugins: {
     legend: { display: false },
     tooltip: { backgroundColor: LGU_GREEN, titleColor: '#fff', bodyColor: LGU_GOLD },
   },
   scales: {
-    x: { ticks: { color: '#64748b' }, grid: { display: false } },
-    y: {
+    x: {
       beginAtZero: true,
-      ticks: { color: '#94a3b8' },
+      ticks: { color: '#94a3b8', precision: 0 },
       grid: { color: 'rgba(26,71,49,0.08)' },
     },
+    y: { ticks: { color: '#64748b', font: { size: 11 } }, grid: { display: false } },
   },
 };
 
-const riskBadgeColor = (r: any) => {
-  if ((r.risks || []).includes('Flood Risk')) return 'danger';
-  if ((r.risks || []).includes('Drought Risk')) return 'warning';
+const alertColor = (a: any) => {
+  if (a?.type === 'pest_outbreak') return 'danger';
+  if (a?.type === 'weather_alert') return 'warning';
   return 'medium';
+};
+const alertLabel = (a: any) => {
+  const map: Record<string, string> = {
+    pest_outbreak: 'Pest Outbreak',
+    weather_alert: 'Weather Alert',
+    harvest_readiness: 'Harvest Readiness',
+  };
+  return map[a?.type] || 'Advisory';
+};
+
+const esc = (s: any) => String(s ?? '').replace(/[&<>"]/g, (c) =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
+
+const initMap = () => {
+  if (!mapEl.value || map) return;
+  map = L.map(mapEl.value, { center: ECHAGUE, zoom: 12 });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors',
+  }).addTo(map);
+  setTimeout(() => map?.invalidateSize(), 300);
+};
+
+const renderMap = (data: any) => {
+  if (!map) return;
+
+  const damage = (data.damage_points ?? []).filter((d: any) => Number(d.damage_percentage || 0) >= 50);
+  const pests = (data.pest_outbreaks ?? []).filter((p: any) => String(p.status || '').toLowerCase() === 'active');
+
+  mapMarkerCount.value = damage.length + pests.length;
+
+  pests.forEach((p: any) => {
+    const sev = String(p.severity || '').toLowerCase();
+    const fill = sev.includes('high') || sev.includes('severe') ? '#b91c1c'
+      : sev.includes('med') ? '#d97706' : '#eab308';
+    L.circleMarker([p.lat, p.lng], {
+      radius: 8, color: '#422006', weight: 1.5, fillColor: fill, fillOpacity: 0.9,
+    })
+      .bindPopup(
+        `<strong>${esc(p.pest_name || 'Pest outbreak')}</strong><br/>` +
+        `Severity: ${esc(p.severity || '-')}<br/>` +
+        `${esc(p.commodity || '')} &middot; Brgy ${esc(p.brgy || '-')}`
+      )
+      .addTo(map!);
+  });
+
+  damage.forEach((d: any) => {
+    L.circleMarker([d.lat, d.lng], {
+      radius: 7, color: '#7f1d1d', weight: 1, fillColor: '#ef4444', fillOpacity: 0.85,
+    })
+      .bindPopup(
+        `<strong>${esc(d.calamity_name || 'Damage')}</strong><br/>` +
+        `Damage: <b>${esc(d.damage_percentage)}%</b><br/>` +
+        `Brgy ${esc(d.brgy || '-')}`
+      )
+      .addTo(map!);
+  });
+};
+
+const fetchMapData = async () => {
+  mapLoading.value = true;
+  try {
+    const res = await apiClient.get('/dashboard/map-data');
+    renderMap(res.data?.data ?? {});
+  } catch {
+    // Map is a supplementary layer; failures here shouldn't block the dashboard.
+  } finally {
+    mapLoading.value = false;
+  }
 };
 
 const fetchOverview = async () => {
@@ -307,15 +392,22 @@ const fetchOverview = async () => {
   try {
     const res = await apiClient.get('/dashboard/overview');
     const payload = res.data?.data ?? {};
-    dashboardData.descriptive = payload.descriptive ?? {};
-    dashboardData.diagnostic = payload.diagnostic ?? { pest_breakdown: [] };
-    dashboardData.predictive = payload.predictive ?? { harvest_forecast: [], weather_risk: [] };
-    dashboardData.prescriptive = payload.prescriptive ?? { alerts: [] };
+    Object.assign(descriptive, payload.descriptive ?? {});
+    Object.assign(diagnostic, { pest_breakdown: [], crop_distribution: [], distributions_by_barangay: [], ...(payload.diagnostic ?? {}) });
+    Object.assign(predictive, { harvest_forecast: [], weather_risk: [], ...(payload.predictive ?? {}) });
+    Object.assign(prescriptive, { alerts: [], ...(payload.prescriptive ?? {}) });
   } catch (e: any) {
     error.value = e?.response?.data?.message || 'Could not load dashboard overview.';
   } finally {
     loading.value = false;
   }
+};
+
+const fetchAll = async () => {
+  await fetchOverview();
+  await nextTick();
+  initMap();
+  await fetchMapData();
 };
 
 const openSmsModal = (alert: any) => {
@@ -365,17 +457,21 @@ const goBroadcastCenter = async () => {
   });
 };
 
-onMounted(() => fetchOverview());
+onMounted(() => fetchAll());
+
+onBeforeUnmount(() => {
+  if (map) { map.remove(); map = null; }
+});
 </script>
 
 <style scoped>
-.page-bg {
-  --background: linear-gradient(165deg, #eef5f0 0%, #f7faf8 45%, #e8f0ea 100%);
+.dashboard-bg {
+  --background: #f4f5f8;
 }
 .shell {
-  max-width: 1200px;
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 1.25rem 1rem 2.75rem;
+  padding-bottom: 1.5rem;
 }
 .intro { margin-bottom: 1.35rem; }
 .eyebrow {
@@ -393,133 +489,137 @@ onMounted(() => fetchOverview());
   color: #1a4731;
   letter-spacing: -0.02em;
 }
-.lede {
-  margin: 0.4rem 0 0;
-  max-width: 40rem;
-  color: #64748b;
-  font-size: 0.95rem;
-  line-height: 1.45;
-}
 .center-state {
   text-align: center;
   padding: 3.5rem 1rem;
   color: #64748b;
 }
 .center-state.error { color: #b91c1c; }
-.section { margin-bottom: 1.75rem; }
-.section-label span {
-  display: inline-block;
-  font-size: 0.7rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #d4af37;
-}
-.section-label h2 {
-  margin: 0.2rem 0 0.85rem;
-  font-size: 1.15rem;
-  font-weight: 800;
-  color: #1a4731;
-}
-.kpi-grid {
+
+/* ── 12-column responsive command grid ──────────────────────────────── */
+.grid-shell {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.9rem;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 1.1rem;
+  align-items: start;
 }
+.span-3 { grid-column: span 3; }
+.span-4 { grid-column: span 4; }
+.span-8 { grid-column: span 8; }
+.span-12 { grid-column: span 12; }
+
+/* ── KPI cards ───────────────────────────────────────────────────────── */
 .kpi-card {
   margin: 0;
   border-radius: 18px;
-  border: 1px solid #d5e3da;
+  border: 1px solid #e2e8f0;
   background: #fff;
-  box-shadow: 0 10px 28px rgba(26, 71, 49, 0.06);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
 }
-.kpi-card.gold {
-  background: linear-gradient(145deg, #1a4731 0%, #244f38 100%);
-  border-color: #1a4731;
+.kpi-icon-wrap {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  margin-bottom: 0.75rem;
 }
-.kpi-card.gold .kpi-value,
-.kpi-card.gold .kpi-label,
-.kpi-card.gold .kpi-icon { color: #d4af37; }
-.kpi-card.gold .kpi-label { color: rgba(255, 255, 255, 0.75); }
-.kpi-icon {
-  font-size: 1.45rem;
-  color: #1a4731;
-  margin-bottom: 0.55rem;
-}
+.kpi-tone-green { background: rgba(26, 71, 49, 0.1); color: #1a4731; }
+.kpi-tone-gold { background: rgba(212, 175, 55, 0.16); color: #a3831f; }
+.kpi-tone-danger { background: rgba(220, 38, 38, 0.1); color: #b91c1c; }
+.kpi-tone-slate { background: rgba(100, 116, 139, 0.12); color: #475569; }
 .kpi-value {
   margin: 0;
-  font-size: clamp(1.7rem, 3vw, 2.15rem);
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
   font-weight: 900;
   color: #1a4731;
   line-height: 1.05;
   letter-spacing: -0.03em;
 }
 .kpi-value small {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: 700;
 }
 .kpi-label {
-  margin: 0.4rem 0 0;
-  font-size: 0.85rem;
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
   font-weight: 700;
-  color: #64748b;
+  color: #94a3b8;
 }
-.mid-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  align-items: start;
-}
-.mid-col { min-width: 0; }
-.panel-card, .action-card {
-  margin: 0 0 0.85rem;
+
+/* ── Panels ──────────────────────────────────────────────────────────── */
+.panel-card {
+  margin: 0;
   border-radius: 16px;
-  border: 1px solid #d5e3da;
+  border: 1px solid #e2e8f0;
   background: #fff;
-  box-shadow: 0 8px 22px rgba(26, 71, 49, 0.05);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
 }
+.chart-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  min-width: 0;
+}
+.chart-col .panel-card { flex: 1; }
 ion-card-title {
   color: #1a4731;
   font-weight: 800;
-  font-size: 1.02rem;
+  font-size: 1rem;
 }
 ion-card-subtitle {
   color: #94a3b8;
   font-weight: 600;
+  font-size: 0.78rem;
 }
-.chart-box {
-  height: 260px;
+
+/* ── Map ─────────────────────────────────────────────────────────────── */
+.map-content { display: flex; flex-direction: column; gap: 0.7rem; }
+.map-shell {
   position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
 }
+.map-canvas { width: 100%; height: 380px; }
+.map-loading {
+  position: absolute; z-index: 500; top: 10px; right: 10px;
+  background: #fff; border-radius: 50%; padding: 6px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+}
+.map-legend { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+.legend-chip {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #475569;
+  display: inline-flex;
+  align-items: center;
+}
+.legend-chip.muted { color: #94a3b8; font-weight: 500; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+.dot.pest { background: #eab308; }
+.dot.damage { background: #ef4444; }
+
+/* ── Charts ──────────────────────────────────────────────────────────── */
+.chart-box { height: 190px; position: relative; }
+.chart-box.small { height: 170px; }
 .empty-note {
   margin: 0.5rem 0 0;
   color: #94a3b8;
   font-size: 0.85rem;
 }
-.risk-list {
-  background: transparent;
-  padding: 0;
-}
-.risk-list ion-item {
-  --background: #f8fbf9;
-  --border-radius: 10px;
-  margin-bottom: 0.4rem;
-  border: 1px solid #e2ebe5;
-  border-radius: 10px;
-}
-.risk-list h3 {
-  margin: 0;
-  font-weight: 800;
-  color: #1a4731;
-}
+
+/* ── Agricultural Intelligence / Action Center ──────────────────────── */
 .alert-list { background: transparent; }
 .alert-item {
-  --background: #f8fbf9;
+  --background: #f8fafc;
   --border-radius: 12px;
-  border: 1px solid #d5e3da;
+  border: 1px solid #e2e8f0;
   border-radius: 12px;
   margin-bottom: 0.65rem;
-  align-items: flex-start;
+  align-items: center;
 }
 .alert-item h2 {
   margin: 0.35rem 0 0.2rem;
@@ -534,11 +634,11 @@ ion-card-subtitle {
   line-height: 1.4;
 }
 .sms-btn {
-  --background: #d4af37;
+  --border-color: #1a4731;
   --color: #1a4731;
   text-transform: none;
-  font-weight: 800;
-  margin-top: 0.35rem;
+  font-weight: 700;
+  font-size: 0.8rem;
 }
 .send-btn {
   --background: #1a4731;
@@ -553,10 +653,14 @@ ion-card-subtitle {
   font-weight: 700;
   margin-top: 0.5rem;
 }
+
+/* ── Mobile: collapse to single column ──────────────────────────────── */
 @media (max-width: 960px) {
-  .kpi-grid,
-  .mid-grid {
-    grid-template-columns: 1fr;
+  .grid-shell { grid-template-columns: 1fr; }
+  .span-3, .span-4, .span-8, .span-12 { grid-column: span 1; }
+  .alert-item {
+    flex-direction: column;
+    align-items: flex-start;
   }
   .sms-btn {
     width: 100%;

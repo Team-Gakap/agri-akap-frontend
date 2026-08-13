@@ -5,13 +5,13 @@
         <ion-buttons slot="start">
           <ion-back-button default-href="/tech/farm-profiling"></ion-back-button>
         </ion-buttons>
-        <ion-title>Farm Geo-Tag</ion-title>
+        <ion-title>Pin Farm Location</ion-title>
       </ion-toolbar>
     </ion-header>
 
     <ion-content class="ion-padding page-bg">
       <p class="lede">
-        Lock GPS on the parcel center. Overlaps within 15&nbsp;m of an existing plot are blocked (double-claim rule).
+        Save the farm’s GPS location. A new pin cannot be too close to another farm.
       </p>
 
       <!-- GPS lock -->

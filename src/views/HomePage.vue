@@ -129,22 +129,22 @@ const quickActions = computed(() => {
   const role = authStore.userRole;
   if (role === 'barangay_official') {
     return [
-      { route: '/brgy/damage-review', label: 'Review Damage', desc: 'Verify assessments', icon: documentTextOutline, color: '#7b1fa2', bg: '#f3e5f5' },
-      { route: '/brgy/map', label: 'GIS Map', desc: 'Locate assessments', icon: peopleOutline, color: '#1565c0', bg: '#e3f2fd' },
+      { route: '/brgy/damage-review', label: 'Damage Review', desc: 'Check damage reports', icon: documentTextOutline, color: '#7b1fa2', bg: '#f3e5f5' },
+      { route: '/brgy/map', label: 'Farm Map', desc: 'See farms and damage', icon: peopleOutline, color: '#1565c0', bg: '#e3f2fd' },
     ];
   }
   // Technician hub (default landing for the /tech/home "More" tab)
   return [
-    { route: '/tech/scanner', label: 'Scan & Distribute', desc: 'Process subsidy claim', icon: qrCodeOutline, color: '#1a4731', bg: '#e8f5e9' },
-    { route: '/tech/farm-profiling', label: 'Farm Profiling', desc: 'Soil & land measure', icon: mapOutline, color: '#00695c', bg: '#e0f2f1' },
-    { route: '/tech/geo-tag', label: 'Farm Geo-Tag', desc: 'GPS + collision check', icon: locateOutline, color: '#00695c', bg: '#e0f2f1' },
-    { route: '/tech/extension', label: 'Extension', desc: 'Seminars & livestock', icon: peopleOutline, color: '#6a1b9a', bg: '#f3e5f5' },
-    { route: '/tech/damage', label: 'Damage Assessment', desc: 'File disaster report', icon: warningOutline, color: '#c0392b', bg: '#ffebee' },
-    { route: '/tech/field', label: 'Field Intel', desc: 'Log crop or pest', icon: bugOutline, color: '#e65100', bg: '#fff3e0' },
-    { route: '/tech/sync', label: 'Pending Sync', desc: 'Offline queue', icon: cloudOfflineOutline, color: '#f57f17', bg: '#fff8e1' },
-    { route: '/tech/farmers', label: 'Farmer Registry', desc: 'RSBSA records', icon: peopleOutline, color: '#1565c0', bg: '#e3f2fd' },
-    { route: '/tech/programs', label: 'Programs', desc: 'Active campaigns', icon: leafOutline, color: '#2e7d32', bg: '#e8f5e9' },
-    { route: '/tech/map', label: 'GIS Map', desc: 'Farm & damage layers', icon: documentTextOutline, color: '#00695c', bg: '#e0f2f1' },
+    { route: '/tech/scanner', label: 'Give Subsidy', desc: 'Scan farmer ID', icon: qrCodeOutline, color: '#1a4731', bg: '#e8f5e9' },
+    { route: '/tech/farm-profiling', label: 'Measure Farm', desc: 'Soil and land size', icon: mapOutline, color: '#00695c', bg: '#e0f2f1' },
+    { route: '/tech/geo-tag', label: 'Pin Farm Location', desc: 'Save GPS of the farm', icon: locateOutline, color: '#00695c', bg: '#e0f2f1' },
+    { route: '/tech/extension', label: 'Farmer Training', desc: 'Seminars and livestock', icon: peopleOutline, color: '#6a1b9a', bg: '#f3e5f5' },
+    { route: '/tech/damage', label: 'Report Damage', desc: 'File a disaster report', icon: warningOutline, color: '#c0392b', bg: '#ffebee' },
+    { route: '/tech/field', label: 'Field Reports', desc: 'Record crop or pest', icon: bugOutline, color: '#e65100', bg: '#fff3e0' },
+    { route: '/tech/sync', label: 'Unsent Records', desc: 'Waiting to upload', icon: cloudOfflineOutline, color: '#f57f17', bg: '#fff8e1' },
+    { route: '/tech/farmers', label: 'Farmers', desc: 'Find farmer records', icon: peopleOutline, color: '#1565c0', bg: '#e3f2fd' },
+    { route: '/tech/programs', label: 'Subsidy Campaigns', desc: 'Active aid programs', icon: leafOutline, color: '#2e7d32', bg: '#e8f5e9' },
+    { route: '/tech/map', label: 'Farm Map', desc: 'See farms and damage', icon: documentTextOutline, color: '#00695c', bg: '#e0f2f1' },
   ];
 });
 

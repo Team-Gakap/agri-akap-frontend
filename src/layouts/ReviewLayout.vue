@@ -55,7 +55,7 @@ const authStore = useAuthStore();
 
 const pages = [
   { title: 'Damage Review', url: '/review/damage-review', icon: shieldCheckmarkOutline },
-  { title: 'GIS Map', url: '/review/map', icon: mapOutline },
+  { title: 'Farm Map', url: '/review/map', icon: mapOutline },
 ];
 
 const handleLogout = () => authStore.logout();
