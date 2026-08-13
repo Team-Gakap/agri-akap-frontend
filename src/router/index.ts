@@ -54,7 +54,11 @@ const routes: Array<RouteRecordRaw> = [
       { path: "weather", name: "PrecisionWeather", component: () => import("@/views/Admin/AdminWeatherHeatmapView.vue") },
       { path: "weather/detail", name: "PrecisionWeatherDetail", component: () => import("@/views/Admin/AdvancedWeatherDashboardView.vue") },
       { path: "map", redirect: "/admin/dashboard" },
-      { path: "executive-reporting", name: "ExecutiveReporting", component: () => import("@/views/Admin/ExecutiveReportingView.vue") },
+      { path: "reports", redirect: "/admin/reports/subsidies" },
+      { path: "reports/subsidies", name: "ReportSubsidies", component: () => import("@/views/Admin/Reports/SubsidyReportView.vue") },
+      { path: "reports/crop-production", name: "ReportCropProduction", component: () => import("@/views/Admin/Reports/CropProductionReportView.vue") },
+      { path: "reports/pest-surveillance", name: "ReportPest", component: () => import("@/views/Admin/Reports/PestReportView.vue") },
+      { path: "reports/damage-calamity", name: "ReportDamage", component: () => import("@/views/Admin/Reports/DamageReportView.vue") },
     ],
   },
 
@@ -118,7 +122,7 @@ const routes: Array<RouteRecordRaw> = [
   // ── Legacy flat-path redirects (role-aware, query preserved) ──────────────
   { path: "/dashboard", redirect: "/admin/dashboard" },
   { path: "/analytics", redirect: "/admin/dashboard" },
-  { path: "/reports", redirect: "/admin/reports" },
+  { path: "/reports", redirect: "/admin/reports/subsidies" },
   { path: "/intelligence", redirect: "/admin/intelligence" },
   { path: "/broadcasts", redirect: "/admin/broadcasts" },
   { path: "/id-issuance", redirect: "/admin/id-issuance" },
