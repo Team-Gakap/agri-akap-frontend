@@ -124,7 +124,8 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, computed, ref } from 'vue';
+import { reactive, computed, ref, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonBackButton,
   IonInput, IonList, IonItem, IonLabel, IonNote, IonRange, IonButton, IonIcon,
@@ -137,6 +138,7 @@ import {
   useBarangayFarmerSearch,
   type FarmerOption,
 } from '@/composables/useBarangayFarmerSearch';
+import apiClient from '@/utils/axios';
 
 /** Mock queue shape aligned with future tbl_pest_monitoring. */
 interface PestMonitoringPayload {
@@ -160,6 +162,7 @@ interface PestMonitoringPayload {
   captured_at: string;
 }
 
+const route = useRoute();
 const farmerSearch = useBarangayFarmerSearch(() => null, { requireBarangay: false });
 const capturingGps = ref(false);
 const capturingPhoto = ref(false);
@@ -173,6 +176,8 @@ const form = reactive({
   first_name: '',
   middle_name: '',
   farmer_address: '',
+  farm_plot_id: '',
+  crop: 'Rice',
   variety: '',
   area_planted: '',
   days_after_planting: '',
@@ -204,10 +209,42 @@ const onSelectFarmer = async (f: FarmerOption) => {
   form.first_name = sel.first_name;
   form.middle_name = sel.middle_name;
   form.farmer_address = sel.address;
-  if (sel.plots.length === 1) {
-    form.area_planted = String(sel.plots[0].size_ha || '');
+  if (sel.plots.length) {
+    const p = sel.plots.find((x) => ['Rice', 'Corn'].includes(x.commodity)) || sel.plots[0];
+    form.farm_plot_id = p.id;
+    form.area_planted = String(p.size_ha || form.area_planted);
+    if (p.commodity) form.crop = p.commodity;
   }
 };
+
+onMounted(async () => {
+  const farmerId = String(route.query.farmer || '').trim();
+  if (!farmerId) return;
+  try {
+    const res = await apiClient.get(`/farmers/${farmerId}`);
+    const f = res.data?.data;
+    if (!f) return;
+    await onSelectFarmer({
+      id: f.id,
+      rsbsa_no: f.rsbsa_no || '',
+      surname: f.surname || '',
+      first_name: f.first_name || '',
+      middle_name: f.middle_name || '',
+      ext_name: f.ext_name || '',
+      birthdate: f.birthdate || '',
+      address: f.permanent_brgy || '',
+      barangay: f.permanent_brgy || '',
+      plots: (f.farm_plots || f.farmPlots || []).map((p: any) => ({
+        id: p.id,
+        location_brgy: p.location_brgy || '',
+        commodity: p.commodity || '',
+        size_ha: Number(p.size_ha) || 0,
+      })),
+    });
+  } catch (err) {
+    console.warn('[AGRI-AKAP] Failed to preload farmer for pest check:', err);
+  }
+});
 
 const dropGpsPin = async () => {
   capturingGps.value = true;
@@ -290,9 +327,24 @@ const saveRecord = async () => {
       captured_at: new Date().toISOString(),
     };
     sessionQueue.value.push(payload);
-    await new Promise((r) => setTimeout(r, 450));
+    await apiClient.post('/pest-monitoring', {
+      id: payload.id,
+      farmer_id: form.farmer_id,
+      farm_plot_id: form.farm_plot_id || undefined,
+      crop: form.crop || 'Rice',
+      variety: form.variety,
+      area_planted: Number(form.area_planted),
+      days_after_planting: Number(form.days_after_planting),
+      area_damage_pct: Number(form.area_damage_pct),
+      damage_by: form.damage_by,
+      date_of_inspection: new Date().toISOString().slice(0, 10),
+      farm_location: form.farmer_address,
+      photo_base64: form.photo_preview,
+      latitude: form.latitude,
+      longitude: form.longitude,
+    });
     const t = await toastController.create({
-      message: 'Record Synced to LGU Masterlist',
+      message: 'Pest record saved to the LGU masterlist.',
       duration: 2800,
       color: 'success',
       position: 'top',

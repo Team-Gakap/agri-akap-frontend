@@ -5,7 +5,7 @@
         <ion-title>
           <div class="brand">
             <span class="brand-name">AGRI-AKAP</span>
-            <span class="brand-sub">MAO Admin Console</span>
+            <span class="brand-sub">Municipal Agriculture Office</span>
           </div>
         </ion-title>
       </ion-toolbar>

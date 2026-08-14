@@ -253,11 +253,14 @@ import {
   useBarangayFarmerSearch,
   type FarmerOption,
 } from '@/composables/useBarangayFarmerSearch';
-import { getCalamityReportById } from '@/data/technicianDispatchQueues';
+import apiClient from '@/utils/axios';
+import { formatFarmerName } from '@/data/technicianDispatchQueues';
 
 type DamageType = 'total' | 'partial';
 
 interface CalamityAssessmentState {
+  assessmentId: string;
+  farmPlotId: string;
   calamityEvent: string;
   farmerId: string;
   farmerName: string;
@@ -290,6 +293,8 @@ const capturingPhoto = ref(false);
 const submitting = ref(false);
 
 const state = reactive<CalamityAssessmentState>({
+  assessmentId: '',
+  farmPlotId: '',
   calamityEvent: '',
   farmerId: '',
   farmerName: '',
@@ -324,7 +329,7 @@ const canSubmit = computed(() =>
   !!state.calamityEvent
   && !!state.farmerId
   && rsbsaEligible.value
-  && !!state.variety
+  && (!!state.variety || !!state.assessmentId)
   && !!state.areaPlanted
   && !!state.areaDamaged
   && state.latitude != null
@@ -334,26 +339,67 @@ const canSubmit = computed(() =>
 const dispatchedFromQueue = computed(() => route.query.from === 'queue');
 const backHref = computed(() => (dispatchedFromQueue.value ? '/tech/calamity-queue' : '/tech/dashboard'));
 
-onMounted(() => {
-  const id = route.query.id as string | undefined;
-  if (!id) return;
-  const report = getCalamityReportById(id);
-  if (!report) return;
-
-  state.calamityEvent = report.calamityEvent;
-  state.farmerId = report.farmerId;
-  state.farmerName = report.farmerName;
-  state.rsbsaNo = report.rsbsaNo;
-  state.barangay = report.barangay;
-  state.cropType = report.cropType;
-  state.variety = report.variety;
-  state.cropStage = report.cropStage;
-  state.areaPlanted = String(report.areaPlanted);
-  state.areaDamaged = String(report.areaDamagedReported);
-  if (report.areaPlanted > 0) {
-    const pct = Math.min(100, (report.areaDamagedReported / report.areaPlanted) * 100);
+const applyAssessment = (r: any) => {
+  const farmer = r.farmer || {};
+  const plot = r.farm_plot || r.farmPlot || {};
+  state.assessmentId = r.id || '';
+  state.farmPlotId = r.farm_plot_id || plot.id || '';
+  state.calamityEvent = r.calamity_name || r.calamity_type || state.calamityEvent;
+  state.farmerId = r.farmer_id || farmer.id || '';
+  state.farmerName = formatFarmerName(farmer);
+  state.rsbsaNo = farmer.rsbsa_no || '';
+  state.barangay = farmer.permanent_brgy || plot.location_brgy || '';
+  state.cropType = plot.commodity || state.cropType;
+  state.cropStage = r.crop_stage || state.cropStage;
+  state.areaPlanted = String(r.area_planted_ha ?? plot.size_ha ?? '');
+  state.areaDamaged = String(r.area_destroyed_ha ?? '');
+  const planted = Number(state.areaPlanted) || 0;
+  const damaged = Number(state.areaDamaged) || 0;
+  if (planted > 0) {
+    const pct = Math.min(100, (damaged / planted) * 100);
     state.damageType = pct >= 99 ? 'total' : 'partial';
-    state.yieldLossPct = state.damageType === 'total' ? 100 : Math.round(pct * 10) / 10;
+    state.yieldLossPct = Number(r.damage_percentage) || (state.damageType === 'total' ? 100 : Math.round(pct * 10) / 10);
+  }
+};
+
+onMounted(async () => {
+  const id = String(route.query.id || '').trim();
+  const farmerId = String(route.query.farmer || '').trim();
+  if (id) {
+    try {
+      const res = await apiClient.get(`/damage-assessments/${id}`);
+      if (res.data?.data) applyAssessment(res.data.data);
+      return;
+    } catch (err) {
+      console.warn('[AGRI-AKAP] Failed to load calamity report:', err);
+    }
+  }
+  if (farmerId) {
+    try {
+      const res = await apiClient.get(`/farmers/${farmerId}`);
+      const f = res.data?.data;
+      if (f) {
+        await onSelectFarmer({
+          id: f.id,
+          rsbsa_no: f.rsbsa_no || '',
+          surname: f.surname || '',
+          first_name: f.first_name || '',
+          middle_name: f.middle_name || '',
+          ext_name: f.ext_name || '',
+          birthdate: f.birthdate || '',
+          address: f.permanent_brgy || '',
+          barangay: f.permanent_brgy || '',
+          plots: (f.farm_plots || f.farmPlots || []).map((p: any) => ({
+            id: p.id,
+            location_brgy: p.location_brgy || '',
+            commodity: p.commodity || '',
+            size_ha: Number(p.size_ha) || 0,
+          })),
+        });
+      }
+    } catch (err) {
+      console.warn('[AGRI-AKAP] Failed to preload farmer:', err);
+    }
   }
 });
 
@@ -369,8 +415,13 @@ const onSelectFarmer = async (f: FarmerOption) => {
   farmerSearch.results.value = [];
   if (sel.plots.length === 1) {
     const p = sel.plots[0];
+    state.farmPlotId = p.id;
     state.areaPlanted = String(p.size_ha || '');
     if (['Rice', 'Corn'].includes(p.commodity)) state.cropType = p.commodity;
+  } else if (sel.plots.length) {
+    const match = sel.plots.find((p) => p.commodity === state.cropType) || sel.plots[0];
+    state.farmPlotId = match.id;
+    state.areaPlanted = String(match.size_ha || state.areaPlanted);
   }
 };
 
@@ -448,11 +499,55 @@ const submitAssessment = async () => {
   if (!canSubmit.value || submitting.value) return;
   submitting.value = true;
   try {
-    await new Promise((r) => setTimeout(r, 450));
+    const photo = state.photoDataUrl || '';
+    if (state.assessmentId) {
+      await apiClient.patch(`/damage-assessments/${state.assessmentId}/field-validate`, {
+        latitude: state.latitude,
+        longitude: state.longitude,
+        photo_base64: photo,
+        area_destroyed_ha: Number(state.areaDamaged) || 0,
+        damage_percentage: state.yieldLossPct,
+        crop_stage: state.cropStage || undefined,
+      });
+    } else {
+      if (!state.farmPlotId) {
+        const t = await toastController.create({
+          message: 'This farmer needs a farm plot before calamity assessment can be saved.',
+          duration: 2800,
+          color: 'warning',
+          position: 'top',
+        });
+        await t.present();
+        return;
+      }
+      await apiClient.post('/damage-assessments', {
+        id: crypto.randomUUID(),
+        farm_plot_id: state.farmPlotId,
+        farmer_id: state.farmerId,
+        calamity_type: inferCalamityType(state.calamityEvent),
+        calamity_name: state.calamityEvent,
+        crop_stage: state.cropStage || undefined,
+        area_destroyed_ha: Number(state.areaDamaged) || 0,
+        area_planted_ha: Number(state.areaPlanted) || 0,
+        date_of_calamity: new Date().toISOString().slice(0, 10),
+        damage_percentage: state.yieldLossPct,
+        latitude: state.latitude,
+        longitude: state.longitude,
+        photo_base64: photo,
+      });
+    }
     const t = await toastController.create({
-      message: 'Assessment Verified. Added to MAO Rehabilitation Masterlist.',
+      message: 'Assessment saved. Added to the MAO rehabilitation masterlist.',
       duration: 3200,
       color: 'success',
+      position: 'top',
+    });
+    await t.present();
+  } catch (e: any) {
+    const t = await toastController.create({
+      message: e?.response?.data?.message || 'Could not save assessment.',
+      duration: 2800,
+      color: 'danger',
       position: 'top',
     });
     await t.present();
@@ -460,6 +555,16 @@ const submitAssessment = async () => {
     submitting.value = false;
   }
 };
+
+function inferCalamityType(name: string): string {
+  const n = name.toLowerCase();
+  if (n.includes('typhoon') || n.includes('bagyo')) return 'Typhoon';
+  if (n.includes('flood') || n.includes('baha')) return 'Flood';
+  if (n.includes('drought') || n.includes('el nino') || n.includes('elnino')) return 'Drought';
+  if (n.includes('pest')) return 'Pest Outbreak';
+  if (n.includes('hail')) return 'Hail';
+  return 'Other';
+}
 </script>
 
 <style scoped>

@@ -17,7 +17,6 @@
 
       <WeatherWidget />
 
-      <p class="section-label">What do you need to do?</p>
 
       <ion-card button class="action-card pest-card" @click="go('/tech/pest-queue')">
         <ion-ripple-effect type="bounded"></ion-ripple-effect>

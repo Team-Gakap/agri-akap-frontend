@@ -247,7 +247,8 @@ import {
 import { Capacitor } from '@capacitor/core';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
-import { getPestReportById } from '@/data/technicianDispatchQueues';
+import apiClient from '@/utils/axios';
+import { formatFarmerName } from '@/data/technicianDispatchQueues';
 import {
   fetchRealLocation,
   ensureCameraPermission,
@@ -309,24 +310,23 @@ const interventionItems = [
   'Pheromone Traps',
 ];
 
-/** Mock barangay-synced report — replace with API/queue payload later. */
-const defaultTarget = {
+const emptyTarget = {
   farmerId: '',
-  farmerName: 'Reyes, Maria Lopez',
-  rsbsaNo: '01-28-03-005-000034',
-  barangay: 'San Fabian',
-  crop: 'Rice',
-  reportedPest: 'Brown Planthopper',
-  reportId: 'BRGY-PEST-2026-0042',
+  farmerName: '',
+  rsbsaNo: '',
+  barangay: '',
+  crop: '',
+  reportedPest: '',
+  reportId: '',
 };
 
 const state = reactive<PestResponseState>({
-  target: { ...defaultTarget },
+  target: { ...emptyTarget },
   photoBase64: null,
   photoPreviewSrc: null,
   latitude: null,
   longitude: null,
-  confirmedPest: defaultTarget.reportedPest,
+  confirmedPest: '',
   incidencePct: 15,
   severity: 'Moderate',
   advisories: [],
@@ -346,25 +346,7 @@ const canSubmit = computed(() =>
 const fromQueue = computed(() => route.query.from === 'queue');
 const backHref = computed(() => (fromQueue.value ? '/tech/pest-queue' : '/tech/dashboard'));
 
-onMounted(() => {
-  const id = route.query.id as string | undefined;
-  if (id) {
-    const report = getPestReportById(id);
-    if (report) {
-      state.target = {
-        farmerId: (report as any).farmerId || '',
-        farmerName: report.farmerName,
-        rsbsaNo: report.rsbsaNo,
-        barangay: report.barangay,
-        crop: report.crop,
-        reportedPest: report.reportedPest,
-        reportId: report.reportId,
-      };
-      state.confirmedPest = report.reportedPest;
-      return;
-    }
-  }
-
+const applyQueryTarget = () => {
   const q = route.query;
   if (q.farmerId) state.target.farmerId = String(q.farmerId);
   if (q.farmer) state.target.farmerName = String(q.farmer);
@@ -376,6 +358,32 @@ onMounted(() => {
   }
   if (q.reportId) state.target.reportId = String(q.reportId);
   if (q.rsbsa) state.target.rsbsaNo = String(q.rsbsa);
+};
+
+onMounted(async () => {
+  applyQueryTarget();
+  const id = String(route.query.id || '').trim();
+  if (!id) return;
+  try {
+    const res = await apiClient.get(`/pest-monitoring/${id}`);
+    const r = res.data?.data;
+    if (!r) return;
+    const farmer = r.farmer || {};
+    state.target = {
+      farmerId: r.farmer_id || farmer.id || '',
+      farmerName: formatFarmerName(farmer) || state.target.farmerName,
+      rsbsaNo: farmer.rsbsa_no || state.target.rsbsaNo,
+      barangay: farmer.permanent_brgy || r.farm_location || r.farm_plot?.location_brgy || state.target.barangay,
+      crop: r.crop || r.farm_plot?.commodity || state.target.crop,
+      reportedPest: r.pest_name || state.target.reportedPest,
+      reportId: r.report_ref || `PEST-${String(r.id).slice(0, 8).toUpperCase()}`,
+    };
+    state.confirmedPest = state.target.reportedPest;
+    if (r.incidence != null) state.incidencePct = Number(r.incidence) || state.incidencePct;
+    if (r.severity) state.severity = r.severity;
+  } catch (err) {
+    console.warn('[AGRI-AKAP] Failed to load pest report:', err);
+  }
 });
 
 /** Capture field photo evidence as Base64 and preview before submit. */

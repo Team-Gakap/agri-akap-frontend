@@ -36,8 +36,60 @@ async function cacheAll(
   await db[table].bulkPut(rows);
 }
 
+function mapSubsidyProgram(p: any) {
+  return {
+    id: p.id,
+    name: p.program_name || p.name,
+    program_name: p.program_name || p.name,
+    type: p.target_crop || p.type,
+    target_crop: p.target_crop,
+    remaining_quantity: Number(p.remaining_quantity) || 0,
+    total_quantity: Number(p.total_quantity) || 0,
+    unit_of_measurement: p.unit_of_measurement || 'Bags',
+    per_hectare_allocation: Number(p.items_per_hectare ?? p.per_hectare_allocation) || 0,
+    items_per_hectare: Number(p.items_per_hectare ?? p.per_hectare_allocation) || 0,
+    max_hectares_limit: Number(p.max_hectares_limit) || 0,
+    status: p.status,
+    source: 'subsidy' as const,
+    end_date: p.end_date || (p.status === 'Active' ? 'Active' : p.status),
+  };
+}
+
+async function cacheFarmer(farmer: any) {
+  if (!farmer?.id) return;
+  await db.cachedFarmers.put({ id: farmer.id, payload: farmer, cached_at: new Date().toISOString() });
+  for (const plot of farmer.farm_plots ?? farmer.farmPlots ?? []) {
+    if (plot?.id) {
+      await db.cachedFarmPlots.put({ id: plot.id, payload: plot, cached_at: new Date().toISOString() });
+    }
+  }
+}
+
+/** Active subsidy campaigns first; fall back to legacy programs table. */
+export async function getSubsidyPrograms(): Promise<any[]> {
+  if (isOnline()) {
+    try {
+      const res = await apiClient.get('/subsidies');
+      const list = Array.isArray(res.data?.data) ? res.data.data : (res.data?.data?.data ?? []);
+      const mapped = list.map(mapSubsidyProgram);
+      if (mapped.length) {
+        await cacheAll('cachedPrograms', mapped);
+        return mapped;
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+  return (await db.cachedPrograms.toArray())
+    .map((r) => r.payload)
+    .filter((p) => p?.source === 'subsidy' || p?.program_name);
+}
+
 /** Fetch programs, caching them for offline use; fall back to cache when offline. */
 export async function getPrograms(): Promise<any[]> {
+  const subsidies = await getSubsidyPrograms();
+  if (subsidies.length) return subsidies;
+
   if (isOnline()) {
     try {
       const res = await apiClient.get('/programs', { params: { active_only: true } });
@@ -51,26 +103,58 @@ export async function getPrograms(): Promise<any[]> {
   return (await db.cachedPrograms.toArray()).map((r) => r.payload);
 }
 
-/** Resolve a scanned farmer QR to their profile + plots, using cache when offline. */
+export async function searchFarmers(term: string): Promise<any[]> {
+  const value = term.trim();
+  if (value.length < 2) return [];
+  const res = await apiClient.get('/farmers', {
+    params: { search: value, per_page: 20, page: 1 },
+  });
+  return res.data?.data?.data ?? [];
+}
+
+/** Resolve a scanned farmer QR / RSBSA / typed name to their profile. */
 export async function lookupFarmer(qr: string): Promise<any | null> {
   const value = qr.trim();
+  if (!value) return null;
+
   if (isOnline()) {
     try {
       const res = await apiClient.get('/farmers/lookup', { params: { qr: value } });
       const farmer = res.data?.data;
       if (farmer) {
-        await db.cachedFarmers.put({ id: farmer.id, payload: farmer, cached_at: new Date().toISOString() });
-        for (const plot of farmer.farm_plots ?? farmer.farmPlots ?? []) {
-          await db.cachedFarmPlots.put({ id: plot.id, payload: plot, cached_at: new Date().toISOString() });
-        }
+        await cacheFarmer(farmer);
+        return farmer;
       }
-      return farmer ?? null;
+    } catch {
+      /* try registry search next */
+    }
+
+    try {
+      const rows = await searchFarmers(value);
+      const exact = rows.find((f: any) =>
+        String(f.id) === value
+        || String(f.rsbsa_no || '').toLowerCase() === value.toLowerCase()
+        || String(f.qr_code_hash || '') === value
+      );
+      const farmer = exact || (rows.length === 1 ? rows[0] : null);
+      if (farmer) await cacheFarmer(farmer);
+      return farmer;
     } catch {
       /* fall through to cache */
     }
   }
-  const cached = await db.cachedFarmers.get(value);
-  return cached ? cached.payload : null;
+
+  const cachedById = await db.cachedFarmers.get(value);
+  if (cachedById) return cachedById.payload;
+
+  const cached = await db.cachedFarmers.toArray();
+  const match = cached.find((r) => {
+    const f = r.payload || {};
+    return String(f.rsbsa_no || '').toLowerCase() === value.toLowerCase()
+      || String(f.qr_code_hash || '') === value
+      || `${f.surname || ''}, ${f.first_name || ''}`.toLowerCase().includes(value.toLowerCase());
+  });
+  return match ? match.payload : null;
 }
 
 /* ------------------------------- Queueing ------------------------------- */

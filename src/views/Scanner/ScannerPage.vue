@@ -112,6 +112,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonBackButton,
   IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonSelect, IonSelectOption,
@@ -123,13 +124,13 @@ import {
   cloudDoneOutline, cloudOfflineOutline,
 } from 'ionicons/icons';
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
-import { useRouter } from 'vue-router';
 import apiClient from '@/utils/axios';
 import { useSyncStore } from '@/stores/syncStore';
 import { useDistributionStore } from '@/stores/distributionStore';
 import { getPrograms, isOnline } from '@/services/syncService';
 
 const router = useRouter();
+const route = useRoute();
 const syncStore = useSyncStore();
 const distributionStore = useDistributionStore();
 const selectedProgramId = ref('');
@@ -149,6 +150,10 @@ const onProgramChange = () => { scanResult.value = null; };
 
 onMounted(async () => {
   programs.value = await getPrograms();
+  const farmerId = String(route.query.farmer || '').trim();
+  if (farmerId && selectedProgramId.value) {
+    await verifyFarmer(farmerId);
+  }
 });
 
 const showToast = async (msg: string, color: 'warning' | 'danger' = 'warning') => {
@@ -189,10 +194,15 @@ const verifyFarmer = async (farmerUuid: string) => {
   }
 
   const program = selectedProgram.value;
+  const isSubsidy = program?.source === 'subsidy';
 
   // OFFLINE: cannot verify against the server. Carry minimal context and let
   // the Release view queue the claim; eligibility is enforced on sync.
   if (!isOnline()) {
+    if (isSubsidy) {
+      scanResult.value = { status: 'error', message: 'Connect to the internet to verify subsidy eligibility.' };
+      return;
+    }
     distributionStore.setContext({
       farmer_id: uuid,
       program_id: selectedProgramId.value,
@@ -203,6 +213,7 @@ const verifyFarmer = async (farmerUuid: string) => {
       eligible_size: 0,
       quantity: 0,
       inventory_remaining: program?.remaining_quantity ?? 0,
+      source: 'program',
       offline: true,
     });
     router.push('/tech/release');
@@ -210,14 +221,16 @@ const verifyFarmer = async (farmerUuid: string) => {
   }
 
   try {
-    const response = await apiClient.post('/distributions/verify', {
-      farmer_id: uuid,
-      program_id: selectedProgramId.value,
-    });
+    const response = isSubsidy
+      ? await apiClient.post(`/subsidies/${selectedProgramId.value}/verify-farmer`, { farmer_id: uuid })
+      : await apiClient.post('/distributions/verify', {
+          farmer_id: uuid,
+          program_id: selectedProgramId.value,
+        });
     const data = response.data?.data ?? {};
     distributionStore.setContext({
-      farmer_id: data.farmer_id,
-      program_id: data.program_id,
+      farmer_id: data.farmer_id || uuid,
+      program_id: data.program_id || selectedProgramId.value,
       farmer_name: data.farmer_name,
       mobile_number: data.mobile_number,
       item_released: data.item_released,
@@ -228,12 +241,17 @@ const verifyFarmer = async (farmerUuid: string) => {
       inventory_remaining: data.inventory_remaining,
       plot_lat: data.plot_lat,
       plot_long: data.plot_long,
+      beneficiary_id: data.beneficiary_id,
+      source: isSubsidy ? 'subsidy' : 'program',
       offline: false,
     });
     router.push('/tech/release');
   } catch (err: any) {
     if (!err.response) {
-      // Network dropped mid-request: fall back to the offline release path.
+      if (isSubsidy) {
+        scanResult.value = { status: 'error', message: 'Connect to the internet to verify subsidy eligibility.' };
+        return;
+      }
       distributionStore.setContext({
         farmer_id: uuid,
         program_id: selectedProgramId.value,
@@ -244,6 +262,7 @@ const verifyFarmer = async (farmerUuid: string) => {
         eligible_size: 0,
         quantity: 0,
         inventory_remaining: program?.remaining_quantity ?? 0,
+        source: 'program',
         offline: true,
       });
       router.push('/tech/release');

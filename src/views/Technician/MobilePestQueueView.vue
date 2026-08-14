@@ -29,10 +29,20 @@
       </div>
 
       <p class="queue-meta ion-padding-horizontal">
-        {{ filteredReports.length }} report(s) waiting to be checked
+        {{ loading ? 'Loading…' : `${filteredReports.length} report(s) waiting to be checked` }}
       </p>
 
-      <ion-list v-if="filteredReports.length" class="queue-list ion-padding-horizontal">
+      <div v-if="loading" class="empty ion-padding">
+        <ion-spinner name="crescent" color="primary"></ion-spinner>
+        <p>Loading barangay pest reports…</p>
+      </div>
+
+      <div v-else-if="error" class="empty ion-padding">
+        <p class="error-text">{{ error }}</p>
+        <ion-button fill="outline" @click="loadReports">Retry</ion-button>
+      </div>
+
+      <ion-list v-else-if="filteredReports.length" class="queue-list ion-padding-horizontal">
         <ion-card
           v-for="report in filteredReports"
           :key="report.id"
@@ -63,16 +73,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonBackButton,
   IonSearchbar, IonSelect, IonSelectOption, IonList, IonCard, IonCardContent,
-  IonBadge, IonIcon, IonRippleEffect,
+  IonBadge, IonIcon, IonRippleEffect, IonSpinner, IonButton,
 } from '@ionic/vue';
 import { bugOutline } from 'ionicons/icons';
+import apiClient from '@/utils/axios';
 import {
-  MOCK_PEST_QUEUE,
+  formatFarmerName,
   formatQueueDate,
   type PendingPestReport,
 } from '@/data/technicianDispatchQueues';
@@ -80,14 +91,50 @@ import {
 const router = useRouter();
 const searchTerm = ref('');
 const barangayFilter = ref('');
+const reports = ref<PendingPestReport[]>([]);
+const loading = ref(false);
+const error = ref('');
+
+const mapReport = (r: any): PendingPestReport => {
+  const farmer = r.farmer || {};
+  return {
+    id: r.id,
+    reportId: r.report_ref || `PEST-${String(r.id || '').slice(0, 8).toUpperCase()}`,
+    barangay: farmer.permanent_brgy || r.farm_location || r.farm_plot?.location_brgy || '—',
+    farmerName: formatFarmerName(farmer),
+    farmerId: r.farmer_id || farmer.id,
+    rsbsaNo: farmer.rsbsa_no || '',
+    crop: r.crop || r.farm_plot?.commodity || '—',
+    reportedPest: r.pest_name || r.damage_by || 'Unspecified pest',
+    encodedAt: r.date_of_inspection || r.created_at || '',
+    status: r.latitude && r.photo_path ? 'validated' : 'pending',
+  };
+};
+
+const loadReports = async () => {
+  loading.value = true;
+  error.value = '';
+  try {
+    const res = await apiClient.get('/pest-monitoring', {
+      params: { pending_field: 1, per_page: 200 },
+    });
+    const rows = res.data?.data?.data ?? res.data?.data ?? [];
+    reports.value = (Array.isArray(rows) ? rows : []).map(mapReport);
+  } catch (e: any) {
+    reports.value = [];
+    error.value = e?.response?.data?.message || 'Could not load pest reports.';
+  } finally {
+    loading.value = false;
+  }
+};
 
 const barangayOptions = computed(() =>
-  [...new Set(MOCK_PEST_QUEUE.map((r) => r.barangay))].sort(),
+  [...new Set(reports.value.map((r) => r.barangay).filter((b) => b && b !== '—'))].sort(),
 );
 
 const filteredReports = computed(() => {
   const q = searchTerm.value.trim().toLowerCase();
-  return MOCK_PEST_QUEUE.filter((r) => {
+  return reports.value.filter((r) => {
     if (r.status !== 'pending') return false;
     if (barangayFilter.value && r.barangay !== barangayFilter.value) return false;
     if (!q) return true;
@@ -97,6 +144,7 @@ const filteredReports = computed(() => {
       || r.reportedPest.toLowerCase().includes(q)
       || r.crop.toLowerCase().includes(q)
       || r.reportId.toLowerCase().includes(q)
+      || r.rsbsaNo.toLowerCase().includes(q)
     );
   });
 });
@@ -104,9 +152,21 @@ const filteredReports = computed(() => {
 const openValidation = (report: PendingPestReport) => {
   router.push({
     path: '/tech/pest-response',
-    query: { id: report.id, from: 'queue' },
+    query: {
+      id: report.id,
+      from: 'queue',
+      farmerId: report.farmerId || '',
+      rsbsa: report.rsbsaNo,
+      farmer: report.farmerName,
+      barangay: report.barangay,
+      crop: report.crop,
+      pest: report.reportedPest,
+      reportId: report.reportId,
+    },
   });
 };
+
+onMounted(loadReports);
 </script>
 
 <style scoped>
@@ -142,9 +202,7 @@ const openValidation = (report: PendingPestReport) => {
   letter-spacing: 0.04em;
 }
 
-.queue-list {
-  padding-bottom: 2rem;
-}
+.queue-list { padding-bottom: 2rem; }
 
 .queue-card {
   margin: 0 0 0.85rem;
@@ -205,4 +263,6 @@ const openValidation = (report: PendingPestReport) => {
   color: #ca8a04;
   margin-bottom: 0.5rem;
 }
+
+.error-text { color: #b91c1c; font-weight: 600; }
 </style>

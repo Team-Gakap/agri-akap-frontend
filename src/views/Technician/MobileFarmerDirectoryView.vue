@@ -11,7 +11,7 @@
         <ion-searchbar
           v-model="query"
           placeholder="Type farmer number or last name…"
-          :debounce="450"
+          :debounce="350"
           show-clear-button="focus"
           @ionInput="onSearch"
           style="--background:#fff;--color:#0f172a;"
@@ -21,8 +21,29 @@
 
     <ion-content class="page-bg">
       <p class="hint">
-        Search farmers in Echague. Results appear when you type.
+        Search farmers in Echague, then choose an action.
       </p>
+
+      <ion-card v-if="selected" class="selected-card">
+        <ion-card-content>
+          <p class="sel-label">Selected farmer</p>
+          <h2>{{ formatName(selected) }}</h2>
+          <p class="rsbsa">{{ selected.rsbsa_no || 'No RSBSA' }}</p>
+          <p>{{ selected.permanent_brgy || '—' }} · {{ selected.mobile_number || 'No mobile' }}</p>
+          <ion-button expand="block" class="act-btn subsidy" @click="goSubsidy">
+            Give Subsidy
+          </ion-button>
+          <ion-button expand="block" fill="outline" class="act-btn" @click="goPest">
+            Check Pests
+          </ion-button>
+          <ion-button expand="block" fill="outline" class="act-btn" @click="goCalamity">
+            Check Calamity Damage
+          </ion-button>
+          <ion-button expand="block" fill="clear" color="medium" @click="selected = null">
+            Clear selection
+          </ion-button>
+        </ion-card-content>
+      </ion-card>
 
       <div v-if="!query.trim()" class="idle">
         <ion-icon :icon="searchOutline"></ion-icon>
@@ -48,6 +69,7 @@
           :key="f.id"
           button
           detail
+          :class="{ active: selected?.id === f.id }"
           @click="openActions(f)"
         >
           <ion-label>
@@ -57,33 +79,26 @@
           </ion-label>
         </ion-item>
       </ion-list>
-
-      <ion-action-sheet
-        :is-open="sheetOpen"
-        header="Farmer actions"
-        :buttons="sheetButtons"
-        @didDismiss="sheetOpen = false"
-      ></ion-action-sheet>
     </ion-content>
   </ion-page>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonBackButton,
-  IonSearchbar, IonList, IonItem, IonLabel, IonSpinner, IonIcon, IonActionSheet,
+  IonSearchbar, IonList, IonItem, IonLabel, IonSpinner, IonIcon, IonCard, IonCardContent,
+  IonButton,
 } from '@ionic/vue';
 import { searchOutline } from 'ionicons/icons';
-import apiClient from '@/utils/axios';
+import { searchFarmers } from '@/services/syncService';
 
 const router = useRouter();
 const query = ref('');
 const results = ref<any[]>([]);
 const loading = ref(false);
 const error = ref('');
-const sheetOpen = ref(false);
 const selected = ref<any | null>(null);
 
 const formatName = (f: any) => {
@@ -91,39 +106,33 @@ const formatName = (f: any) => {
   return `${f.surname}, ${[f.first_name, f.middle_name, f.ext_name].filter(Boolean).join(' ')}`;
 };
 
-const sheetButtons = computed(() => [
-  {
-    text: 'Give Subsidy',
-    handler: () => {
-      const id = selected.value?.id;
-      if (!id) return;
-      router.push({ path: '/tech/subsidy-dispense', query: { farmer: id, rsbsa: selected.value?.rsbsa_no } });
-    },
-  },
-  {
-    text: 'Scan ID / Release',
-    handler: () => {
-      const id = selected.value?.id;
-      if (!id) return;
-      router.push({ path: '/tech/scanner', query: { farmer: id } });
-    },
-  },
-  {
-    text: 'View Farmer Profile',
-    handler: () => {
-      const id = selected.value?.id;
-      if (!id) return;
-      // Tech registry detail falls back to farmers list selection path
-      router.push({ path: '/tech/farmers', query: { highlight: id } });
-    },
-  },
-  { text: 'Cancel', role: 'cancel' },
-]);
+const farmerQuery = (f: any) => ({
+  farmer: f.id,
+  rsbsa: f.rsbsa_no || '',
+  name: formatName(f),
+  barangay: f.permanent_brgy || '',
+});
+
+const goSubsidy = () => {
+  if (!selected.value) return;
+  router.push({ path: '/tech/subsidy-dispense', query: farmerQuery(selected.value) });
+};
+
+const goPest = () => {
+  if (!selected.value) return;
+  router.push({ path: '/tech/pest-validation', query: farmerQuery(selected.value) });
+};
+
+const goCalamity = () => {
+  if (!selected.value) return;
+  router.push({ path: '/tech/calamity-rdana', query: farmerQuery(selected.value) });
+};
 
 const onSearch = async (e: CustomEvent) => {
   const value = String(e.detail.value ?? '').trim();
   query.value = value;
   error.value = '';
+  selected.value = null;
 
   if (value.length < 2) {
     results.value = [];
@@ -132,10 +141,7 @@ const onSearch = async (e: CustomEvent) => {
 
   loading.value = true;
   try {
-    const res = await apiClient.get('/farmers', {
-      params: { search: value, page: 1 },
-    });
-    results.value = res.data?.data?.data ?? [];
+    results.value = await searchFarmers(value);
   } catch (err: any) {
     results.value = [];
     error.value = err?.response?.data?.message || 'Search failed. Check connection.';
@@ -146,7 +152,6 @@ const onSearch = async (e: CustomEvent) => {
 
 const openActions = (f: any) => {
   selected.value = f;
-  sheetOpen.value = true;
 };
 </script>
 
@@ -158,6 +163,53 @@ const openActions = (f: any) => {
   font-size: 0.82rem;
   color: #64748b;
   line-height: 1.4;
+}
+
+.selected-card {
+  margin: 0.5rem 0.85rem 0.75rem;
+  border-radius: 14px;
+  border: 1px solid #c5d9cc;
+  border-left: 5px solid #1a4731;
+}
+
+.sel-label {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.selected-card h2 {
+  margin: 0.2rem 0 0;
+  font-size: 1.12rem;
+  font-weight: 800;
+  color: #1a4731;
+}
+
+.selected-card p {
+  margin: 0.15rem 0 0;
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.selected-card p.rsbsa,
+ion-label p.rsbsa {
+  color: #8a6d12;
+  font-weight: 700;
+  font-family: ui-monospace, monospace;
+  font-size: 0.78rem;
+}
+
+.act-btn {
+  margin-top: 0.55rem;
+  text-transform: none;
+  font-weight: 800;
+}
+
+.act-btn.subsidy {
+  --background: #1a4731;
 }
 
 .idle {
@@ -187,6 +239,11 @@ ion-item {
   --padding-start: 14px;
 }
 
+ion-item.active {
+  border-color: #1a4731;
+  box-shadow: 0 0 0 2px rgba(26, 71, 49, 0.12);
+}
+
 ion-label h2 {
   margin: 0;
   font-weight: 800;
@@ -198,12 +255,5 @@ ion-label p {
   margin: 0.15rem 0 0;
   color: #64748b;
   font-size: 0.82rem;
-}
-
-ion-label p.rsbsa {
-  color: #8a6d12;
-  font-weight: 700;
-  font-family: ui-monospace, monospace;
-  font-size: 0.78rem;
 }
 </style>

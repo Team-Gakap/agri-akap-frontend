@@ -18,6 +18,9 @@ export interface ReleaseContext {
   inventory_remaining: number;
   plot_lat?: number | null;
   plot_long?: number | null;
+  beneficiary_id?: string | null;
+  rsbsa_no?: string | null;
+  source?: 'subsidy' | 'program';
   /** True when the context was stashed offline (verify was skipped). */
   offline: boolean;
 }

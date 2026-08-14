@@ -21,12 +21,12 @@
           <h1>Municipal Command Center</h1>
         </header>
 
-        <div v-if="loading" class="center-state">
+        <div v-if="initialLoading" class="center-state">
           <ion-spinner name="crescent" color="primary"></ion-spinner>
           <p>Loading live overview&hellip;</p>
         </div>
 
-        <div v-else-if="error" class="center-state error">
+        <div v-else-if="error && !hasData" class="center-state error">
           <p>{{ error }}</p>
           <ion-button @click="fetchAll">Retry</ion-button>
         </div>
@@ -96,13 +96,13 @@
             <ion-card class="panel-card">
               <ion-card-header>
                 <ion-card-title>Crop Distribution</ion-card-title>
-                <ion-card-subtitle>Rice vs Corn (farm plots)</ion-card-subtitle>
+                <ion-card-subtitle>Rice vs Corn (planting logs / farm plots)</ion-card-subtitle>
               </ion-card-header>
               <ion-card-content>
                 <div class="chart-box small">
                   <Doughnut :data="cropChartData" :options="doughnutOptions" />
                 </div>
-                <p v-if="!cropRows.length" class="empty-note">No farm plot data yet.</p>
+                <p v-if="!cropRows.length" class="empty-note">No planting or farm plot data yet.</p>
               </ion-card-content>
             </ion-card>
 
@@ -229,7 +229,8 @@ const LGU_GOLD = '#d4af37';
 const ECHAGUE: [number, number] = [16.7053, 121.6772];
 
 const router = useRouter();
-const loading = ref(true);
+const initialLoading = ref(true);
+const loading = ref(false);
 const error = ref('');
 const sendingSms = ref(false);
 const smsOpen = ref(false);
@@ -238,6 +239,7 @@ const mapMarkerCount = ref(0);
 const mapEl = ref<HTMLDivElement | null>(null);
 
 let map: L.Map | null = null;
+let mapLayers: L.LayerGroup | null = null;
 
 const descriptive = reactive<any>({});
 const diagnostic = reactive<any>({ pest_breakdown: [], crop_distribution: [], distributions_by_barangay: [] });
@@ -254,6 +256,7 @@ const fmt = (v: any) => Number(v ?? 0).toLocaleString('en-PH');
 const cropRows = computed(() => diagnostic.crop_distribution ?? []);
 const distributionRows = computed(() => diagnostic.distributions_by_barangay ?? []);
 const alerts = computed(() => prescriptive.alerts ?? []);
+const hasData = computed(() => Number(descriptive.total_farmers ?? 0) > 0 || cropRows.value.length > 0);
 
 const cropChartData = computed(() => {
   const rows = cropRows.value;
@@ -328,27 +331,48 @@ const alertLabel = (a: any) => {
 const esc = (s: any) => String(s ?? '').replace(/[&<>"]/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
 
+const destroyMap = () => {
+  if (mapLayers) {
+    mapLayers.clearLayers();
+    mapLayers = null;
+  }
+  if (map) {
+    map.remove();
+    map = null;
+  }
+};
+
 const initMap = () => {
-  if (!mapEl.value || map) return;
+  if (!mapEl.value) return;
+  if (map) {
+    setTimeout(() => map?.invalidateSize(), 200);
+    return;
+  }
   map = L.map(mapEl.value, { center: ECHAGUE, zoom: 12 });
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; OpenStreetMap contributors',
   }).addTo(map);
+  mapLayers = L.layerGroup().addTo(map);
   setTimeout(() => map?.invalidateSize(), 300);
 };
 
 const renderMap = (data: any) => {
   if (!map) return;
+  if (!mapLayers) mapLayers = L.layerGroup().addTo(map);
+  mapLayers.clearLayers();
 
   const damage = (data.damage_points ?? []).filter((d: any) => Number(d.damage_percentage || 0) >= 50);
-  const pests = (data.pest_outbreaks ?? []).filter((p: any) => String(p.status || '').toLowerCase() === 'active');
+  const pests = (data.pest_outbreaks ?? []).filter((p: any) => {
+    const status = String(p.status || '').toLowerCase();
+    return !status || status === 'active' || status === 'reported';
+  });
 
   mapMarkerCount.value = damage.length + pests.length;
 
   pests.forEach((p: any) => {
     const sev = String(p.severity || '').toLowerCase();
-    const fill = sev.includes('high') || sev.includes('severe') ? '#b91c1c'
+    const fill = sev.includes('high') || sev.includes('severe') || sev.includes('critical') ? '#b91c1c'
       : sev.includes('med') ? '#d97706' : '#eab308';
     L.circleMarker([p.lat, p.lng], {
       radius: 8, color: '#422006', weight: 1.5, fillColor: fill, fillOpacity: 0.9,
@@ -358,7 +382,7 @@ const renderMap = (data: any) => {
         `Severity: ${esc(p.severity || '-')}<br/>` +
         `${esc(p.commodity || '')} &middot; Brgy ${esc(p.brgy || '-')}`
       )
-      .addTo(map!);
+      .addTo(mapLayers!);
   });
 
   damage.forEach((d: any) => {
@@ -370,7 +394,7 @@ const renderMap = (data: any) => {
         `Damage: <b>${esc(d.damage_percentage)}%</b><br/>` +
         `Brgy ${esc(d.brgy || '-')}`
       )
-      .addTo(map!);
+      .addTo(mapLayers!);
   });
 };
 
@@ -391,7 +415,7 @@ const fetchOverview = async () => {
   error.value = '';
   try {
     const res = await apiClient.get('/dashboard/overview');
-    const payload = res.data?.data ?? {};
+    const payload = res.data?.data ?? res.data ?? {};
     Object.assign(descriptive, payload.descriptive ?? {});
     Object.assign(diagnostic, { pest_breakdown: [], crop_distribution: [], distributions_by_barangay: [], ...(payload.diagnostic ?? {}) });
     Object.assign(predictive, { harvest_forecast: [], weather_risk: [], ...(payload.predictive ?? {}) });
@@ -400,6 +424,7 @@ const fetchOverview = async () => {
     error.value = e?.response?.data?.message || 'Could not load dashboard overview.';
   } finally {
     loading.value = false;
+    initialLoading.value = false;
   }
 };
 
@@ -460,7 +485,7 @@ const goBroadcastCenter = async () => {
 onMounted(() => fetchAll());
 
 onBeforeUnmount(() => {
-  if (map) { map.remove(); map = null; }
+  destroyMap();
 });
 </script>
 

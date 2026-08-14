@@ -3,7 +3,7 @@
     <ion-header>
       <ion-toolbar color="primary">
         <ion-buttons slot="start">
-          <ion-back-button default-href="/tech/scanner" text="Scan"></ion-back-button>
+          <ion-back-button default-href="/tech/subsidy-dispense" text="Back"></ion-back-button>
         </ion-buttons>
         <ion-title>Confirm Release</ion-title>
         <ion-buttons slot="end">
@@ -206,7 +206,7 @@ const toast = async (message: string, color = 'primary') => {
 
 const goScan = () => {
   distributionStore.clear();
-  router.replace('/tech/scanner');
+  router.replace('/tech/subsidy-dispense');
 };
 
 const captureVoucher = async () => {
@@ -252,11 +252,27 @@ const authorizeRelease = async () => {
 
   // OFFLINE: queue for bulk sync (server verifies eligibility on upload).
   if (!isOnline()) {
+    if (ctx.value.source === 'subsidy') {
+      await toast('Connect to the internet to release this subsidy.', 'warning');
+      isSubmitting.value = false;
+      return;
+    }
     await queueRelease(lat, long);
     return;
   }
 
   try {
+    if (ctx.value.source === 'subsidy') {
+      const response = await apiClient.post(`/subsidies/${ctx.value.program_id}/claim-farmer`, {
+        farmer_id: ctx.value.farmer_id,
+        rsbsa_no: ctx.value.rsbsa_no,
+        beneficiary_id: ctx.value.beneficiary_id,
+      });
+      releaseResult.value = response.data;
+      isSubmitting.value = false;
+      return;
+    }
+
     const response = await apiClient.post('/distributions/claim', {
       farmer_id: ctx.value.farmer_id,
       program_id: ctx.value.program_id,
