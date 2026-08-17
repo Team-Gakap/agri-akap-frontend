@@ -20,7 +20,6 @@
     <ion-content class="page-bg">
       <div class="shell">
         <header class="intro">
-          <p class="eyebrow">Your barangay only</p>
           <h1>{{ barangayLabel }}</h1>
           <p class="lede">Farmers registered in your barangay.</p>
         </header>

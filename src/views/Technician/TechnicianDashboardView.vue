@@ -15,8 +15,7 @@
         </div>
       </header>
 
-      <WeatherWidget />
-
+      <WeatherWidget use-device-gps />
 
       <ion-card button class="action-card pest-card" @click="go('/tech/pest-queue')">
         <ion-ripple-effect type="bounded"></ion-ripple-effect>
