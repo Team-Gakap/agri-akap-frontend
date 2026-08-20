@@ -6,25 +6,25 @@
           <ion-menu-button></ion-menu-button>
         </ion-buttons>
         <ion-title>Crop Production Report</ion-title>
-        <ion-buttons slot="end">
-          <ion-button class="export-btn" :disabled="!filteredRows.length" @click="exportToPdf">
-            <ion-icon slot="start" :icon="printOutline"></ion-icon>
-            Export PDF
-          </ion-button>
-        </ion-buttons>
       </ion-toolbar>
     </ion-header>
 
     <ion-content class="rpt-content">
       <!-- Print letterhead -->
       <div class="print-only letterhead">
-        <h1 class="lh-title">Municipality of [LGU Name]</h1>
-        <p class="lh-sub">Municipal Agriculture Office — Crop Production Report ({{ activeMode === 'planting' ? 'Planting Data' : 'Harvest Data' }})</p>
-        <p class="lh-meta">
-          Generated: {{ new Date().toLocaleDateString('en-PH', { year:'numeric', month:'long', day:'numeric' }) }}
-          <span v-if="filters.dateFrom || filters.dateTo">&nbsp;|&nbsp; Period: {{ filters.dateFrom || '—' }} to {{ filters.dateTo || '—' }}</span>
-          <span v-if="filters.barangay">&nbsp;|&nbsp; Barangay: {{ filters.barangay }}</span>
-        </p>
+        <MaoFormHeader
+          :show-barangay="false"
+          office-title="Municipal Agriculture Office"
+          :title="`Crop Production Report (${activeMode === 'planting' ? 'Planting Data' : 'Harvest Data'})`"
+        >
+          <template #subtitle>
+            <p class="lh-meta">
+              Generated: {{ new Date().toLocaleDateString('en-PH', { year:'numeric', month:'long', day:'numeric' }) }}
+              <span v-if="filters.dateFrom || filters.dateTo">&nbsp;|&nbsp; Period: {{ filters.dateFrom || '—' }} to {{ filters.dateTo || '—' }}</span>
+              <span v-if="filters.barangay">&nbsp;|&nbsp; Barangay: {{ filters.barangay }}</span>
+            </p>
+          </template>
+        </MaoFormHeader>
       </div>
 
       <div class="rpt-shell">
@@ -79,7 +79,14 @@
         <div class="grid-shell">
           <div class="grid-head">
             <span class="grid-title">{{ activeMode === 'planting' ? 'Planting Data' : 'Harvest Data' }}</span>
-            <span class="row-pill">{{ filteredRows.length }} record(s)</span>
+            <div class="grid-actions no-print">
+              <ion-button class="add-override-btn" @click="encodeOpen = true">
+                <ion-icon slot="start" :icon="addCircleOutline"></ion-icon>
+                Add 
+              </ion-button>
+              <FormExportActions theme="admin" @print="printReport" @excel="downloadExcel" />
+              <span class="row-pill">{{ filteredRows.length }} record(s)</span>
+            </div>
           </div>
 
           <div v-if="loading" class="grid-state">
@@ -169,17 +176,32 @@
         </div>
       </div>
     </ion-content>
+
+    <ReportEncodeModal
+      v-model:is-open="encodeOpen"
+      :title="encodeTitle"
+      :kind="encodeKind"
+      :form-component="encodeForm"
+      @saved="fetchRows"
+    />
   </ion-page>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, defineAsyncComponent } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent,
   IonButtons, IonButton, IonMenuButton, IonIcon, IonSpinner,
 } from '@ionic/vue';
-import { printOutline } from 'ionicons/icons';
+import { addCircleOutline } from 'ionicons/icons';
+import FormExportActions from '@/components/FormExportActions.vue';
+import { exportAdminGridExcel } from '@/utils/statutoryFormExcel';
 import apiClient from '@/utils/axios';
+import ReportEncodeModal from '@/components/ReportEncodeModal.vue';
+import MaoFormHeader from '@/components/MaoFormHeader.vue';
+
+const PlantingForm = defineAsyncComponent(() => import('@/views/Barangay/PlantingLedgerView.vue'));
+const HarvestForm = defineAsyncComponent(() => import('@/views/Barangay/HarvestingLogView.vue'));
 
 type Mode = 'planting' | 'harvest';
 
@@ -219,6 +241,14 @@ const filters = reactive({
 });
 
 const filteredRows = computed(() => rows.value);
+const encodeOpen = ref(false);
+const encodeKind = computed((): 'harvest' | 'planting' =>
+  activeMode.value === 'harvest' ? 'harvest' : 'planting'
+);
+const encodeForm = computed(() => (activeMode.value === 'harvest' ? HarvestForm : PlantingForm));
+const encodeTitle = computed(() =>
+  activeMode.value === 'harvest' ? 'Add / Override Harvest Record' : 'Add / Override Planting Record'
+);
 
 const fmtNum  = (v: number | string) => Number(v ?? 0).toFixed(2);
 const fmtDate = (d: string) => {
@@ -262,8 +292,58 @@ function clearFilters() {
   fetchRows();
 }
 
-function exportToPdf() {
+function printReport() {
   window.print();
+}
+
+function reportMetaLine() {
+  let line = `Generated: ${new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}`;
+  if (filters.dateFrom || filters.dateTo) {
+    line += ` | Period: ${filters.dateFrom || '—'} to ${filters.dateTo || '—'}`;
+  }
+  if (filters.barangay) line += ` | Barangay: ${filters.barangay}`;
+  return line;
+}
+
+async function downloadExcel() {
+  const isPlanting = activeMode.value === 'planting';
+  await exportAdminGridExcel({
+    filename: `crop-production-${activeMode.value}.xlsx`,
+    reportTitle: `Crop Production Report (${isPlanting ? 'Planting Data' : 'Harvest Data'})`,
+    metaLine: reportMetaLine(),
+    columns: isPlanting
+      ? [
+          { key: 'no', label: 'No' },
+          { key: 'rsbsa_no', label: 'RSBSA No.' },
+          { key: 'name', label: 'Name' },
+          { key: 'farm_location', label: 'Farm Location' },
+          { key: 'crop', label: 'Crop' },
+          { key: 'variety', label: 'Variety' },
+          { key: 'area_planted', label: 'Area Planted (ha)' },
+          { key: 'date_planted', label: 'Date Planted' },
+        ]
+      : [
+          { key: 'no', label: 'No' },
+          { key: 'rsbsa_no', label: 'RSBSA No.' },
+          { key: 'name', label: 'Name' },
+          { key: 'farm_location', label: 'Farm Location' },
+          { key: 'crop', label: 'Crop' },
+          { key: 'area_harvested', label: 'Area Harvested (ha)' },
+          { key: 'total_yield', label: 'Total Yield (MT)' },
+          { key: 'date_harvested', label: 'Date Harvested' },
+        ],
+    rows: filteredRows.value as Record<string, unknown>[],
+    getCellValue(row, key, index) {
+      if (key === 'no') return index + 1;
+      if (key === 'date_planted' || key === 'date_harvested') {
+        return fmtDate(String(row[key] ?? ''));
+      }
+      if (key === 'area_planted' || key === 'area_harvested' || key === 'total_yield') {
+        return fmtNum(row[key] as number);
+      }
+      return String(row[key] ?? '');
+    },
+  });
 }
 
 onMounted(async () => {
@@ -277,7 +357,33 @@ onMounted(async () => {
 
 <style scoped>
 .rpt-toolbar { --background: #1a4731; --color: #fff; }
-.export-btn { --background: #d4af37; --color: #1a4731; font-weight: 700; text-transform: none; --border-radius: 6px; }
+.add-override-btn {
+  --background: #ffffff;
+  --background-activated: #e8f5e9;
+  --color: #1a4731;
+  font-weight: 800;
+  text-transform: none;
+  --border-radius: 6px;
+  --padding-start: 12px;
+  --padding-end: 14px;
+}
+.export-btn {
+  --background: transparent;
+  --background-activated: rgba(255, 255, 255, 0.08);
+  --color: #f5e6a8;
+  --border-width: 1.5px;
+  --border-style: solid;
+  --border-color: #d4af37;
+  --border-radius: 6px;
+  font-weight: 700;
+  text-transform: none;
+}
+.grid-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 .rpt-content { --background: #eef1f4; }
 
 .rpt-shell {

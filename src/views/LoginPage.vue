@@ -4,7 +4,7 @@
       
       <div class="brand-header">
         <div class="logo-container">
-           <img src="@/assets/images/mao-logo-withoutbackground.png" alt="Municipal Agriculture Office Echague Logo" />
+           <img src="@/assets/images/echague-logo.png" alt="Municipal Agriculture Office Echague Logo" />
         </div>
         <h1 class="brand-title">AGRI-AKAP</h1>
         <p class="brand-subtitle">Agricultural Assistance and Knowledge Access Portal for Managing Farmers' Subsidies and Support Programs</p>
@@ -149,8 +149,8 @@ const login = async () => {
 }
 
 .logo-container img {
-  width: 130%; /* Fixed: Stretches image to container bounds */
-  height: 120%; /* Fixed: Stretches image to container bounds */
+  width: 100%; /* Fixed: Stretches image to container bounds */
+  height: 100%; /* Fixed: Stretches image to container bounds */
   object-fit: cover; /* Fixed: Fills the entire circle perfectly */
   display: block;
   border-radius: 50%;

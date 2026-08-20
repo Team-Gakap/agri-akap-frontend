@@ -2,7 +2,7 @@
   <div class="statutory-print" v-if="report">
     <div class="report-cover">
       <div class="cover-logo">
-        <img src="@/assets/images/mao-echague-logo.png" alt="MAO" class="cover-img" onerror="this.style.display='none'" />
+        <img src="@/assets/images/echague-logo.png" alt="MAO" class="cover-img" onerror="this.style.display='none'" />
       </div>
       <h1 class="cover-title">MUNICIPAL AGRICULTURE OFFICE</h1>
       <p class="cover-sub">Echague, Isabela</p>

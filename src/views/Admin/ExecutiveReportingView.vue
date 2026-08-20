@@ -6,16 +6,6 @@
           <ion-menu-button></ion-menu-button>
         </ion-buttons>
         <ion-title>Executive Reporting Suite</ion-title>
-        <ion-buttons slot="end">
-          <ion-button
-            class="export-btn"
-            :disabled="!filteredRows.length"
-            @click="exportToPdf"
-          >
-            <ion-icon slot="start" :icon="printOutline"></ion-icon>
-            Export to PDF
-          </ion-button>
-        </ion-buttons>
       </ion-toolbar>
     </ion-header>
 
@@ -86,59 +76,30 @@
         </ion-select>
       </div>
 
-      <div class="table-panel no-print">
-        <div class="panel-head">
+      <div class="preview-toolbar no-print">
+        <div class="preview-meta">
           <h3>{{ activeCategoryLabel }}</h3>
           <span class="row-badge">{{ filteredRows.length }} row(s)</span>
         </div>
-
-        <div v-if="loading" class="table-state">
-          <ion-spinner name="crescent" color="primary"></ion-spinner>
-          <p>Loading encoded records…</p>
-        </div>
-        <div v-else-if="loadError" class="table-state error">
-          <p>{{ loadError }}</p>
-          <ion-button size="small" @click="fetchRows">Retry</ion-button>
-        </div>
-        <div v-else class="table-scroll">
-          <table class="data-table">
-            <thead>
-              <tr>
-                <th v-for="col in activeColumns" :key="col.key" :class="{ center: col.center }">
-                  {{ col.label }}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-if="!filteredRows.length">
-                <td :colspan="activeColumns.length" class="empty-cell">
-                  No encoded records match the current filters. Encode planting, pest, or calamity data in the Barangay Portal, then refresh.
-                </td>
-              </tr>
-              <tr v-for="(row, i) in filteredRows" :key="i">
-                <td
-                  v-for="col in activeColumns"
-                  :key="col.key"
-                  :class="{ center: col.center }"
-                >
-                  {{ displayCell(row, col.key, i) }}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <FormExportActions theme="admin" @print="printReport" @excel="downloadExcel" />
       </div>
 
-      <!-- Hidden print target -->
-      <div class="print-only">
+      <div v-if="loading" class="table-state no-print">
+        <ion-spinner name="crescent" color="primary"></ion-spinner>
+        <p>Loading encoded records…</p>
+      </div>
+      <div v-else-if="loadError" class="table-state error no-print">
+        <p>{{ loadError }}</p>
+        <ion-button size="small" @click="fetchRows">Retry</ion-button>
+      </div>
+      <div v-else class="form-preview print-document">
         <PrintableReportTemplate
-          v-if="printPayload"
-          :report-type="printPayload.reportType"
-          :rows="printPayload.rows"
-          :barangay="printPayload.barangay"
-          :crop-type="printPayload.cropType"
-          :date-from="printPayload.dateFrom"
-          :date-to="printPayload.dateTo"
+          :report-type="activeCategory"
+          :rows="filteredRows"
+          :barangay="filters.barangay"
+          :crop-type="filters.cropType"
+          :date-from="filters.dateFrom"
+          :date-to="filters.dateTo"
           :prepared-by="preparedBy"
         />
       </div>
@@ -165,15 +126,16 @@ import {
   IonSelectOption,
   IonInput,
   IonSpinner,
-  toastController,
 } from '@ionic/vue';
-import { printOutline } from 'ionicons/icons';
+import FormExportActions from '@/components/FormExportActions.vue';
 import PrintableReportTemplate from '@/components/PrintableReportTemplate.vue';
 import {
   columnsForCategory,
   REPORT_CATEGORY_LABELS,
+  REPORT_PRINT_TITLES,
   type ExecutiveReportCategory,
 } from '@/constants/executiveReportingColumns';
+import { exportExecutiveReportExcel } from '@/utils/statutoryFormExcel';
 import apiClient from '@/utils/axios';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -200,19 +162,20 @@ const filters = reactive({
   cropType: '',
 });
 
-const printPayload = ref<{
-  reportType: ExecutiveReportCategory;
-  rows: ExecutiveReportRow[];
-  barangay: string;
-  cropType: string;
-  dateFrom: string;
-  dateTo: string;
-} | null>(null);
-
-const activeColumns = computed(() => columnsForCategory(activeCategory.value));
 const activeCategoryLabel = computed(() => REPORT_CATEGORY_LABELS[activeCategory.value]);
 const preparedBy = computed(() => authStore.userName ?? 'MAO Administrator');
 const filteredRows = computed(() => rows.value);
+
+const filterSummary = computed(() => {
+  const parts: string[] = [];
+  if (filters.barangay) parts.push(`Barangay: ${filters.barangay}`);
+  else parts.push('Barangay: All');
+  if (filters.cropType) parts.push(`Crop: ${filters.cropType}`);
+  if (filters.dateFrom || filters.dateTo) {
+    parts.push(`Period: ${filters.dateFrom || '…'} to ${filters.dateTo || '…'}`);
+  }
+  return parts.join(' · ');
+});
 
 let fetchTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -250,33 +213,19 @@ function onCategoryChange(e: CustomEvent) {
   if (val) activeCategory.value = val;
 }
 
-function displayCell(row: ExecutiveReportRow, key: string, index: number): string | number {
-  if (key === 'no') return index + 1;
-  return row[key] ?? '';
+function printReport() {
+  window.print();
 }
 
-async function exportToPdf() {
-  if (!filteredRows.value.length) {
-    const t = await toastController.create({
-      message: 'No data to export for the current filters.',
-      color: 'warning',
-      duration: 2400,
-      position: 'top',
-    });
-    await t.present();
-    return;
-  }
-
-  printPayload.value = {
-    reportType: activeCategory.value,
+async function downloadExcel() {
+  await exportExecutiveReportExcel({
+    columns: columnsForCategory(activeCategory.value),
     rows: filteredRows.value,
-    barangay: filters.barangay,
-    cropType: filters.cropType,
-    dateFrom: filters.dateFrom,
-    dateTo: filters.dateTo,
-  };
-
-  setTimeout(() => window.print(), 350);
+    reportTitle: REPORT_PRINT_TITLES[activeCategory.value],
+    filterSummary: filterSummary.value,
+    preparedBy: preparedBy.value,
+    filename: `executive-${activeCategory.value}.xlsx`,
+  });
 }
 
 watch(
@@ -363,30 +312,21 @@ onMounted(async () => {
   padding: 0 0.5rem;
 }
 
-.table-panel {
+.preview-toolbar {
   max-width: 1200px;
-  margin: 0 auto 2rem;
-  background: #fff;
-  border: 1px solid #d1e0d6;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(26, 71, 49, 0.08);
-}
-
-.panel-head {
+  margin: 0 auto 0.75rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.85rem 1rem;
-  background: linear-gradient(90deg, #1a4731 0%, #245a3f 100%);
-  color: #fff;
+  gap: 0.75rem;
+  flex-wrap: wrap;
 }
 
-.panel-head h3 {
-  color: #d1e0d6;
+.preview-meta h3 {
   margin: 0;
+  color: #1a4731;
   font-size: 1rem;
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .row-badge {
@@ -396,6 +336,7 @@ onMounted(async () => {
   font-weight: 700;
   padding: 0.2rem 0.6rem;
   border-radius: 999px;
+  margin-left: 0.5rem;
 }
 
 .table-state {
@@ -412,67 +353,9 @@ onMounted(async () => {
   color: #b91c1c;
 }
 
-.table-scroll {
-  overflow-x: auto;
-}
-
-.data-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.78rem;
-  min-width: 900px;
-}
-
-.data-table th {
-  background: #eef5f0;
-  color: #1a4731;
-  font-weight: 700;
-  text-align: left;
-  padding: 0.55rem 0.5rem;
-  border-bottom: 2px solid #1a4731;
-  white-space: nowrap;
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-}
-
-.data-table td {
-  padding: 0.5rem;
-  border-bottom: 1px solid #e5ece7;
-  vertical-align: top;
-  color: #1f2937;
-}
-
-.data-table tbody tr:nth-child(even) {
-  background: #fafcfa;
-}
-
-.data-table tbody tr:hover {
-  background: #f0f7f2;
-}
-
-.data-table .center {
-  text-align: center;
-}
-
-.empty-cell {
-  text-align: center;
-  color: #6b7280;
-  padding: 2rem !important;
-  font-style: italic;
-}
-
-.print-only {
-  display: none;
-}
-
 @media print {
   .no-print {
     display: none !important;
-  }
-
-  .print-only {
-    display: block !important;
   }
 
   ion-content {

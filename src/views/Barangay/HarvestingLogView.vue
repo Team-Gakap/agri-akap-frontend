@@ -1,25 +1,24 @@
 <template>
-  <ion-page>
-    <ion-header class="no-print">
+  <component :is="embedded ? 'div' : IonPage" class="encode-root">
+    <ion-header v-if="!embedded" class="no-print">
       <ion-toolbar color="primary">
         <ion-buttons slot="start">
           <ion-menu-button></ion-menu-button>
         </ion-buttons>
         <ion-title>Harvest Records</ion-title>
-        <ion-buttons slot="end">
-          <ion-button class="export-btn no-print" :disabled="!entries.length" @click="exportForm">
-            <ion-icon slot="start" :icon="printOutline"></ion-icon>
-            Print Form
-          </ion-button>
-        </ion-buttons>
       </ion-toolbar>
     </ion-header>
 
-    <ion-content class="ion-padding page-bg">
+    <component :is="embedded ? 'div' : IonContent" class="ion-padding page-bg" :class="{ 'embedded-encode-body': embedded }">
       <div class="wrapper no-print">
-        <div v-if="!assignedBarangay" class="warn-banner">
-          No assigned barangay on this account. Ask MAO admin to set <code>assigned_barangay</code> before encoding.
-        </div>
+        <EncodingBarangaySelector
+          :is-admin-override="isAdminOverride"
+          v-model:selected-barangay="selectedBarangay"
+          :barangay-options="barangayOptions"
+          :loading-barangays="loadingBarangays"
+          :can-encode="canEncode"
+          @change="onTargetBarangayChange"
+        />
 
         <div class="form-card">
           <h3>Add Record</h3>
@@ -30,7 +29,7 @@
               label="Search Farmer (RSBSA / Name)"
               label-placement="stacked"
               :value="farmerSearch.query.value"
-              :disabled="!assignedBarangay"
+              :disabled="!canEncode"
               placeholder="Type to search…"
               @ionInput="(e: any) => farmerSearch.onQueryInput(e.detail.value || '')"
             ></ion-input>
@@ -102,79 +101,57 @@
           </div>
 
           <ion-button expand="block" class="add-btn" :disabled="!canAdd" @click="addEntry">
-            Add to Ledger
+            {{ saving ? 'Saving…' : 'Add to Ledger' }}
           </ion-button>
         </div>
 
-        <div class="table-card">
-          <div class="table-head">
-            <h3>Encoded Harvests ({{ entries.length }})</h3>
-            <span class="totals">{{ totalHa.toFixed(2) }} ha harvested</span>
+        <div v-if="!embedded" class="preview-section no-print">
+          <div class="preview-toolbar">
+            <div class="preview-meta">
+              <h3>Form Preview</h3>
+              <span class="preview-count">{{ entries.length }} harvest(s) · {{ totalHa.toFixed(2) }} ha</span>
+            </div>
+            <FormExportActions @print="printForm" @excel="downloadExcel" />
           </div>
-          <div v-if="entries.length" class="table-wrap">
-            <table class="mao-table">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Farmer</th>
-                  <th>Location</th>
-                  <th>Crop</th>
-                  <th>Area</th>
-                  <th>Yield</th>
-                  <th>Date</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(e, i) in entries" :key="e.id">
-                  <td>{{ i + 1 }}</td>
-                  <td><strong>{{ e.surname }}, {{ e.first_name }}</strong></td>
-                  <td>{{ e.farm_location }}</td>
-                  <td>{{ e.crop_type }}</td>
-                  <td>{{ Number(e.area_harvested).toFixed(2) }}</td>
-                  <td>{{ e.yield_display }}</td>
-                  <td>{{ e.date_of_harvest }}</td>
-                  <td>
-                    <ion-button size="small" fill="clear" color="danger" @click="entries.splice(i, 1)">Remove</ion-button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <EmptyState
-            v-else
-            variant="documents"
-            message="No harvest records yet. Search a farmer and log a completed harvest."
-          />
+          <ul v-if="entries.length" class="entry-actions">
+            <li v-for="(e, i) in entries" :key="e.id">
+              <span>{{ i + 1 }}. {{ e.surname }}, {{ e.first_name }} — {{ e.crop_type }}</span>
+              <ion-button size="small" fill="clear" color="danger" @click="entries.splice(i, 1)">Remove</ion-button>
+            </li>
+          </ul>
         </div>
       </div>
 
-      <div class="print-only print-document">
+      <div v-if="!embedded" class="form-preview print-document">
         <HarvestingPrint
-          v-if="printRows.length"
-          :rows="printRows"
-          :barangay="assignedBarangay || ''"
-          :crop="printCrop"
+          :rows="previewRows"
+          :barangay="effectiveBarangay || ''"
+          :crop="previewCrop"
         />
       </div>
-    </ion-content>
-  </ion-page>
+    </component>
+  </component>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, defineAsyncComponent } from 'vue';
+import { ref, reactive, computed, defineAsyncComponent, onMounted, watch } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
   IonButton, IonIcon, IonInput, IonSelect, IonSelectOption, toastController,
 } from '@ionic/vue';
-import { printOutline } from 'ionicons/icons';
-import { useAuthStore } from '@/stores/authStore';
+import FormExportActions from '@/components/FormExportActions.vue';
+import { exportHarvestingExcel } from '@/utils/statutoryFormExcel';
+import { useEncodingBarangay } from '@/composables/useEncodingBarangay';
+import EncodingBarangaySelector from '@/components/EncodingBarangaySelector.vue';
 import {
   useBarangayFarmerSearch,
   formatBirthday,
   type FarmerOption,
 } from '@/composables/useBarangayFarmerSearch';
-import EmptyState from '@/components/EmptyState.vue';
+import apiClient from '@/utils/axios';
+
+withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
+const emit = defineEmits<{ saved: [] }>();
 
 const HarvestingPrint = defineAsyncComponent(() => import('@/components/HarvestingPrint.vue'));
 
@@ -195,13 +172,37 @@ interface HarvestEntry {
   date_of_harvest: string;
 }
 
-const authStore = useAuthStore();
-const assignedBarangay = computed(() => authStore.user?.assigned_barangay || null);
-const farmerSearch = useBarangayFarmerSearch(() => assignedBarangay.value);
+const {
+  isAdminOverride,
+  selectedBarangay,
+  barangayOptions,
+  loadingBarangays,
+  effectiveBarangay,
+  canEncode,
+  payloadBarangayName,
+} = useEncodingBarangay();
+const farmerSearch = useBarangayFarmerSearch(() => effectiveBarangay.value);
 
 const entries = ref<HarvestEntry[]>([]);
-const printRows = ref<Record<string, string | number>[]>([]);
-const printCrop = ref('Rice');
+const saving = ref(false);
+
+const previewRows = computed(() =>
+  entries.value.map((e) => ({
+    rsbsa_no: e.rsbsa_no,
+    surname: e.surname,
+    first_name: e.first_name,
+    middle_name: e.middle_name,
+    ext_name: e.ext_name,
+    farm_location: e.farm_location,
+    crop_type: e.crop_type,
+    variety: e.variety,
+    area_harvested: Number(e.area_harvested).toFixed(2),
+    yield_display: e.yield_display,
+    date_of_harvest: e.date_of_harvest,
+  })),
+);
+
+const previewCrop = computed(() => entries.value[0]?.crop_type || 'Rice');
 
 const form = reactive({
   farmer_id: '',
@@ -223,16 +224,88 @@ const form = reactive({
 });
 
 const canAdd = computed(() =>
-  !!form.farmer_id && !!form.area_harvested && !!form.yield_amount && !!form.date_of_harvest && !!form.variety
+  canEncode.value && !!form.farmer_id && !!form.area_harvested && !!form.yield_amount && !!form.date_of_harvest && !!form.variety && !saving.value
 );
+
+const debugFormSnapshot = () => ({
+  farmer_id: !!form.farmer_id,
+  plot_id: form.plot_id || null,
+  area_harvested: form.area_harvested || null,
+  yield_amount: form.yield_amount || null,
+  variety: form.variety || null,
+  date_of_harvest: form.date_of_harvest || null,
+  crop_type: form.crop_type,
+  canAdd: !!form.farmer_id && !!form.area_harvested && !!form.yield_amount && !!form.date_of_harvest && !!form.variety,
+  entries: entries.value.length,
+  assignedBarangay: effectiveBarangay.value || null,
+});
+
+watch(canAdd, (v) => {
+  // #region agent log
+  fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7cd166'},body:JSON.stringify({sessionId:'7cd166',runId:'pre-fix',hypothesisId:'H2',location:'HarvestingLogView.vue:canAdd',message:'harvest canAdd changed',data:{canAdd:v,...debugFormSnapshot()},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
+}, { immediate: true });
+
+onMounted(() => {
+  // #region agent log
+  fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7cd166'},body:JSON.stringify({sessionId:'7cd166',runId:'pre-fix',hypothesisId:'H1',location:'HarvestingLogView.vue:onMounted',message:'harvest page mounted with no API load',data:{assignedBarangay:effectiveBarangay.value||null,entries:entries.value.length,hasLoadLedger:false},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
+  void loadLedger();
+});
 
 const totalHa = computed(() =>
   entries.value.reduce((s, e) => s + Number(e.area_harvested || 0), 0)
 );
 
+const sliceDate = (v: any) => String(v || '').slice(0, 10);
+
+const yieldLabel = (amount: number, unit: string) =>
+  `${Number(amount).toLocaleString()} ${unit || 'Metric Tons'}`;
+
+const loadLedger = async () => {
+  try {
+    const res = await apiClient.get('/harvest-logs', {
+      params: { per_page: 200, barangay: effectiveBarangay.value || undefined },
+    });
+    const rows = res.data?.data?.data ?? [];
+    entries.value = rows.map((r: any) => {
+      const farmer = r.farmer || {};
+      const unit = r.yield_unit || 'Metric Tons';
+      const amount = Number(r.total_yield) || 0;
+      return {
+        id: r.id,
+        rsbsa_no: farmer.rsbsa_no || '',
+        surname: farmer.surname || '',
+        first_name: farmer.first_name || '',
+        middle_name: farmer.middle_name || '',
+        ext_name: farmer.ext_name || '',
+        farm_location: r.farm_location || r.farm_plot?.location_brgy || farmer.permanent_brgy || '',
+        crop_type: r.crop_type || 'Rice',
+        variety: r.variety || '',
+        area_harvested: Number(r.area_harvested) || 0,
+        yield_amount: amount,
+        yield_unit: unit,
+        yield_display: yieldLabel(amount, unit),
+        date_of_harvest: sliceDate(r.date_harvested),
+      } as HarvestEntry;
+    });
+    // #region agent log
+    fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7cd166'},body:JSON.stringify({sessionId:'7cd166',runId:'post-fix',hypothesisId:'H1',location:'HarvestingLogView.vue:loadLedger',message:'harvest ledger loaded from API',data:{ok:true,entries:entries.value.length,status:res.status},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+  } catch (e: any) {
+    entries.value = [];
+    // #region agent log
+    fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7cd166'},body:JSON.stringify({sessionId:'7cd166',runId:'post-fix',hypothesisId:'H1',location:'HarvestingLogView.vue:loadLedger',message:'harvest ledger load failed',data:{ok:false,status:e?.response?.status||null,err:e?.response?.data?.message||e?.message||'error'},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+  }
+};
+
 const onSelectFarmer = async (f: FarmerOption) => {
   await farmerSearch.selectFarmer(f);
   const sel = farmerSearch.selected.value;
+  // #region agent log
+  fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7cd166'},body:JSON.stringify({sessionId:'7cd166',runId:'pre-fix',hypothesisId:'H5',location:'HarvestingLogView.vue:onSelectFarmer',message:'harvest farmer selected',data:{selected:!!sel,plotCount:sel?.plots?.length||0,searchId:f.id||null},timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
   if (!sel) return;
   form.farmer_id = sel.id;
   form.rsbsa_no = sel.rsbsa_no;
@@ -282,53 +355,92 @@ const resetForm = () => {
   form.date_of_harvest = '';
 };
 
-const addEntry = async () => {
-  if (!canAdd.value) return;
-  const yieldDisplay = `${Number(form.yield_amount).toLocaleString()} ${form.yield_unit}`;
-  entries.value.push({
-    id: crypto.randomUUID(),
-    rsbsa_no: form.rsbsa_no,
-    surname: form.surname,
-    first_name: form.first_name,
-    middle_name: form.middle_name,
-    ext_name: form.ext_name,
-    farm_location: form.farm_location,
-    crop_type: form.crop_type,
-    variety: form.variety,
-    area_harvested: Number(form.area_harvested),
-    yield_amount: Number(form.yield_amount),
-    yield_unit: form.yield_unit,
-    yield_display: yieldDisplay,
-    date_of_harvest: form.date_of_harvest,
-  });
+const onTargetBarangayChange = () => {
   resetForm();
-  const t = await toastController.create({ message: 'Harvest record added.', color: 'success', duration: 1800, position: 'top' });
-  await t.present();
+  void loadLedger();
 };
 
-const exportForm = async () => {
-  if (!entries.value.length) return;
-  printCrop.value = entries.value[0]?.crop_type || 'Rice';
-  printRows.value = entries.value.map((e) => ({
-    rsbsa_no: e.rsbsa_no,
-    surname: e.surname,
-    first_name: e.first_name,
-    middle_name: e.middle_name,
-    ext_name: e.ext_name,
-    farm_location: e.farm_location,
-    crop_type: e.crop_type,
-    variety: e.variety,
-    area_harvested: Number(e.area_harvested).toFixed(2),
-    yield_display: e.yield_display,
-    date_of_harvest: e.date_of_harvest,
-  }));
-  setTimeout(() => window.print(), 350);
+const addEntry = async () => {
+  // #region agent log
+  fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7cd166'},body:JSON.stringify({sessionId:'7cd166',runId:'pre-fix',hypothesisId:'H3',location:'HarvestingLogView.vue:addEntry',message:'harvest addEntry clicked',data:debugFormSnapshot(),timestamp:Date.now()})}).catch(()=>{});
+  // #endregion
+  if (!canAdd.value) return;
+  saving.value = true;
+  const id = crypto.randomUUID();
+  const yieldDisplay = yieldLabel(Number(form.yield_amount), form.yield_unit);
+  try {
+    await apiClient.post('/harvest-logs', {
+      id,
+      farmer_id: form.farmer_id,
+      farm_plot_id: form.plot_id || undefined,
+      crop_type: form.crop_type,
+      variety: form.variety,
+      area_harvested: Number(form.area_harvested),
+      total_yield: Number(form.yield_amount),
+      yield_unit: form.yield_unit,
+      date_harvested: form.date_of_harvest,
+      farm_location: form.farm_location,
+      barangay_name: payloadBarangayName(),
+    });
+    entries.value.unshift({
+      id,
+      rsbsa_no: form.rsbsa_no,
+      surname: form.surname,
+      first_name: form.first_name,
+      middle_name: form.middle_name,
+      ext_name: form.ext_name,
+      farm_location: form.farm_location,
+      crop_type: form.crop_type,
+      variety: form.variety,
+      area_harvested: Number(form.area_harvested),
+      yield_amount: Number(form.yield_amount),
+      yield_unit: form.yield_unit,
+      yield_display: yieldDisplay,
+      date_of_harvest: form.date_of_harvest,
+    });
+    // #region agent log
+    fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7cd166'},body:JSON.stringify({sessionId:'7cd166',runId:'pre-fix',hypothesisId:'H4',location:'HarvestingLogView.vue:addEntry:afterPush',message:'harvest local push done',data:{entries:entries.value.length,lastId:id},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    // #region agent log
+    fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7cd166'},body:JSON.stringify({sessionId:'7cd166',runId:'post-fix',hypothesisId:'H1',location:'HarvestingLogView.vue:addEntry:saved',message:'harvest entry persisted',data:{ok:true,entries:entries.value.length,id},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    resetForm();
+    const t = await toastController.create({ message: 'Harvest record saved.', color: 'success', duration: 1800, position: 'top' });
+    await t.present();
+    emit('saved');
+  } catch (e: any) {
+    // #region agent log
+    fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7cd166'},body:JSON.stringify({sessionId:'7cd166',runId:'post-fix',hypothesisId:'H1',location:'HarvestingLogView.vue:addEntry:saved',message:'harvest entry persist failed',data:{ok:false,status:e?.response?.status||null,err:e?.response?.data?.message||'error'},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
+    const t = await toastController.create({
+      message: e?.response?.data?.message || 'Failed to save harvest record.',
+      color: 'danger',
+      duration: 2800,
+      position: 'top',
+    });
+    await t.present();
+  } finally {
+    saving.value = false;
+  }
+};
+
+const printForm = () => {
+  window.print();
+};
+
+const downloadExcel = async () => {
+  await exportHarvestingExcel({
+    rows: previewRows.value,
+    barangay: effectiveBarangay.value || '',
+    crop: previewCrop.value,
+  });
 };
 </script>
 
 <style scoped>
 .page-bg { --background: #f4f8f5; }
 .wrapper { max-width: 1100px; margin: 0 auto; padding-bottom: 2rem; }
+.embedded-encode-body { padding-bottom: 2rem; }
 .export-btn { --background: #d4af37; --color: #1a4731; font-weight: 700; text-transform: none; }
 
 .warn-banner {
@@ -341,11 +453,27 @@ const exportForm = async () => {
   --background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0 10px;
 }
 
-.form-card, .table-card {
+.form-card {
   background: white; border: 1px solid #e2e8f0; border-radius: 12px;
   padding: 1rem; margin-bottom: 1rem;
 }
-.form-card h3, .table-head h3 { margin: 0 0 0.75rem; color: #1a4731; font-weight: 800; }
+.form-card h3 { margin: 0 0 0.75rem; color: #1a4731; font-weight: 800; }
+.preview-section { margin-bottom: 0.75rem; }
+.preview-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.5rem;
+}
+.preview-meta h3 { margin: 0; color: #1a4731; font-weight: 800; font-size: 1rem; }
+.preview-count { font-size: 0.85rem; color: #64748b; }
+.entry-actions {
+  list-style: none; margin: 0 0 0.75rem; padding: 0; background: #fff;
+  border: 1px solid #e2e8f0; border-radius: 10px; max-height: 180px; overflow: auto;
+}
+.entry-actions li {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.5rem; padding: 0.35rem 0.65rem; border-bottom: 1px solid #f1f5f9; font-size: 0.88rem;
+}
+.entry-actions li:last-child { border-bottom: none; }
 .search-box { position: relative; margin-bottom: 0.75rem; }
 .hint { font-size: 0.8rem; color: #94a3b8; margin-top: 4px; }
 .suggest {
@@ -367,7 +495,4 @@ const exportForm = async () => {
 .ro.full { flex: 1 1 100%; }
 .lbl { display: block; font-size: 0.68rem; color: #64748b; text-transform: uppercase; font-weight: 700; }
 .add-btn { --background: #1a4731; margin-top: 0.85rem; text-transform: none; font-weight: 700; }
-
-.table-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
-.totals { font-weight: 700; color: #1a4731; }
 </style>

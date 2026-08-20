@@ -1,13 +1,14 @@
 <template>
-  <div id="support-qualified-print" class="support-doc" v-if="rows?.length">
-    <div class="doc-header">
-      <h1>Republic of the Philippines</h1>
-      <h2>Province of Isabela</h2>
-      <h2>Municipality of Echague</h2>
-      <h3>Municipal Agriculture Office</h3>
-      <h4 class="doc-title">Qualified Support Beneficiaries</h4>
-      <p class="doc-meta">Generated: {{ generatedAt }} &middot; Total: {{ rows.length }} farmer(s)</p>
-    </div>
+  <div id="support-qualified-print" class="support-doc">
+    <MaoFormHeader
+      :show-barangay="false"
+      office-title="Municipal Agriculture Office"
+      title="Qualified Support Beneficiaries"
+    >
+      <template #subtitle>
+        <p class="doc-meta">Generated: {{ generatedAt }} &middot; Total: {{ rows.length }} farmer(s)</p>
+      </template>
+    </MaoFormHeader>
 
     <table class="support-table">
       <thead>
@@ -35,6 +36,9 @@
           <td class="ta-center">{{ row.quantity }} {{ row.unit }}</td>
           <td class="nowrap">{{ row.date_approved }}</td>
         </tr>
+        <tr v-if="!rows.length">
+          <td colspan="9" class="ta-center empty-row">No qualified beneficiaries</td>
+        </tr>
       </tbody>
     </table>
 
@@ -56,20 +60,28 @@
 </template>
 
 <script setup lang="ts">
-defineProps<{
-  rows: Array<{
-    farmer_name: string;
-    barangay: string;
-    crop_type: string;
-    area_destroyed_ha: number;
-    damage_percentage: number;
-    support_type: string;
-    quantity: number;
-    unit: string;
-    date_approved: string;
-  }>;
-  generatedAt: string;
-}>();
+import MaoFormHeader from '@/components/MaoFormHeader.vue';
+
+withDefaults(
+  defineProps<{
+    rows?: Array<{
+      farmer_name: string;
+      barangay: string;
+      crop_type: string;
+      area_destroyed_ha: number;
+      damage_percentage: number;
+      support_type: string;
+      quantity: number;
+      unit: string;
+      date_approved: string;
+    }>;
+    generatedAt?: string;
+  }>(),
+  {
+    rows: () => [],
+    generatedAt: '',
+  },
+);
 </script>
 
 <style scoped>
@@ -82,12 +94,8 @@ defineProps<{
   font-family: 'Times New Roman', serif;
   font-size: 11pt;
 }
-.doc-header { text-align: center; margin-bottom: 20px; border-bottom: 2px solid #1a4731; padding-bottom: 12px; }
-.doc-header h1 { font-size: 11pt; margin: 0; font-weight: normal; }
-.doc-header h2 { font-size: 12pt; margin: 2px 0; color: #1a4731; }
-.doc-header h3 { font-size: 12pt; margin: 4px 0; font-weight: bold; }
-.doc-title { font-size: 13pt; margin: 12px 0 4px; text-decoration: underline; }
-.doc-meta { font-size: 10pt; color: #475569; margin: 0; }
+
+.doc-meta { font-size: 10pt; color: #475569; margin: 4px 0 0; }
 
 .support-table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 9pt; }
 .support-table th {
@@ -100,6 +108,7 @@ defineProps<{
 .support-table td { padding: 5px 8px; border: 1px solid #ddd; }
 .ta-center { text-align: center; }
 .nowrap { white-space: nowrap; }
+.empty-row { color: #64748b; font-style: italic; padding: 12px !important; }
 
 .footer-note {
   margin-top: 16px;

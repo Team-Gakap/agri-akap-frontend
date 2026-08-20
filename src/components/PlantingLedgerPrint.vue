@@ -1,15 +1,15 @@
 <template>
-  <div id="planting-ledger-print" class="planting-doc" v-if="rows?.length">
-    <div class="doc-header">
-      <h1>Republic of the Philippines</h1>
-      <h2>Province of Isabela</h2>
-      <h2>Municipality of Echague</h2>
-      <h2 class="brgy-line">BARANGAY {{ barangay || '____________' }}</h2>
-      <h3 v-if="showMaoHeader">MUNICIPAL AGRICULTURE OFFICE</h3>
-      <h3 v-if="showMaoHeader && cropLabel">{{ cropLabel.toUpperCase() }} PROGRAM</h3>
-      <h4 class="doc-title">{{ formTitle }}</h4>
-      <p v-if="subtitle" class="doc-sub">{{ subtitle }}</p>
-    </div>
+  <div id="planting-ledger-print" class="planting-doc">
+    <MaoFormHeader
+      :barangay="barangay"
+      :office-title="showMaoHeader ? 'MUNICIPAL AGRICULTURE OFFICE' : ''"
+      :program-line="showMaoHeader && cropLabel ? `${cropLabel.toUpperCase()} PROGRAM` : ''"
+      :title="formTitle"
+    >
+      <template v-if="subtitle" #subtitle>
+        <p class="doc-sub">{{ subtitle }}</p>
+      </template>
+    </MaoFormHeader>
 
     <table class="form-table">
       <thead>
@@ -45,15 +45,23 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import MaoFormHeader from '@/components/MaoFormHeader.vue';
 
 export type PlantingPrintMode = 'already_planted' | 'not_continued' | 'with_water' | 'without_water';
 
-const props = defineProps<{
-  rows: Record<string, string | number>[];
-  barangay: string;
-  crop: string;
-  mode: PlantingPrintMode;
-}>();
+const props = withDefaults(
+  defineProps<{
+    rows?: Record<string, string | number>[];
+    barangay?: string;
+    crop?: string;
+    mode: PlantingPrintMode;
+  }>(),
+  {
+    rows: () => [],
+    barangay: '',
+    crop: 'Rice',
+  },
+);
 
 const cropLabel = computed(() => props.crop || 'Rice');
 
@@ -143,12 +151,8 @@ const totalsLabel = computed(() => {
   font-family: 'Times New Roman', Times, serif;
   font-size: 10pt;
 }
-.doc-header { text-align: center; margin-bottom: 12px; }
-.doc-header h1, .doc-header h2, .doc-header h3 { margin: 0; font-weight: normal; font-size: 11pt; }
-.doc-header h3 { font-weight: bold; margin-top: 4px; }
-.brgy-line { font-weight: bold !important; margin-top: 4px !important; }
-.doc-title { font-size: 12pt; font-weight: bold; margin: 10px 0 4px; text-transform: uppercase; }
-.doc-sub { margin: 0; font-size: 10pt; font-weight: bold; text-align: left; }
+
+.doc-sub { margin: 4px 0 0; font-size: 10pt; font-weight: bold; text-align: left; }
 
 .form-table { width: 100%; border-collapse: collapse; font-size: 8.5pt; }
 .form-table th, .form-table td {

@@ -1,16 +1,20 @@
 <template>
-  <ion-page>
-    <ion-header>
+  <component :is="embedded ? 'div' : IonPage" class="encode-root">
+    <ion-header v-if="!embedded">
       <ion-toolbar color="primary">
         <ion-buttons slot="start">
-          <ion-back-button default-href="/tech/dashboard"></ion-back-button>
+          <ion-back-button :default-href="backHref"></ion-back-button>
         </ion-buttons>
         <ion-title>Give Subsidy</ion-title>
       </ion-toolbar>
     </ion-header>
 
-    <ion-content v-show="!isScanning" class="ion-padding page-bg">
+    <component :is="embedded ? 'div' : IonContent" v-show="!isScanning" class="ion-padding page-bg">
       <div class="hero">
+        <div v-if="isAdminOverride" class="admin-banner">
+          <strong>Admin Override — Manual Subsidy Dispense</strong>
+          <p>Fallback for when QR scanning is unavailable. Release subsidies on behalf of field technicians.</p>
+        </div>
         <div class="icon-wrap">
           <ion-icon :icon="qrCodeOutline"></ion-icon>
         </div>
@@ -109,7 +113,7 @@
       >
         {{ verifying ? 'Checking eligibility…' : 'Continue to Release' }}
       </ion-button>
-    </ion-content>
+    </component>
 
     <div v-if="isScanning" class="scan-overlay">
       <div class="scan-frame" aria-hidden="true"></div>
@@ -119,7 +123,7 @@
         Cancel
       </ion-button>
     </div>
-  </ion-page>
+  </component>
 </template>
 
 <script setup lang="ts">
@@ -135,11 +139,21 @@ import { Capacitor } from '@capacitor/core';
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
 import { getPrograms, lookupFarmer, searchFarmers } from '@/services/syncService';
 import { useDistributionStore } from '@/stores/distributionStore';
+import { useAuthStore } from '@/stores/authStore';
 import apiClient from '@/utils/axios';
+
+const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
+const emit = defineEmits<{ verified: []; saved: [] }>();
 
 const router = useRouter();
 const route = useRoute();
+const authStore = useAuthStore();
 const distributionStore = useDistributionStore();
+
+const isAdminOverride = computed(() => authStore.userRole === 'admin');
+const backHref = computed(() =>
+  route.path.startsWith('/admin') ? '/admin/dashboard' : '/tech/dashboard'
+);
 
 const isScanning = ref(false);
 const lookingUp = ref(false);
@@ -316,6 +330,10 @@ const continueToRelease = async () => {
         source: 'subsidy',
         offline: false,
       });
+      if (props.embedded) {
+        emit('verified');
+        return;
+      }
       router.push('/tech/release');
       return;
     }
@@ -342,6 +360,10 @@ const continueToRelease = async () => {
       source: 'program',
       offline: false,
     });
+    if (props.embedded) {
+      emit('verified');
+      return;
+    }
     router.push('/tech/release');
   } catch (err: any) {
     await toast(err?.response?.data?.message || 'Could not verify eligibility.', 'danger');
@@ -389,6 +411,19 @@ onBeforeUnmount(() => {
   text-align: center;
   margin: 0.75rem 0 1.25rem;
 }
+
+.admin-banner {
+  text-align: left;
+  background: #eff6ff;
+  color: #1e3a5f;
+  border: 1px solid #93c5fd;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.88rem;
+}
+.admin-banner strong { display: block; margin-bottom: 0.25rem; }
+.admin-banner p { margin: 0; font-size: 0.82rem; opacity: 0.9; }
 
 .icon-wrap {
   width: 72px;

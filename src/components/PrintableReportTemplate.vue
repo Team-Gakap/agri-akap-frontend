@@ -1,25 +1,15 @@
 <template>
-  <div id="executive-report-print" class="printable-report" v-if="rows.length">
-    <header class="print-header">
-      <div class="logo-row">
-        <div class="logo-slot" aria-label="Bagong Pilipinas logo placeholder">
-          <span class="logo-ph">Bagong Pilipinas</span>
-        </div>
-        <div class="header-text">
-          <p class="gov-line">Republic of the Philippines</p>
-          <p class="gov-line">Province of Isabela</p>
-          <p class="gov-line">Municipality of Echague</p>
-          <h1 class="office-title">MUNICIPAL AGRICULTURE OFFICE</h1>
-        </div>
-        <div class="logo-slot" aria-label="LGU Echague logo placeholder">
-          <span class="logo-ph">LGU Echague</span>
-        </div>
-      </div>
-
-      <h2 class="report-title">{{ printTitle }}</h2>
-      <p class="report-meta" v-if="filterSummary">{{ filterSummary }}</p>
-      <p class="report-meta">Generated: {{ generatedAt }}</p>
-    </header>
+  <div id="executive-report-print" class="printable-report">
+    <MaoFormHeader
+      :show-barangay="false"
+      office-title="MUNICIPAL AGRICULTURE OFFICE"
+      :title="printTitle"
+    >
+      <template #subtitle>
+        <p class="report-meta" v-if="filterSummary">{{ filterSummary }}</p>
+        <p class="report-meta">Generated: {{ generatedAt }}</p>
+      </template>
+    </MaoFormHeader>
 
     <table class="form-table">
       <thead>
@@ -61,6 +51,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import MaoFormHeader from '@/components/MaoFormHeader.vue';
 import {
   columnsForCategory,
   REPORT_PRINT_TITLES,
@@ -70,7 +61,7 @@ import {
 const props = withDefaults(
   defineProps<{
     reportType: ExecutiveReportCategory;
-    rows: Record<string, string | number>[];
+    rows?: Record<string, string | number>[];
     barangay?: string;
     cropType?: string;
     dateFrom?: string;
@@ -79,6 +70,7 @@ const props = withDefaults(
     certifiedBy?: string;
   }>(),
   {
+    rows: () => [],
     barangay: '',
     cropType: '',
     dateFrom: '',
@@ -136,60 +128,8 @@ function displayCell(row: Record<string, string | number>, key: string, index: n
   font-size: 9pt;
 }
 
-.print-header {
-  text-align: center;
-  margin-bottom: 10px;
-}
-
-.logo-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-
-.logo-slot {
-  width: 72px;
-  height: 72px;
-  border: 1px solid #000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-.logo-ph {
-  font-size: 6pt;
-  text-align: center;
-  line-height: 1.2;
-  padding: 4px;
-}
-
-.header-text {
-  flex: 1;
-}
-
-.gov-line {
-  margin: 0;
-  font-size: 10pt;
-}
-
-.office-title {
-  margin: 6px 0 0;
-  font-size: 12pt;
-  font-weight: bold;
-}
-
-.report-title {
-  margin: 10px 0 4px;
-  font-size: 11pt;
-  font-weight: bold;
-  text-transform: uppercase;
-}
-
 .report-meta {
-  margin: 2px 0;
+  margin: 2px 0 0;
   font-size: 9pt;
 }
 

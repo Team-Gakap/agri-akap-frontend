@@ -1,6 +1,6 @@
 <template>
-  <ion-page>
-    <ion-header>
+  <component :is="embedded ? 'div' : IonPage" class="encode-root">
+    <ion-header v-if="!embedded">
       <ion-toolbar color="primary">
         <ion-buttons slot="start">
           <ion-back-button default-href="/tech/subsidy-dispense" text="Back"></ion-back-button>
@@ -15,7 +15,7 @@
       </ion-toolbar>
     </ion-header>
 
-    <ion-content class="release-bg ion-padding">
+    <component :is="embedded ? 'div' : IonContent" class="release-bg ion-padding">
       <div class="release-wrapper">
 
         <!-- No context (opened directly) -->
@@ -146,8 +146,8 @@
         </template>
 
       </div>
-    </ion-content>
-  </ion-page>
+    </component>
+  </component>
 </template>
 
 <script setup lang="ts">
@@ -169,6 +169,9 @@ import apiClient from '@/utils/axios';
 import { useSyncStore } from '@/stores/syncStore';
 import { useDistributionStore } from '@/stores/distributionStore';
 import { isOnline, queueDistribution } from '@/services/syncService';
+
+const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
+const emit = defineEmits<{ saved: []; back: [] }>();
 
 const router = useRouter();
 const syncStore = useSyncStore();
@@ -206,6 +209,10 @@ const toast = async (message: string, color = 'primary') => {
 
 const goScan = () => {
   distributionStore.clear();
+  if (props.embedded) {
+    emit('back');
+    return;
+  }
   router.replace('/tech/subsidy-dispense');
 };
 
@@ -270,6 +277,7 @@ const authorizeRelease = async () => {
       });
       releaseResult.value = response.data;
       isSubmitting.value = false;
+      if (props.embedded) emit('saved');
       return;
     }
 
@@ -281,6 +289,7 @@ const authorizeRelease = async () => {
       photo_proof_base64: photoBase64.value,
     });
     releaseResult.value = response.data;
+    if (props.embedded) emit('saved');
   } catch (err: any) {
     if (!err.response) {
       // Network dropped: fall back to the offline queue.

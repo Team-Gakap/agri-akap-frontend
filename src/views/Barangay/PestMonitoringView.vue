@@ -1,25 +1,24 @@
 <template>
-  <ion-page>
-    <ion-header class="no-print">
+  <component :is="embedded ? 'div' : IonPage" class="encode-root">
+    <ion-header v-if="!embedded" class="no-print">
       <ion-toolbar color="primary">
         <ion-buttons slot="start">
           <ion-menu-button></ion-menu-button>
         </ion-buttons>
         <ion-title>Pest Reports</ion-title>
-        <ion-buttons slot="end">
-          <ion-button class="export-btn no-print" :disabled="!entries.length" @click="exportForm">
-            <ion-icon slot="start" :icon="printOutline"></ion-icon>
-            Print Form
-          </ion-button>
-        </ion-buttons>
       </ion-toolbar>
     </ion-header>
 
-    <ion-content class="ion-padding page-bg">
+    <component :is="embedded ? 'div' : IonContent" class="ion-padding page-bg" :class="{ 'embedded-encode-body': embedded }">
       <div class="wrapper no-print">
-        <div v-if="!assignedBarangay" class="warn-banner">
-          No assigned barangay on this account. Ask MAO admin to set <code>assigned_barangay</code> before encoding.
-        </div>
+        <EncodingBarangaySelector
+          :is-admin-override="isAdminOverride"
+          v-model:selected-barangay="selectedBarangay"
+          :barangay-options="barangayOptions"
+          :loading-barangays="loadingBarangays"
+          :can-encode="canEncode"
+          @change="onTargetBarangayChange"
+        />
 
         <ion-select
           class="field crop-field"
@@ -43,7 +42,7 @@
               label="Search Farmer (RSBSA / Name)"
               label-placement="stacked"
               :value="farmerSearch.query.value"
-              :disabled="!assignedBarangay"
+              :disabled="!canEncode"
               placeholder="Type to search…"
               @ionInput="(e: any) => farmerSearch.onQueryInput(e.detail.value || '')"
             ></ion-input>
@@ -103,56 +102,32 @@
           </ion-button>
         </div>
 
-        <div class="table-card">
-          <h3>Encoded Inspections ({{ entries.length }})</h3>
-          <div v-if="entries.length" class="table-wrap">
-            <table class="mao-table">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Farmer</th>
-                  <th>Variety</th>
-                  <th>DAP</th>
-                  <th>Damage %</th>
-                  <th>Pest/Disease</th>
-                  <th>Date</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="(e, i) in entries" :key="e.id">
-                  <td>{{ i + 1 }}</td>
-                  <td><strong>{{ e.surname }}, {{ e.first_name }}</strong></td>
-                  <td>{{ e.variety }}</td>
-                  <td>{{ e.days_after_planting }}</td>
-                  <td>{{ e.area_damage_pct }}%</td>
-                  <td>{{ e.damage_by }}</td>
-                  <td>{{ e.date_of_inspection }}</td>
-                  <td>
-                    <ion-button size="small" fill="clear" color="danger" @click="removeEntry(i)">Remove</ion-button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+        <div v-if="!embedded" class="preview-section no-print">
+          <div class="preview-toolbar">
+            <div class="preview-meta">
+              <h3>Form Preview</h3>
+              <span class="preview-count">{{ entries.length }} inspection(s)</span>
+            </div>
+            <FormExportActions @print="printForm" @excel="downloadExcel" />
           </div>
-          <EmptyState
-            v-else
-            variant="documents"
-            message="No pest inspections found. Search a farmer and log an inspection."
-          />
+          <ul v-if="entries.length" class="entry-actions">
+            <li v-for="(e, i) in entries" :key="e.id">
+              <span>{{ i + 1 }}. {{ e.surname }}, {{ e.first_name }} — {{ e.variety || '—' }}</span>
+              <ion-button size="small" fill="clear" color="danger" @click="removeEntry(i)">Remove</ion-button>
+            </li>
+          </ul>
         </div>
       </div>
 
-      <div class="print-only print-document">
+      <div v-if="!embedded" class="form-preview print-document">
         <PestMonitoringPrint
-          v-if="printRows.length"
-          :rows="printRows"
-          :barangay="assignedBarangay || ''"
+          :rows="previewRows"
+          :barangay="effectiveBarangay || ''"
           :crop="crop"
         />
       </div>
-    </ion-content>
-  </ion-page>
+    </component>
+  </component>
 </template>
 
 <script setup lang="ts">
@@ -161,16 +136,20 @@ import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
   IonButton, IonIcon, IonInput, IonSelect, IonSelectOption, toastController,
 } from '@ionic/vue';
-import { printOutline } from 'ionicons/icons';
-import { useAuthStore } from '@/stores/authStore';
+import FormExportActions from '@/components/FormExportActions.vue';
+import { exportPestMonitoringExcel } from '@/utils/statutoryFormExcel';
+import { useEncodingBarangay } from '@/composables/useEncodingBarangay';
+import EncodingBarangaySelector from '@/components/EncodingBarangaySelector.vue';
 import {
   useBarangayFarmerSearch,
   formatBirthday,
   type FarmerOption,
 } from '@/composables/useBarangayFarmerSearch';
-import EmptyState from '@/components/EmptyState.vue';
 import apiClient from '@/utils/axios';
 const PestMonitoringPrint = defineAsyncComponent(() => import('@/components/PestMonitoringPrint.vue'));
+
+withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
+const emit = defineEmits<{ saved: [] }>();
 
 interface PestEntry {
   id: string;
@@ -193,15 +172,39 @@ interface PestEntry {
   photo_preview: string | null;
 }
 
-const authStore = useAuthStore();
-const assignedBarangay = computed(() => authStore.user?.assigned_barangay || null);
+const {
+  isAdminOverride,
+  selectedBarangay,
+  barangayOptions,
+  loadingBarangays,
+  effectiveBarangay,
+  canEncode,
+  payloadBarangayName,
+} = useEncodingBarangay();
 const crop = ref('Corn');
-const farmerSearch = useBarangayFarmerSearch(() => assignedBarangay.value, {
+const farmerSearch = useBarangayFarmerSearch(() => effectiveBarangay.value, {
   commodity: () => crop.value,
 });
 
 const entries = ref<PestEntry[]>([]);
-const printRows = ref<any[]>([]);
+
+const previewRows = computed(() =>
+  entries.value.map((e) => ({
+    rsbsa_no: e.rsbsa_no,
+    surname: e.surname,
+    first_name: e.first_name,
+    middle_name: e.middle_name,
+    ext_name: e.ext_name,
+    birthdate: e.birthdate_display,
+    farmer_address: e.farmer_address,
+    farm_location: e.farm_location,
+    area_planted: Number(e.area_planted).toFixed(2),
+    days_after_planting: e.days_after_planting,
+    variety: e.variety,
+    area_damage_pct: e.area_damage_pct,
+    damage_by: e.damage_by,
+  })),
+);
 const saving = ref(false);
 
 const form = reactive({
@@ -228,7 +231,8 @@ const form = reactive({
 const matchingPlots = computed(() => farmerSearch.plotsForCommodity(crop.value));
 
 const canAdd = computed(() =>
-  !!form.farmer_id
+  canEncode.value
+  && !!form.farmer_id
   && !!form.plot_id
   && !!form.area_planted
   && !!form.days_after_planting
@@ -244,9 +248,17 @@ const mapFarmerAddress = (f: any) =>
     .join(', ') || f?.permanent_brgy || '';
 
 const loadLedger = async () => {
+  if (!effectiveBarangay.value) {
+    entries.value = [];
+    return;
+  }
   try {
     const res = await apiClient.get('/pest-monitoring', {
-      params: { per_page: 200, crop_type: crop.value || undefined },
+      params: {
+        per_page: 200,
+        crop_type: crop.value || undefined,
+        barangay: effectiveBarangay.value,
+      },
     });
     const rows = res.data?.data?.data ?? [];
     entries.value = rows.map((r: any) => {
@@ -275,6 +287,11 @@ const loadLedger = async () => {
   } catch {
     entries.value = [];
   }
+};
+
+const onTargetBarangayChange = () => {
+  resetForm();
+  void loadLedger();
 };
 
 const onCropChange = async (e: any) => {
@@ -394,6 +411,7 @@ const addEntry = async () => {
       date_of_inspection: form.date_of_inspection,
       farm_location: form.farm_location,
       photo_base64: form.photo_preview || undefined,
+      barangay_name: payloadBarangayName(),
     });
 
     entries.value.unshift({
@@ -419,6 +437,7 @@ const addEntry = async () => {
     resetForm();
     const t = await toastController.create({ message: 'Pest inspection saved.', color: 'success', duration: 1800, position: 'top' });
     await t.present();
+    emit('saved');
   } catch (e: any) {
     const t = await toastController.create({
       message: e?.response?.data?.message || 'Failed to save pest inspection.',
@@ -436,24 +455,16 @@ const removeEntry = (i: number) => {
   entries.value.splice(i, 1);
 };
 
-const exportForm = async () => {
-  if (!entries.value.length) return;
-  printRows.value = entries.value.map((e) => ({
-    rsbsa_no: e.rsbsa_no,
-    surname: e.surname,
-    first_name: e.first_name,
-    middle_name: e.middle_name,
-    ext_name: e.ext_name,
-    birthdate: e.birthdate_display,
-    farmer_address: e.farmer_address,
-    farm_location: e.farm_location,
-    area_planted: Number(e.area_planted).toFixed(2),
-    days_after_planting: e.days_after_planting,
-    variety: e.variety,
-    area_damage_pct: e.area_damage_pct,
-    damage_by: e.damage_by,
-  }));
-  setTimeout(() => window.print(), 350);
+const printForm = () => {
+  window.print();
+};
+
+const downloadExcel = async () => {
+  await exportPestMonitoringExcel({
+    rows: previewRows.value,
+    barangay: effectiveBarangay.value || '',
+    crop: crop.value,
+  });
 };
 
 onMounted(() => {
@@ -464,6 +475,7 @@ onMounted(() => {
 <style scoped>
 .page-bg { --background: #f4f8f5; }
 .wrapper { max-width: 1100px; margin: 0 auto; padding-bottom: 2rem; }
+.embedded-encode-body { padding-bottom: 2rem; }
 .export-btn { --background: #d4af37; --color: #1a4731; font-weight: 700; text-transform: none; }
 .warn-banner {
   background: #fff8e1; color: #92400e; border: 1px solid #fcd34d;
@@ -475,11 +487,52 @@ onMounted(() => {
   --background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0 10px;
 }
 .field.grow { flex: 2; min-width: 200px; }
-.form-card, .table-card {
+.form-card {
   background: white; border: 1px solid #e2e8f0; border-radius: 12px;
   padding: 1rem; margin-bottom: 1rem;
 }
-.form-card h3, .table-card h3 { margin: 0 0 0.75rem; color: #1a4731; font-weight: 800; }
+.form-card h3 { margin: 0 0 0.75rem; color: #1a4731; font-weight: 800; }
+.preview-section {
+  margin-bottom: 0.75rem;
+}
+.preview-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+.preview-meta h3 {
+  margin: 0;
+  color: #1a4731;
+  font-weight: 800;
+  font-size: 1rem;
+}
+.preview-count {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+.entry-actions {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  max-height: 180px;
+  overflow: auto;
+}
+.entry-actions li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.35rem 0.65rem;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 0.88rem;
+}
+.entry-actions li:last-child { border-bottom: none; }
 .crop-hint { margin: -0.35rem 0 0.85rem; font-size: 0.82rem; color: #64748b; }
 .search-box { position: relative; margin-bottom: 0.75rem; }
 .hint { font-size: 0.8rem; color: #94a3b8; margin-top: 4px; }

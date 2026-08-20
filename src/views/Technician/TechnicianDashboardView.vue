@@ -3,7 +3,7 @@
     <ion-content class="dash-bg ion-padding">
       <header class="dash-header">
         <img
-          src="@/assets/images/mao-echague-logo.png"
+          src="@/assets/images/echague-logo.png"
           alt="LGU Echague"
           class="lgu-logo"
           onerror="this.style.display='none'"
@@ -15,7 +15,7 @@
         </div>
       </header>
 
-      <WeatherWidget use-device-gps />
+      <!-- <WeatherWidget use-device-gps /> -->
 
       <ion-card button class="action-card pest-card" @click="go('/tech/pest-queue')">
         <ion-ripple-effect type="bounded"></ion-ripple-effect>

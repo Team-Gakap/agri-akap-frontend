@@ -1,13 +1,13 @@
 <template>
-  <div id="calamity-print" class="brgy-doc" v-if="rows?.length">
-    <div class="doc-header">
-      <h1>Republic of the Philippines</h1>
-      <h2>Province of Isabela</h2>
-      <h2>Municipality of Echague</h2>
-      <h2 class="brgy-line">BARANGAY {{ barangay || '____________' }}</h2>
-      <h4 class="doc-title">DAMAGE &amp; CALAMITY ASSESSMENT REPORT</h4>
-      <p v-if="eventName" class="event-line">Calamity: {{ eventName }} · Date of Occurrence: {{ eventDate || '____________' }}</p>
-    </div>
+  <div id="calamity-print" class="brgy-doc">
+    <MaoFormHeader
+      :barangay="barangay"
+      :title="'DAMAGE & CALAMITY ASSESSMENT REPORT'"
+    >
+      <template v-if="eventName" #subtitle>
+        <p class="event-line">Calamity: {{ eventName }} · Date of Occurrence: {{ eventDate || '____________' }}</p>
+      </template>
+    </MaoFormHeader>
 
     <table class="form-table">
       <thead>
@@ -63,25 +63,34 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import MaoFormHeader from '@/components/MaoFormHeader.vue';
 
-const props = defineProps<{
-  rows: Array<{
-    rsbsa_no: string;
-    surname: string;
-    first_name: string;
-    middle_name: string;
-    ext_name: string;
-    farm_location: string;
-    crop_type: string;
-    crop_stage: string;
-    area_planted: string | number;
-    area_damaged: string | number;
-    est_yield_loss_pct: string | number;
-  }>;
-  barangay: string;
-  eventName?: string;
-  eventDate?: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    rows?: Array<{
+      rsbsa_no: string;
+      surname: string;
+      first_name: string;
+      middle_name: string;
+      ext_name: string;
+      farm_location: string;
+      crop_type: string;
+      crop_stage: string;
+      area_planted: string | number;
+      area_damaged: string | number;
+      est_yield_loss_pct: string | number;
+    }>;
+    barangay?: string;
+    eventName?: string;
+    eventDate?: string;
+  }>(),
+  {
+    rows: () => [],
+    barangay: '',
+    eventName: '',
+    eventDate: '',
+  },
+);
 
 const totalDamaged = computed(() =>
   props.rows.reduce((s, r) => s + (Number(r.area_damaged) || 0), 0).toFixed(2),
@@ -105,10 +114,7 @@ const paddedRows = computed(() => {
   font-family: 'Times New Roman', Times, serif;
   font-size: 9pt;
 }
-.doc-header { text-align: center; margin-bottom: 12px; }
-.doc-header h1, .doc-header h2 { margin: 0; font-weight: normal; font-size: 11pt; }
-.brgy-line { font-weight: bold !important; margin-top: 4px !important; }
-.doc-title { font-size: 12pt; font-weight: bold; margin: 10px 0 4px; text-transform: uppercase; }
+
 .event-line { margin: 4px 0 0; font-size: 10pt; font-weight: bold; }
 
 .form-table { width: 100%; border-collapse: collapse; font-size: 7.5pt; }

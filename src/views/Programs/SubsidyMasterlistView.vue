@@ -89,9 +89,9 @@
               <ion-icon slot="start" :icon="chatbubbleEllipsesOutline"></ion-icon>
               Trigger SMS Schedule
             </ion-button>
-            <ion-button size="small" fill="outline" class="act-btn" @click="exportPdf">
-              <ion-icon slot="start" :icon="documentTextOutline"></ion-icon>
-              Export Liquidation PDF
+            <ion-button size="small" fill="outline" class="act-btn" @click="printLiquidation">
+              <ion-icon slot="start" :icon="printOutline"></ion-icon>
+              Print
             </ion-button>
           </div>
         </div>
@@ -244,7 +244,7 @@ import {
   toastController, alertController,
 } from '@ionic/vue';
 import {
-  refreshOutline, syncOutline, chatbubbleEllipsesOutline, documentTextOutline, eyeOutline,
+  refreshOutline, syncOutline, chatbubbleEllipsesOutline, printOutline, eyeOutline,
   alertCircleOutline, addCircleOutline, checkmarkCircleOutline,
 } from 'ionicons/icons';
 import apiClient from '@/utils/axios';
@@ -532,7 +532,7 @@ const sendSmsSchedule = async () => {
   }
 };
 
-const exportPdf = () => window.print();
+const printLiquidation = () => window.print();
 
 const viewProfile = (row: MasterlistRow) => {
   router.push({ path: '/admin/farmers', query: { search: row.rsbsa_no } });

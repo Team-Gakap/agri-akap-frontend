@@ -16,7 +16,7 @@
             <div class="lh-seal">
               <div class="seal-outer"></div>
               <div class="seal-inner"></div>
-              <img src="@/assets/images/mao-echague-logo.png" alt="MAO" style="width:36px;height:36px;object-fit:contain;z-index:1;" onerror="this.style.display='none'" />
+              <img src="@/assets/images/echague-logo.png" alt="MAO" style="width:36px;height:36px;object-fit:contain;z-index:1;" onerror="this.style.display='none'" />
             </div>
             <div class="lh-titles">
               <div class="lh-agency">REGISTRY SYSTEM FOR BASIC SECTORS IN AGRICULTURE</div>

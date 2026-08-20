@@ -1,12 +1,9 @@
 <template>
-  <div id="harvesting-print" class="brgy-doc" v-if="rows?.length">
-    <div class="doc-header">
-      <h1>Republic of the Philippines</h1>
-      <h2>Province of Isabela</h2>
-      <h2>Municipality of Echague</h2>
-      <h2 class="brgy-line">BARANGAY {{ barangay || '____________' }}</h2>
-      <h4 class="doc-title">HARVESTING REPORT — {{ cropLabel.toUpperCase() }}</h4>
-    </div>
+  <div id="harvesting-print" class="brgy-doc">
+    <MaoFormHeader
+      :barangay="barangay"
+      :title="`HARVESTING REPORT — ${cropLabel.toUpperCase()}`"
+    />
 
     <table class="form-table">
       <thead>
@@ -62,24 +59,32 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import MaoFormHeader from '@/components/MaoFormHeader.vue';
 
-const props = defineProps<{
-  rows: Array<{
-    rsbsa_no: string;
-    surname: string;
-    first_name: string;
-    middle_name: string;
-    ext_name: string;
-    farm_location: string;
-    crop_type: string;
-    variety: string;
-    area_harvested: string | number;
-    yield_display: string;
-    date_of_harvest: string;
-  }>;
-  barangay: string;
-  crop: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    rows?: Array<{
+      rsbsa_no: string;
+      surname: string;
+      first_name: string;
+      middle_name: string;
+      ext_name: string;
+      farm_location: string;
+      crop_type: string;
+      variety: string;
+      area_harvested: string | number;
+      yield_display: string;
+      date_of_harvest: string;
+    }>;
+    barangay?: string;
+    crop?: string;
+  }>(),
+  {
+    rows: () => [],
+    barangay: '',
+    crop: 'Rice',
+  },
+);
 
 const cropLabel = computed(() => props.crop || 'Rice');
 
@@ -105,10 +110,6 @@ const paddedRows = computed(() => {
   font-family: 'Times New Roman', Times, serif;
   font-size: 9pt;
 }
-.doc-header { text-align: center; margin-bottom: 12px; }
-.doc-header h1, .doc-header h2 { margin: 0; font-weight: normal; font-size: 11pt; }
-.brgy-line { font-weight: bold !important; margin-top: 4px !important; }
-.doc-title { font-size: 12pt; font-weight: bold; margin: 10px 0 4px; text-transform: uppercase; }
 
 .form-table { width: 100%; border-collapse: collapse; font-size: 7.5pt; }
 .form-table th, .form-table td {

@@ -6,26 +6,26 @@
           <ion-menu-button></ion-menu-button>
         </ion-buttons>
         <ion-title>Damage &amp; Calamity Report</ion-title>
-        <ion-buttons slot="end">
-          <ion-button class="export-btn" :disabled="!filteredRows.length" @click="exportToPdf">
-            <ion-icon slot="start" :icon="printOutline"></ion-icon>
-            Export PDF
-          </ion-button>
-        </ion-buttons>
       </ion-toolbar>
     </ion-header>
 
     <ion-content class="rpt-content">
       <!-- Print letterhead -->
       <div class="print-only letterhead">
-        <h1 class="lh-title">Municipality of [LGU Name]</h1>
-        <p class="lh-sub">Municipal Agriculture Office — Damage &amp; Calamity Report</p>
-        <p class="lh-meta">
-          Generated: {{ new Date().toLocaleDateString('en-PH', { year:'numeric', month:'long', day:'numeric' }) }}
-          <span v-if="filters.dateFrom || filters.dateTo">&nbsp;|&nbsp; Period: {{ filters.dateFrom || '—' }} to {{ filters.dateTo || '—' }}</span>
-          <span v-if="filters.barangay">&nbsp;|&nbsp; Barangay: {{ filters.barangay }}</span>
-          <span v-if="filters.calamityType">&nbsp;|&nbsp; Type: {{ filters.calamityType }}</span>
-        </p>
+        <MaoFormHeader
+          :show-barangay="false"
+          office-title="Municipal Agriculture Office"
+          title="Damage &amp; Calamity Report"
+        >
+          <template #subtitle>
+            <p class="lh-meta">
+              Generated: {{ new Date().toLocaleDateString('en-PH', { year:'numeric', month:'long', day:'numeric' }) }}
+              <span v-if="filters.dateFrom || filters.dateTo">&nbsp;|&nbsp; Period: {{ filters.dateFrom || '—' }} to {{ filters.dateTo || '—' }}</span>
+              <span v-if="filters.barangay">&nbsp;|&nbsp; Barangay: {{ filters.barangay }}</span>
+              <span v-if="filters.calamityType">&nbsp;|&nbsp; Type: {{ filters.calamityType }}</span>
+            </p>
+          </template>
+        </MaoFormHeader>
       </div>
 
       <div class="rpt-shell">
@@ -90,7 +90,14 @@
         <div class="grid-shell">
           <div class="grid-head">
             <span class="grid-title">Damage &amp; Calamity Assessment Records</span>
-            <span class="row-pill">{{ filteredRows.length }} record(s)</span>
+            <div class="grid-actions no-print">
+              <ion-button class="add-override-btn" @click="encodeOpen = true">
+                <ion-icon slot="start" :icon="addCircleOutline"></ion-icon>
+                Add 
+              </ion-button>
+              <FormExportActions theme="admin" @print="printReport" @excel="downloadExcel" />
+              <span class="row-pill">{{ filteredRows.length }} record(s)</span>
+            </div>
           </div>
 
           <div v-if="loading" class="grid-state">
@@ -198,17 +205,31 @@
         </div>
       </div>
     </ion-content>
+
+    <ReportEncodeModal
+      v-model:is-open="encodeOpen"
+      title="Add / Override Disaster Report"
+      kind="damage"
+      :form-component="DamageForm"
+      @saved="fetchRows"
+    />
   </ion-page>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, defineAsyncComponent } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent,
   IonButtons, IonButton, IonMenuButton, IonIcon, IonSpinner,
 } from '@ionic/vue';
-import { printOutline } from 'ionicons/icons';
+import { addCircleOutline } from 'ionicons/icons';
+import FormExportActions from '@/components/FormExportActions.vue';
+import { exportAdminGridExcel } from '@/utils/statutoryFormExcel';
 import apiClient from '@/utils/axios';
+import ReportEncodeModal from '@/components/ReportEncodeModal.vue';
+import MaoFormHeader from '@/components/MaoFormHeader.vue';
+
+const DamageForm = defineAsyncComponent(() => import('@/views/Barangay/CalamityAssessmentLogView.vue'));
 
 interface DamageRow {
   date_reported: string;
@@ -239,6 +260,7 @@ const filters = reactive({
 });
 
 const filteredRows    = computed(() => rows.value);
+const encodeOpen = ref(false);
 const rowsWithPhotos  = computed(() => filteredRows.value.filter(r => photoSrc(r)));
 const totalAreaAffected = computed(() =>
   filteredRows.value.reduce((s, r) => s + Number(r.area_affected || 0), 0).toFixed(2)
@@ -305,8 +327,46 @@ function clearFilters() {
   fetchRows();
 }
 
-function exportToPdf() {
+function printReport() {
   window.print();
+}
+
+function reportMetaLine() {
+  let line = `Generated: ${new Date().toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })}`;
+  if (filters.dateFrom || filters.dateTo) {
+    line += ` | Period: ${filters.dateFrom || '—'} to ${filters.dateTo || '—'}`;
+  }
+  if (filters.barangay) line += ` | Barangay: ${filters.barangay}`;
+  if (filters.calamityType) line += ` | Type: ${filters.calamityType}`;
+  return line;
+}
+
+async function downloadExcel() {
+  await exportAdminGridExcel({
+    filename: 'damage-calamity-report.xlsx',
+    reportTitle: 'Damage & Calamity Report',
+    metaLine: reportMetaLine(),
+    columns: [
+      { key: 'no', label: 'No' },
+      { key: 'date_reported', label: 'Date Reported' },
+      { key: 'barangay', label: 'Barangay' },
+      { key: 'farmer_name', label: 'Farmer Name' },
+      { key: 'farm_location', label: 'Farm Location' },
+      { key: 'crop', label: 'Crop' },
+      { key: 'calamity_type', label: 'Calamity Type' },
+      { key: 'area_affected', label: 'Area Affected (ha)' },
+      { key: 'damage_value', label: 'Damage Value (PHP)' },
+      { key: 'status', label: 'Status' },
+    ],
+    rows: filteredRows.value as Record<string, unknown>[],
+    getCellValue(row, key, index) {
+      if (key === 'no') return index + 1;
+      if (key === 'date_reported') return fmtDate(String(row.date_reported ?? ''));
+      if (key === 'area_affected') return fmtNum(row.area_affected as number);
+      if (key === 'damage_value') return fmtMoney(row.damage_value as number);
+      return String(row[key] ?? '');
+    },
+  });
 }
 
 onMounted(async () => {
@@ -320,7 +380,33 @@ onMounted(async () => {
 
 <style scoped>
 .rpt-toolbar { --background: #1a4731; --color: #fff; }
-.export-btn { --background: #d4af37; --color: #1a4731; font-weight: 700; text-transform: none; --border-radius: 6px; }
+.add-override-btn {
+  --background: #ffffff;
+  --background-activated: #e8f5e9;
+  --color: #1a4731;
+  font-weight: 800;
+  text-transform: none;
+  --border-radius: 6px;
+  --padding-start: 12px;
+  --padding-end: 14px;
+}
+.export-btn {
+  --background: transparent;
+  --background-activated: rgba(255, 255, 255, 0.08);
+  --color: #f5e6a8;
+  --border-width: 1.5px;
+  --border-style: solid;
+  --border-color: #d4af37;
+  --border-radius: 6px;
+  font-weight: 700;
+  text-transform: none;
+}
+.grid-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 .rpt-content { --background: #eef1f4; }
 
 .rpt-shell {

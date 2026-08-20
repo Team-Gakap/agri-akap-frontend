@@ -148,7 +148,7 @@
                 <div class="id-card-preview-frame">
                   <div class="id-card" :class="catClass(previewFarmer)">
                     <div class="id-header">
-                      <img src="@/assets/images/mao-echague-logo.png" alt="MAO Logo" class="id-logo" onerror="this.style.display='none'" />
+                      <img src="@/assets/images/echague-logo.png" alt="MAO Logo" class="id-logo" onerror="this.style.display='none'" />
                       <div class="id-header-text">
                         <p class="gov-line-1">REPUBLIC OF THE PHILIPPINES</p>
                         <p class="gov-line-2">Municipality of Echague</p>
@@ -244,7 +244,7 @@
         >
           <div class="id-card" :class="catClass(farmer)">
             <div class="id-header">
-              <img src="@/assets/images/mao-echague-logo.png" alt="MAO Logo" class="id-logo" onerror="this.style.display='none'" />
+              <img src="@/assets/images/echague-logo.png" alt="MAO Logo" class="id-logo" onerror="this.style.display='none'" />
               <div class="id-header-text">
                 <p class="gov-line-1">REPUBLIC OF THE PHILIPPINES</p>
                 <p class="gov-line-2">Municipality of Echague</p>

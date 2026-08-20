@@ -99,7 +99,7 @@ import {
 } from '@ionic/vue';
 import {
   homeOutline, leafOutline, bugOutline, shieldCheckmarkOutline, logOutOutline,
-  flowerOutline, basketOutline, thunderstormOutline, peopleOutline, cloudOutline,
+  flowerOutline, basketOutline, thunderstormOutline, peopleOutline,
 } from 'ionicons/icons';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -109,7 +109,6 @@ const route = useRoute();
 const mainPages = [
   { title: 'Dashboard', url: '/brgy/dashboard', icon: homeOutline },
   { title: 'Farmers', url: '/brgy/farmers', icon: peopleOutline },
-  { title: 'Weather Hub', url: '/brgy/weather-hub', icon: cloudOutline },
 ];
 
 const cropPages = [
@@ -119,9 +118,8 @@ const cropPages = [
 ];
 
 const trailingPages = [
-  { title: 'Pest Reports', url: '/brgy/pest-monitoring', icon: bugOutline },
-  { title: 'Calamity Damage', url: '/brgy/calamity-assessment', icon: thunderstormOutline },
-  { title: 'Damage Review', url: '/brgy/damage-review', icon: shieldCheckmarkOutline },
+  { title: 'Pest Incidents', url: '/brgy/pest-monitoring', icon: bugOutline },
+  { title: 'Damage Assesments', url: '/brgy/calamity-assessment', icon: thunderstormOutline },
 ];
 
 const cropUrls = cropPages.map((p) => p.url);
