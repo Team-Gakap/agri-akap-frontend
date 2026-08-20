@@ -184,7 +184,7 @@
                 :auto-grow="true"
                 :value="smsForm.message"
                 @ionInput="(e: any) => smsForm.message = e.detail.value"
-                rows="6"
+                :rows="6"
               ></ion-textarea>
             </ion-item>
           </ion-list>

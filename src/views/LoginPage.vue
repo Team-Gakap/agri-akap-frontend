@@ -36,7 +36,15 @@
               placeholder="Enter your password"
               autocomplete="new-password">
             </ion-input>
-            <ion-button fill="clear" slot="end" class="toggle-password-btn" @click="togglePassword">
+            <ion-button
+              fill="clear"
+              slot="end"
+              class="toggle-password-btn"
+              :aria-label="showPassword ? 'Hide password' : 'Show password'"
+              :title="showPassword ? 'Hide password' : 'Show password'"
+              @click="togglePassword"
+            >
+              <ion-icon :icon="showPassword ? eyeOff : eye" color="medium"></ion-icon>
             </ion-button>
           </ion-item>
         </div>

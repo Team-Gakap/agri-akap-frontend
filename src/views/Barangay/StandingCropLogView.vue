@@ -223,7 +223,7 @@ const debugFormSnapshot = () => ({
 
 watch(canAdd, (v) => {
   // #region agent log
-  fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7cd166'},body:JSON.stringify({sessionId:'7cd166',runId:'pre-fix',hypothesisId:'H2',location:'StandingCropLogView.vue:canAdd',message:'standing canAdd changed',data:{canAdd:v,...debugFormSnapshot()},timestamp:Date.now()})}).catch(()=>{});
+  fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7cd166'},body:JSON.stringify({sessionId:'7cd166',runId:'pre-fix',hypothesisId:'H2',location:'StandingCropLogView.vue:canAdd',message:'standing canAdd changed',data:{...debugFormSnapshot(),canAdd:v},timestamp:Date.now()})}).catch(()=>{});
   // #endregion
 }, { immediate: true });
 

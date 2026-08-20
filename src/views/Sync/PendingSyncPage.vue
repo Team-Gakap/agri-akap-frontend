@@ -253,7 +253,7 @@ const removePest = async (id: number) => {
   await load();
 };
 
-const formatDate = (iso: string) => new Date(iso).toLocaleString();
+const formatDate = (iso?: string) => (iso ? new Date(iso).toLocaleString() : '—');
 
 const typeLabel = (t: string) => {
   if (t === 'distribution') return 'Distribution';

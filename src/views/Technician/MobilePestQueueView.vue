@@ -14,7 +14,7 @@
         <ion-searchbar
           v-model="searchTerm"
           placeholder="Search barangay, farmer, pest…"
-          debounce="200"
+          :debounce="200"
           class="search-bar"
         ></ion-searchbar>
         <ion-select
