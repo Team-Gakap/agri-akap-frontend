@@ -3,345 +3,1342 @@
     <ion-header>
       <ion-toolbar color="primary">
         <ion-buttons slot="start">
-          <ion-back-button default-href="/tech/farm-profiling"></ion-back-button>
+          <ion-back-button default-href="/tech/dashboard"></ion-back-button>
         </ion-buttons>
-        <ion-title>Pin Farm Location</ion-title>
+        <ion-title>Mobile GIS Geo-Tag</ion-title>
       </ion-toolbar>
     </ion-header>
 
-    <ion-content class="ion-padding page-bg">
-      <p class="lede">
-        Save the farm’s GPS location. A new pin cannot be too close to another farm.
-      </p>
+    <ion-content :scroll-y="false" class="gis-content">
+      <div class="workspace">
+        <!-- Map = 70% -->
+        <div class="map-shell">
+          <div ref="mapEl" class="map-canvas"></div>
 
-      <!-- GPS lock -->
-      <ion-card class="gps-card" :class="{ locked: gpsLocked }">
-        <ion-card-content>
-          <p class="gps-label">Parcel coordinates</p>
-          <p v-if="form.latitude != null" class="gps-coords">
-            {{ form.latitude.toFixed(6) }}, {{ form.longitude!.toFixed(6) }}
-          </p>
-          <p v-else class="gps-coords muted">Not locked yet</p>
-          <ion-chip v-if="gpsLocked" color="success" class="lock-chip">
-            <ion-icon :icon="lockClosedOutline"></ion-icon>
-            <ion-label>GPS locked</ion-label>
-          </ion-chip>
+          <!-- Top floating bar: farmer + GPS accuracy -->
+          <div class="top-float">
+            <div class="float-main">
+              <span class="float-label">Farmer</span>
+              <strong class="float-farmer">{{ farmerDisplayName }}</strong>
+            </div>
+            <div class="float-acc" :class="{ good: accuracyM != null && accuracyM <= 10 }">
+              Accuracy: {{ accuracyLabel }}
+            </div>
+          </div>
+
+          <!-- Farmer Action Hub: secondary actions that don't require an active geometry draft -->
+          <div class="action-hub-float">
+            <span class="hub-label">Farmer Action Hub</span>
+            <button type="button" class="refusal-btn" @click="openRefusalPrompt">
+              🚫 Log Georeferencing Refusal
+            </button>
+          </div>
+        </div>
+
+        <!-- Dual-mode tool palette = ~30% -->
+        <div class="tool-palette">
+          <div class="mode-tabs">
+            <button
+              type="button"
+              class="mode-tab"
+              :class="{ active: toolMode === 'boundary' }"
+              @click="setToolMode('boundary')"
+            >
+              Mode A · Boundary
+            </button>
+            <button
+              type="button"
+              class="mode-tab"
+              :class="{ active: toolMode === 'incident' }"
+              @click="setToolMode('incident')"
+            >
+              Mode B · Incident
+            </button>
+          </div>
+
+          <!-- Mode A: Polygon boundary -->
+          <div v-if="toolMode === 'boundary'" class="mode-body">
+            <p class="mode-hint">
+              Walk the perimeter. Drop points at your GPS, then complete the farm boundary.
+              <span v-if="drawing">· {{ draftPoints.length }} point(s)</span>
+            </p>
+            <ion-button
+              v-if="!drawing"
+              expand="block"
+              class="palette-btn primary"
+              :disabled="!currentPos"
+              @click="startBoundaryDraw"
+            >
+              Start Drawing Polygon
+            </ion-button>
+            <template v-else>
+              <ion-button
+                expand="block"
+                class="palette-btn"
+                color="secondary"
+                :disabled="!currentPos"
+                @click="dropBoundaryPoint"
+              >
+                Drop Point
+              </ion-button>
+              <ion-button
+                expand="block"
+                class="palette-btn primary"
+                :disabled="draftPoints.length < 3"
+                @click="completeFarmBoundary"
+              >
+                Complete Farm Boundary
+              </ion-button>
+              <ion-button expand="block" fill="clear" color="medium" @click="cancelBoundaryDraw">
+                Cancel Drawing
+              </ion-button>
+            </template>
+          </div>
+
+          <!-- Mode B: Incident marker -->
+          <div v-else class="mode-body">
+            <p class="mode-hint">
+              Drop a pin at your exact GPS fix for pests, damage, or healthy crop notes.
+            </p>
+            <ion-button
+              expand="block"
+              class="palette-btn primary"
+              :disabled="!currentPos"
+              @click="dropIncidentPin"
+            >
+              📍 Drop Incident Pin Here
+            </ion-button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Agricultural metadata bottom sheet -->
+      <ion-modal
+        :is-open="formModalOpen"
+        :initial-breakpoint="0.75"
+        :breakpoints="[0, 0.5, 0.75, 1]"
+        handle-behavior="cycle"
+        @didDismiss="onFormModalDismiss"
+      >
+        <ion-header>
+          <ion-toolbar color="primary">
+            <ion-title>{{ formTitle }}</ion-title>
+            <ion-buttons slot="end">
+              <ion-button @click="closeFormModal">Close</ion-button>
+            </ion-buttons>
+          </ion-toolbar>
+        </ion-header>
+        <ion-content class="ion-padding form-sheet">
+          <ion-list lines="full" class="meta-list">
+            <ion-item>
+              <ion-select
+                label="Commodity *"
+                label-placement="stacked"
+                interface="popover"
+                :value="meta.crop_planted"
+                @ionChange="(e: any) => meta.crop_planted = e.detail.value"
+              >
+                <ion-select-option value="Rice">Rice</ion-select-option>
+                <ion-select-option value="Corn">Corn</ion-select-option>
+                <ion-select-option value="High-Value Crops">High-Value Crops</ion-select-option>
+              </ion-select>
+            </ion-item>
+            <ion-item>
+              <ion-input
+                label="Parcel Name *"
+                label-placement="stacked"
+                :value="meta.parcel_name"
+                placeholder="e.g. Parcel 1, North Field"
+                @ionInput="(e: any) => meta.parcel_name = e.detail.value"
+              ></ion-input>
+            </ion-item>
+            <ion-item>
+              <ion-input
+                label="Crop Variety"
+                label-placement="stacked"
+                :value="meta.crop_variety"
+                placeholder="e.g. NSIC Rc222"
+                @ionInput="(e: any) => meta.crop_variety = e.detail.value"
+              ></ion-input>
+            </ion-item>
+            <div class="schedule-row">
+              <ion-item class="schedule-item">
+                <ion-select
+                  label="Planting: Start Month *"
+                  label-placement="stacked"
+                  interface="popover"
+                  :value="meta.planting_start_month"
+                  @ionChange="(e: any) => meta.planting_start_month = e.detail.value"
+                >
+                  <ion-select-option v-for="m in MONTHS" :key="'start-' + m" :value="m">{{ m }}</ion-select-option>
+                </ion-select>
+              </ion-item>
+              <ion-item class="schedule-item">
+                <ion-select
+                  label="Planting: End Month *"
+                  label-placement="stacked"
+                  interface="popover"
+                  :value="meta.planting_end_month"
+                  @ionChange="(e: any) => meta.planting_end_month = e.detail.value"
+                >
+                  <ion-select-option v-for="m in MONTHS" :key="'end-' + m" :value="m">{{ m }}</ion-select-option>
+                </ion-select>
+              </ion-item>
+            </div>
+            <ion-item>
+              <ion-select
+                label="Incident Type *"
+                label-placement="stacked"
+                interface="popover"
+                :value="meta.incident_type"
+                @ionChange="onIncidentTypeChange"
+              >
+                <ion-select-option value="none">None / Healthy</ion-select-option>
+                <ion-select-option value="pest">Pest Outbreak</ion-select-option>
+                <ion-select-option value="calamity">Calamity Damage</ion-select-option>
+              </ion-select>
+            </ion-item>
+            <ion-item>
+              <ion-textarea
+                label="Observations / Notes"
+                label-placement="stacked"
+                :value="meta.observations"
+                :auto-grow="true"
+                :rows="3"
+                placeholder="Field notes, severity, crop stage…"
+                @ionInput="(e: any) => meta.observations = e.detail.value"
+              ></ion-textarea>
+            </ion-item>
+          </ion-list>
+
+          <!-- RCM Protocol: non-productive area deduction (polygon boundaries only) -->
+          <div v-if="pendingGeometry?.type === 'polygon'" class="rcm-card">
+            <p class="rcm-title">DA-RSBSA Georeferencing (RCM Protocol)</p>
+            <div class="area-row">
+              <span class="area-lbl">Gross Boundary Area</span>
+              <span class="area-val">{{ grossAreaSqm.toFixed(1) }} sqm · {{ grossAreaHa.toFixed(4) }} ha</span>
+            </div>
+
+            <ion-item class="npa-item">
+              <ion-input
+                type="number"
+                label="Subtract Non-Productive Area (sqm)"
+                label-placement="stacked"
+                inputmode="decimal"
+                :value="meta.non_productive_area_sqm"
+                placeholder="e.g. house, road, canal — infra >200 sqm must be deducted"
+                @ionInput="(e: any) => meta.non_productive_area_sqm = e.detail.value"
+              ></ion-input>
+            </ion-item>
+
+            <div class="area-row final">
+              <span class="area-lbl">Final Verified Area</span>
+              <span class="area-val final-val">{{ finalVerifiedAreaHa.toFixed(4) }} ha</span>
+            </div>
+            <p class="area-hint">
+              {{ finalVerifiedAreaSqm.toFixed(1) }} sqm after deduction
+              · DA guideline: infrastructure larger than {{ NON_PRODUCTIVE_AREA_THRESHOLD_SQM }} sqm must be subtracted.
+            </p>
+          </div>
+
+          <ion-item class="discrepancy-item" lines="none">
+            <ion-checkbox
+              slot="start"
+              :checked="meta.has_discrepancy"
+              @ionChange="(e: any) => meta.has_discrepancy = e.detail.checked"
+            ></ion-checkbox>
+            <ion-label class="discrepancy-label">
+              ⚠️ Flag Spatial Discrepancy
+              <p class="discrepancy-sub">Farm overlaps another property, or an undeclared field was found.</p>
+            </ion-label>
+          </ion-item>
+
+          <div class="photo-block">
+            <ion-button
+              expand="block"
+              class="camera-btn"
+              :disabled="capturingPhoto"
+              @click="capturePhotoEvidence"
+            >
+              <ion-icon slot="start" :icon="cameraOutline"></ion-icon>
+              {{ capturingPhoto ? 'Opening Camera…' : '📸 Take Photo of Farmer at Location' }}
+            </ion-button>
+            <div v-if="meta.photoPreviewSrc" class="thumb-wrap">
+              <img :src="meta.photoPreviewSrc" alt="Field evidence thumbnail" class="thumb" />
+            </div>
+          </div>
+
+          <p class="spatial-summary">{{ spatialSummary }}</p>
+
+          <div class="signature-block">
+            <p class="signature-title">DA-RSBSA Georeferencing Consent &amp; Validation</p>
+            <SignaturePad
+              ref="farmerSigRef"
+              label="Farmer's Signature (Consent for Georeferencing) *"
+              @update:has-signature="(v: boolean) => (hasFarmerSignature = v)"
+            />
+            <SignaturePad
+              ref="aewSigRef"
+              label="AEW / Technician Signature (Validator) *"
+              @update:has-signature="(v: boolean) => (hasAewSignature = v)"
+            />
+          </div>
+
           <ion-button
             expand="block"
-            :color="gpsLocked ? 'medium' : 'primary'"
-            :disabled="locating"
-            class="gps-btn"
-            @click="getCurrentLocation"
+            class="save-geo-btn"
+            :disabled="!canSave || saving"
+            @click="saveGeoTagRecord"
           >
-            <ion-icon slot="start" :icon="locateOutline"></ion-icon>
-            {{ locating ? 'Acquiring high-accuracy GPS…' : (gpsLocked ? 'Re-lock Current Location' : 'Get Current Location') }}
+            {{ saving ? 'Saving…' : 'Save Geo-Tag Record' }}
           </ion-button>
-        </ion-card-content>
-      </ion-card>
-
-      <!-- Farmer -->
-      <div class="search-box">
-        <ion-input
-          class="field"
-          label="Search Farmer (RSBSA / Name) *"
-          label-placement="stacked"
-          :value="farmerSearch.query.value"
-          placeholder="Type to search…"
-          @ionInput="(e: any) => farmerSearch.onQueryInput(e.detail.value || '')"
-        ></ion-input>
-        <div v-if="farmerSearch.searching.value" class="hint">Searching…</div>
-        <ul v-if="farmerSearch.results.value.length" class="suggest">
-          <li v-for="f in farmerSearch.results.value" :key="f.id" @click="onSelectFarmer(f)">
-            <strong>{{ f.surname }}, {{ f.first_name }}</strong>
-            <span>{{ f.rsbsa_no }} · {{ f.barangay }}</span>
-          </li>
-        </ul>
-      </div>
-
-      <div v-if="farmerSearch.selected.value" class="demo-card">
-        <div class="ro"><span class="lbl">RSBSA</span><span>{{ form.rsbsa_no }}</span></div>
-        <div class="ro"><span class="lbl">Farmer</span><span>{{ form.surname }}, {{ form.first_name }}</span></div>
-      </div>
-
-      <ion-list class="form-list">
-        <ion-item>
-          <ion-input
-            label="Barangay *"
-            label-placement="stacked"
-            :value="form.location_brgy"
-            @ionInput="(e: any) => form.location_brgy = e.detail.value"
-          ></ion-input>
-        </ion-item>
-        <ion-item>
-          <ion-select
-            label="Ownership Type *"
-            label-placement="stacked"
-            interface="popover"
-            :value="form.ownership_type"
-            @ionChange="(e: any) => form.ownership_type = e.detail.value"
-          >
-            <ion-select-option value="Owner">Owner</ion-select-option>
-            <ion-select-option value="Tenant">Tenant</ion-select-option>
-            <ion-select-option value="Lessee">Lessee</ion-select-option>
-          </ion-select>
-        </ion-item>
-        <ion-item v-if="form.ownership_type !== 'Owner'">
-          <ion-input
-            label="Landowner Name *"
-            label-placement="stacked"
-            :value="form.landowner_name"
-            placeholder="Registered landowner full name"
-            @ionInput="(e: any) => form.landowner_name = e.detail.value"
-          ></ion-input>
-        </ion-item>
-        <ion-item>
-          <ion-select
-            label="Commodity *"
-            label-placement="stacked"
-            interface="popover"
-            :value="form.commodity"
-            @ionChange="(e: any) => form.commodity = e.detail.value"
-          >
-            <ion-select-option value="Rice">Rice</ion-select-option>
-            <ion-select-option value="Corn">Corn</ion-select-option>
-            <ion-select-option value="Tobacco">Tobacco</ion-select-option>
-            <ion-select-option value="Vegetables">Vegetables</ion-select-option>
-          </ion-select>
-        </ion-item>
-        <ion-item>
-          <ion-input
-            type="number"
-            label="Parcel Size (ha) *"
-            label-placement="stacked"
-            :value="form.size_ha"
-            @ionInput="(e: any) => form.size_ha = e.detail.value"
-          ></ion-input>
-        </ion-item>
-        <ion-item>
-          <ion-input
-            label="Remarks"
-            label-placement="stacked"
-            :value="form.remarks"
-            @ionInput="(e: any) => form.remarks = e.detail.value"
-          ></ion-input>
-        </ion-item>
-      </ion-list>
-
-      <ion-button
-        expand="block"
-        class="save-btn"
-        :disabled="!canSave || submitting"
-        @click="submitGeotag"
-      >
-        {{ submitting ? 'Registering…' : 'Register Farm Plot' }}
-      </ion-button>
+        </ion-content>
+      </ion-modal>
     </ion-content>
   </ion-page>
 </template>
 
 <script setup lang="ts">
-import { reactive, computed, ref } from 'vue';
+import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue';
+import { useRoute } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonBackButton,
-  IonCard, IonCardContent, IonButton, IonIcon, IonChip, IonLabel, IonInput,
-  IonSelect, IonSelectOption, IonList, IonItem, alertController, toastController,
+  IonButton, IonIcon, IonModal, IonList, IonItem, IonInput, IonSelect, IonSelectOption,
+  IonTextarea, IonCheckbox, IonLabel, toastController, alertController,
 } from '@ionic/vue';
-import { locateOutline, lockClosedOutline } from 'ionicons/icons';
+import { cameraOutline } from 'ionicons/icons';
 import { Geolocation } from '@capacitor/geolocation';
-import apiClient from '@/utils/axios';
-import {
-  useBarangayFarmerSearch,
-  type FarmerOption,
-} from '@/composables/useBarangayFarmerSearch';
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { ensureLocationPermission } from '@/composables/useNativeHardware';
+import { db, newUuid, type GeoTagIncidentType, type GeoTagGeometryType, type GeoTagRefusalAttempt } from '@/database/db';
+import { useSyncStore } from '@/stores/syncStore';
+import { queueGeoTagRefusal } from '@/services/syncService';
+import SignaturePad from '@/components/SignaturePad.vue';
 
-const farmerSearch = useBarangayFarmerSearch(() => null, { requireBarangay: false });
-const locating = ref(false);
-const gpsLocked = ref(false);
-const submitting = ref(false);
+type ToolMode = 'boundary' | 'incident';
 
-const form = reactive({
-  farmer_id: '',
-  rsbsa_no: '',
-  surname: '',
-  first_name: '',
-  location_brgy: '',
-  ownership_type: 'Owner',
-  landowner_name: '',
-  commodity: 'Rice',
-  size_ha: '',
-  remarks: '',
-  latitude: null as number | null,
-  longitude: null as number | null,
-});
+interface LatLngPoint {
+  lat: number;
+  lng: number;
+}
 
-const canSave = computed(() => {
-  const tenureOk = form.ownership_type === 'Owner' || !!form.landowner_name.trim();
-  return (
-    !!form.farmer_id
-    && !!form.location_brgy
-    && !!form.size_ha
-    && form.latitude != null
-    && form.longitude != null
-    && gpsLocked.value
-    && tenureOk
-  );
-});
+interface PendingGeometry {
+  type: GeoTagGeometryType;
+  points: LatLngPoint[];
+}
 
-const onSelectFarmer = async (f: FarmerOption) => {
-  await farmerSearch.selectFarmer(f);
-  const sel = farmerSearch.selected.value;
-  if (!sel) return;
-  form.farmer_id = sel.id;
-  form.rsbsa_no = sel.rsbsa_no;
-  form.surname = sel.surname;
-  form.first_name = sel.first_name;
-  form.location_brgy = sel.barangay || form.location_brgy;
+const ECHAGUE: L.LatLngExpression = [16.7167, 121.6833];
+
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+const INCIDENT_COLORS: Record<GeoTagIncidentType, string> = {
+  none: '#2e7d32',
+  pest: '#c62828',
+  calamity: '#ef6c00',
 };
 
-const getCurrentLocation = async () => {
+const route = useRoute();
+const syncStore = useSyncStore();
+
+const mapEl = ref<HTMLElement | null>(null);
+let map: L.Map | null = null;
+let gpsDot: L.CircleMarker | null = null;
+let accuracyRing: L.Circle | null = null;
+let draftLayer: L.Polyline | L.Polygon | null = null;
+let draftOverlayLayers: L.Layer[] = [];
+let committedLayers: L.Layer[] = [];
+let watchId: string | null = null;
+
+const toolMode = ref<ToolMode>('boundary');
+const drawing = ref(false);
+const locating = ref(false);
+const capturingPhoto = ref(false);
+const saving = ref(false);
+const formModalOpen = ref(false);
+
+const currentPos = ref<LatLngPoint | null>(null);
+const accuracyM = ref<number | null>(null);
+const draftPoints = ref<LatLngPoint[]>([]);
+const pendingGeometry = ref<PendingGeometry | null>(null);
+
+const farmerId = ref(String(route.query.farmer || route.query.farmer_id || '').trim());
+const farmerName = ref(
+  String(route.query.farmerName || route.query.farmer_name || route.query.name || '').trim()
+    || 'Unassigned Farmer',
+);
+const rsbsaNo = ref(String(route.query.rsbsa || route.query.rsbsa_no || '').trim());
+
+const meta = reactive({
+  crop_planted: 'Rice',
+  crop_variety: '',
+  parcel_name: '',
+  planting_start_month: null as string | null,
+  planting_end_month: null as string | null,
+  incident_type: 'none' as GeoTagIncidentType,
+  observations: '',
+  non_productive_area_sqm: '' as string | number,
+  has_discrepancy: false,
+  photoBase64: null as string | null,
+  photoPreviewSrc: null as string | null,
+});
+
+interface SignaturePadHandle {
+  clear: () => void;
+  toBase64: () => string | null;
+}
+
+const farmerSigRef = ref<SignaturePadHandle | null>(null);
+const aewSigRef = ref<SignaturePadHandle | null>(null);
+const hasFarmerSignature = ref(false);
+const hasAewSignature = ref(false);
+
+const farmerDisplayName = computed(() => farmerName.value || 'Unassigned Farmer');
+
+const accuracyLabel = computed(() => {
+  if (accuracyM.value == null) return locating.value ? 'Acquiring…' : '—';
+  return `±${Math.round(accuracyM.value)}m`;
+});
+
+const formTitle = computed(() =>
+  pendingGeometry.value?.type === 'polygon' ? 'Farm Boundary Metadata' : 'Incident Pin Metadata',
+);
+
+const spatialSummary = computed(() => {
+  const g = pendingGeometry.value;
+  if (!g) return '';
+  if (g.type === 'polygon') {
+    return `Boundary: ${g.points.length} vertices · color follows Incident Type on map`;
+  }
+  const p = g.points[0];
+  return p
+    ? `Marker: ${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}`
+    : 'Marker pending';
+});
+
+/**
+ * Haversine great-circle distance in metres between two WGS-84 points.
+ * Used for the DA Start/End Gap Rule check before the metadata modal opens.
+ */
+const haversineMeters = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+  const R = 6_371_000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+};
+
+/**
+ * Equirectangular-projection shoelace area (meters²) — matches the backend's
+ * `polygonAreaSqm()` so the technician's on-device preview equals the
+ * server's authoritative RCM Protocol figure.
+ */
+const shoelaceAreaSqm = (points: LatLngPoint[]): number => {
+  if (points.length < 3) return 0;
+  const R = 6371000;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const meanLat = points.reduce((s, p) => s + p.lat, 0) / points.length;
+  const cos = Math.cos(toRad(meanLat));
+  const xy = points.map((p) => ({
+    x: toRad(p.lng) * R * cos,
+    y: toRad(p.lat) * R,
+  }));
+  let area = 0;
+  for (let i = 0; i < xy.length; i++) {
+    const j = (i + 1) % xy.length;
+    area += xy[i].x * xy[j].y - xy[j].x * xy[i].y;
+  }
+  return Math.abs(area) / 2;
+};
+
+/** Gross farm boundary area (sqm), before the non-productive area deduction. */
+const grossAreaSqm = computed(() => {
+  const g = pendingGeometry.value;
+  if (!g || g.type !== 'polygon') return 0;
+  return shoelaceAreaSqm(g.points);
+});
+
+const grossAreaHa = computed(() => grossAreaSqm.value / 10000);
+
+/** DA guideline: infrastructure/idle pockets larger than this must be deducted. */
+const NON_PRODUCTIVE_AREA_THRESHOLD_SQM = 200;
+
+const nonProductiveAreaSqm = computed(() => Math.max(0, Number(meta.non_productive_area_sqm) || 0));
+
+/** Final Verified Area = gross boundary area minus the declared non-productive deduction. */
+const finalVerifiedAreaSqm = computed(() =>
+  Math.max(0, grossAreaSqm.value - nonProductiveAreaSqm.value),
+);
+
+const finalVerifiedAreaHa = computed(() => finalVerifiedAreaSqm.value / 10000);
+
+const canSave = computed(() =>
+  !!pendingGeometry.value
+  && pendingGeometry.value.points.length > 0
+  && !!meta.crop_planted
+  && !!meta.parcel_name?.trim()
+  && !!meta.incident_type
+  && !!meta.planting_start_month
+  && !!meta.planting_end_month
+  && hasFarmerSignature.value
+  && hasAewSignature.value
+);
+
+const toast = async (message: string, color = 'primary') => {
+  const t = await toastController.create({ message, duration: 2400, color, position: 'top' });
+  await t.present();
+};
+
+const resetMetaForm = () => {
+  meta.crop_planted = 'Rice';
+  meta.crop_variety = '';
+  meta.parcel_name = '';
+  meta.planting_start_month = null;
+  meta.planting_end_month = null;
+  meta.incident_type = pendingGeometry.value?.type === 'polygon' ? 'none' : 'pest';
+  meta.observations = '';
+  meta.non_productive_area_sqm = '';
+  meta.has_discrepancy = false;
+  meta.photoBase64 = null;
+  meta.photoPreviewSrc = null;
+  farmerSigRef.value?.clear();
+  aewSigRef.value?.clear();
+  hasFarmerSignature.value = false;
+  hasAewSignature.value = false;
+};
+
+const clearDraftLayers = () => {
+  if (!map) return;
+  if (draftLayer) {
+    map.removeLayer(draftLayer);
+    draftLayer = null;
+  }
+  draftOverlayLayers.forEach((m) => map?.removeLayer(m));
+  draftOverlayLayers = [];
+};
+
+const redrawDraft = () => {
+  if (!map) return;
+  clearDraftLayers();
+  const latlngs = draftPoints.value.map((p) => [p.lat, p.lng] as L.LatLngExpression);
+  if (!latlngs.length) return;
+
+  const color = INCIDENT_COLORS.none;
+  draftLayer = L.polyline(latlngs, { color, weight: 3, dashArray: '6 4' }).addTo(map);
+  draftPoints.value.forEach((p) => {
+    const m = L.circleMarker([p.lat, p.lng], {
+      radius: 6,
+      color: '#fff',
+      weight: 2,
+      fillColor: color,
+      fillOpacity: 1,
+    }).addTo(map!);
+    draftOverlayLayers.push(m);
+  });
+};
+
+const coloredDivIcon = (color: string, label: string) =>
+  L.divIcon({
+    className: 'geo-pin',
+    html: `<span class="geo-pin-dot" style="background:${color}"></span><span class="geo-pin-lbl">${label}</span>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+  });
+
+const paintCommittedGeometry = (geometry: PendingGeometry, incident: GeoTagIncidentType) => {
+  if (!map) return;
+  const color = INCIDENT_COLORS[incident];
+  if (geometry.type === 'polygon' && geometry.points.length >= 3) {
+    const poly = L.polygon(
+      geometry.points.map((p) => [p.lat, p.lng] as L.LatLngExpression),
+      { color, weight: 3, fillColor: color, fillOpacity: 0.25 },
+    ).addTo(map);
+    committedLayers.push(poly);
+  } else if (geometry.points[0]) {
+    const p = geometry.points[0];
+    const label = incident === 'pest' ? 'P' : incident === 'calamity' ? 'D' : 'H';
+    const marker = L.marker([p.lat, p.lng], { icon: coloredDivIcon(color, label) }).addTo(map);
+    committedLayers.push(marker);
+  }
+};
+
+const updateGpsVisual = (lat: number, lng: number, accuracy: number) => {
+  if (!map) return;
+  if (gpsDot) {
+    gpsDot.setLatLng([lat, lng]);
+  } else {
+    gpsDot = L.circleMarker([lat, lng], {
+      radius: 8,
+      color: '#ffffff',
+      weight: 2,
+      fillColor: '#2196f3',
+      fillOpacity: 1,
+      className: 'tech-gps-dot',
+    }).addTo(map);
+  }
+  if (accuracyRing) {
+    accuracyRing.setLatLng([lat, lng]);
+    accuracyRing.setRadius(Math.max(accuracy, 5));
+  } else {
+    accuracyRing = L.circle([lat, lng], {
+      radius: Math.max(accuracy, 5),
+      color: '#2196f3',
+      weight: 1,
+      fillColor: '#2196f3',
+      fillOpacity: 0.12,
+    }).addTo(map);
+  }
+};
+
+const initMap = async () => {
+  await nextTick();
+  if (!mapEl.value || map) return;
+  map = L.map(mapEl.value, {
+    center: ECHAGUE,
+    zoom: 16,
+    zoomControl: false,
+    attributionControl: false,
+  });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+  }).addTo(map);
+  // Smooth mobile pans / prevent Ionic scroll steal
+  map.getContainer().addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
+  setTimeout(() => map?.invalidateSize(), 250);
+};
+
+const applyPosition = (
+  coords: { latitude: number; longitude: number; accuracy?: number | null },
+  recenter = false,
+) => {
+  const lat = coords.latitude;
+  const lng = coords.longitude;
+  currentPos.value = { lat, lng };
+  accuracyM.value = coords.accuracy ?? null;
+  updateGpsVisual(lat, lng, coords.accuracy || 15);
+  if (recenter && map) {
+    map.setView([lat, lng], Math.max(map.getZoom(), 16), { animate: true });
+  }
+};
+
+const startLiveTracking = async () => {
   locating.value = true;
-  gpsLocked.value = false;
   try {
+    const allowed = await ensureLocationPermission();
+    if (!allowed) {
+      await toast('Location permission required for GIS tagging.', 'warning');
+      locating.value = false;
+      return;
+    }
+
     const pos = await Geolocation.getCurrentPosition({
       enableHighAccuracy: true,
       timeout: 15000,
       maximumAge: 0,
     });
-    form.latitude = pos.coords.latitude;
-    form.longitude = pos.coords.longitude;
-    gpsLocked.value = true;
-    const t = await toastController.create({
-      message: `GPS locked · ±${Math.round(pos.coords.accuracy || 0)} m accuracy`,
-      duration: 2200,
-      color: 'success',
-      position: 'top',
-    });
-    await t.present();
-  } catch {
-    const t = await toastController.create({
-      message: 'Unable to acquire high-accuracy GPS. Check location permissions.',
-      duration: 2800,
-      color: 'warning',
-      position: 'top',
-    });
-    await t.present();
+    applyPosition(pos.coords, true);
+
+    watchId = await Geolocation.watchPosition(
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 1000 },
+      (position, err) => {
+        if (err || !position) return;
+        applyPosition(position.coords, false);
+      },
+    );
+  } catch (err) {
+    console.warn('[AGRI-AKAP] Live GPS failed:', err);
+    await toast('Unable to start live GPS. Check permissions.', 'warning');
   } finally {
     locating.value = false;
   }
 };
 
-const showCollisionAlert = async (message: string) => {
+const stopLiveTracking = async () => {
+  if (!watchId) return;
+  try {
+    await Geolocation.clearWatch({ id: watchId });
+  } catch {
+    // ignore
+  }
+  watchId = null;
+};
+
+const setToolMode = (mode: ToolMode) => {
+  if (drawing.value) cancelBoundaryDraw();
+  toolMode.value = mode;
+};
+
+const startBoundaryDraw = () => {
+  drawing.value = true;
+  draftPoints.value = [];
+  clearDraftLayers();
+};
+
+const cancelBoundaryDraw = () => {
+  drawing.value = false;
+  draftPoints.value = [];
+  clearDraftLayers();
+};
+
+const dropBoundaryPoint = async () => {
+  if (!currentPos.value) {
+    await toast('Waiting for GPS fix…', 'warning');
+    return;
+  }
+  draftPoints.value.push({ ...currentPos.value });
+  redrawDraft();
+};
+
+const openMetadataModal = (geometry: PendingGeometry) => {
+  pendingGeometry.value = geometry;
+  resetMetaForm();
+  formModalOpen.value = true;
+  clearDraftLayers();
+  if (!map) return;
+  const color = INCIDENT_COLORS[meta.incident_type];
+  if (geometry.type === 'polygon' && geometry.points.length >= 3) {
+    draftLayer = L.polygon(
+      geometry.points.map((p) => [p.lat, p.lng] as L.LatLngExpression),
+      { color, weight: 3, fillColor: color, fillOpacity: 0.2 },
+    ).addTo(map);
+  } else if (geometry.points[0]) {
+    const p = geometry.points[0];
+    const label = meta.incident_type === 'pest' ? 'P' : meta.incident_type === 'calamity' ? 'D' : 'H';
+    draftOverlayLayers.push(
+      L.marker([p.lat, p.lng], { icon: coloredDivIcon(color, label) }).addTo(map),
+    );
+  }
+};
+
+const discardPendingOnClose = ref(true);
+
+const closeFormModal = () => {
+  formModalOpen.value = false;
+};
+
+const onFormModalDismiss = () => {
+  formModalOpen.value = false;
+  if (discardPendingOnClose.value && pendingGeometry.value) {
+    clearDraftLayers();
+    pendingGeometry.value = null;
+  }
+  discardPendingOnClose.value = true;
+};
+
+const completeFarmBoundary = async () => {
+  if (draftPoints.value.length < 3) {
+    await toast('Need at least 3 points to close a farm boundary.', 'warning');
+    return;
+  }
+
+  const points = [...draftPoints.value];
+
+  // DA Start/End Gap Rule — the perimeter walk's first and last points must be
+  // ≤ 10 m apart. Catch this before queuing so the technician can correct it
+  // in the field rather than discovering it only on sync.
+  const first = points[0];
+  const last = points[points.length - 1];
+  const gapM = haversineMeters(first.lat, first.lng, last.lat, last.lng);
+  if (gapM > 10) {
+    await toast(
+      `Start–End gap is ${Math.round(gapM)} m. DA requires ≤ 10 m — walk back closer to your starting point before completing.`,
+      'warning',
+    );
+    return;
+  }
+
+  drawing.value = false;
+  draftPoints.value = [];
+  openMetadataModal({ type: 'polygon', points });
+};
+
+const dropIncidentPin = async () => {
+  if (!currentPos.value) {
+    await toast('Waiting for GPS fix…', 'warning');
+    return;
+  }
+  openMetadataModal({ type: 'marker', points: [{ ...currentPos.value }] });
+};
+
+const onIncidentTypeChange = (e: CustomEvent) => {
+  meta.incident_type = e.detail.value as GeoTagIncidentType;
+  // Live recolor draft polygon / preview pin
+  const g = pendingGeometry.value;
+  if (!map || !g) return;
+  clearDraftLayers();
+  const color = INCIDENT_COLORS[meta.incident_type];
+  if (g.type === 'polygon' && g.points.length >= 3) {
+    draftLayer = L.polygon(
+      g.points.map((p) => [p.lat, p.lng] as L.LatLngExpression),
+      { color, weight: 3, fillColor: color, fillOpacity: 0.25 },
+    ).addTo(map);
+  } else if (g.points[0]) {
+    const p = g.points[0];
+    const label = meta.incident_type === 'pest' ? 'P' : meta.incident_type === 'calamity' ? 'D' : 'H';
+    const marker = L.marker([p.lat, p.lng], { icon: coloredDivIcon(color, label) }).addTo(map);
+    draftOverlayLayers.push(marker);
+  }
+};
+
+const capturePhotoEvidence = async () => {
+  capturingPhoto.value = true;
+  try {
+    const photo = await Camera.getPhoto({
+      quality: 85,
+      allowEditing: false,
+      resultType: CameraResultType.Base64,
+      source: CameraSource.Camera,
+    });
+    const base64 = photo.base64String ?? null;
+    if (!base64) throw new Error('Empty camera payload');
+    const format = (photo.format || 'jpeg').toLowerCase();
+    meta.photoBase64 = base64;
+    meta.photoPreviewSrc = `data:image/${format};base64,${base64}`;
+    await toast('Photo evidence captured.', 'success');
+  } catch (err) {
+    console.warn('[AGRI-AKAP] Camera capture failed:', err);
+    await toast('Camera unavailable. Check permissions.', 'warning');
+  } finally {
+    capturingPhoto.value = false;
+  }
+};
+
+/**
+ * DA "3-Attempt Rule": logs a farmer's refusal to consent to georeferencing.
+ * Three logged refusals make the farmer eligible for the RSBSA exclusion
+ * protocol, reviewed by MAO staff once synced.
+ */
+const openRefusalPrompt = async () => {
   const alert = await alertController.create({
-    header: 'Coordinate Collision',
-    subHeader: 'Double-claim blocked',
-    message: message
-      || 'This land parcel is already registered to another user. Please verify tenancy/ownership.',
-    cssClass: 'collision-alert',
-    buttons: ['OK'],
+    header: 'Log Georeferencing Refusal',
+    subHeader: farmerDisplayName.value,
+    message: 'Is this the 1st, 2nd, or 3rd refusal attempt?',
+    inputs: [
+      { type: 'radio', label: '1st Attempt', value: 1, checked: true },
+      { type: 'radio', label: '2nd Attempt', value: 2 },
+      { type: 'radio', label: '3rd Attempt (triggers DA exclusion review)', value: 3 },
+    ],
+    buttons: [
+      { text: 'Cancel', role: 'cancel' },
+      { text: 'Next' },
+    ],
+  });
+  await alert.present();
+  const { data, role } = await alert.onDidDismiss();
+  if (role === 'cancel' || data?.values == null) return;
+
+  const attemptNumber = Number(data.values) as GeoTagRefusalAttempt;
+  await promptRefusalReason(attemptNumber);
+};
+
+const promptRefusalReason = async (attemptNumber: GeoTagRefusalAttempt) => {
+  const alert = await alertController.create({
+    header: `Refusal — Attempt ${attemptNumber}`,
+    message: 'Please provide a brief reason for the refusal.',
+    inputs: [
+      {
+        name: 'reason',
+        type: 'textarea',
+        placeholder: 'e.g. Farmer unavailable, distrust of GPS mapping, land dispute…',
+      },
+    ],
+    buttons: [
+      { text: 'Cancel', role: 'cancel' },
+      {
+        text: 'Save',
+        handler: async (form: any) => {
+          const reason = String(form.reason || '').trim();
+          if (!reason) {
+            await toast('A brief reason is required.', 'warning');
+            return false;
+          }
+          await queueGeoTagRefusal({
+            farmer_id: farmerId.value || undefined,
+            farmer_name: farmerDisplayName.value,
+            rsbsa_no: rsbsaNo.value || undefined,
+            attempt_number: attemptNumber,
+            reason,
+          });
+          await syncStore.refreshCount();
+          await toast(
+            attemptNumber >= 3
+              ? 'Refusal logged (3rd attempt) — flagged for DA exclusion review.'
+              : `Refusal logged (attempt ${attemptNumber}).`,
+            'warning',
+          );
+          return true;
+        },
+      },
+    ],
   });
   await alert.present();
 };
 
-const submitGeotag = async () => {
-  if (!canSave.value || submitting.value) return;
-  submitting.value = true;
+const saveGeoTagRecord = async () => {
+  if (!canSave.value || saving.value || !pendingGeometry.value) return;
+  saving.value = true;
   try {
-    await apiClient.post('/farm-plots', {
-      farmer_id: form.farmer_id,
-      latitude: form.latitude,
-      longitude: form.longitude,
-      location_brgy: form.location_brgy,
-      location_city: 'Echague',
-      location_province: 'Isabela',
-      ownership_type: form.ownership_type,
-      landowner_name: form.ownership_type === 'Owner' ? null : form.landowner_name,
-      commodity: form.commodity,
-      size_ha: Number(form.size_ha),
-      remarks: form.remarks || null,
+    const geometry = pendingGeometry.value;
+    const coordinates =
+      geometry.type === 'polygon'
+        ? JSON.stringify(geometry.points)
+        : JSON.stringify(geometry.points[0]);
+
+    const isPolygon = geometry.type === 'polygon';
+
+    await db.offline_geo_tags.add({
+      client_id: newUuid(),
+      farmer_id: farmerId.value || undefined,
+      farmer_name: farmerDisplayName.value,
+      rsbsa_no: rsbsaNo.value || undefined,
+      geometry_type: geometry.type,
+      coordinates,
+      crop_planted: meta.crop_planted,
+      crop_variety: meta.crop_variety.trim(),
+      parcel_name: meta.parcel_name.trim(),
+      incident_type: meta.incident_type,
+      observations: meta.observations.trim(),
+      photo_base64: meta.photoBase64,
+      accuracy_m: accuracyM.value,
+      gross_area_sqm: isPolygon ? grossAreaSqm.value : null,
+      non_productive_area_sqm: isPolygon ? nonProductiveAreaSqm.value : null,
+      final_area_sqm: isPolygon ? finalVerifiedAreaSqm.value : null,
+      final_area_ha: isPolygon ? finalVerifiedAreaHa.value : null,
+      has_discrepancy: meta.has_discrepancy,
+      notify_sms: true,
+      planting_start_month: meta.planting_start_month,
+      planting_end_month: meta.planting_end_month,
+      farmer_signature_base64: farmerSigRef.value?.toBase64() ?? null,
+      aew_signature_base64: aewSigRef.value?.toBase64() ?? null,
+      sync_status: 'pending',
+      created_at: new Date().toISOString(),
     });
-    const t = await toastController.create({
-      message: 'Farm plot geotagged and registered.',
-      duration: 2600,
-      color: 'success',
-      position: 'top',
-    });
-    await t.present();
-    // Reset parcel fields; keep farmer if encoding multiple plots
-    form.size_ha = '';
-    form.remarks = '';
-    form.landowner_name = '';
-    form.latitude = null;
-    form.longitude = null;
-    gpsLocked.value = false;
-  } catch (err: any) {
-    const status = err?.response?.status;
-    const data = err?.response?.data;
-    if (status === 409 || data?.error === 'Coordinate Collision') {
-      await showCollisionAlert(data?.message);
-      return;
-    }
-    const t = await toastController.create({
-      message: data?.message || 'Failed to register farm plot.',
-      duration: 2800,
-      color: 'danger',
-      position: 'top',
-    });
-    await t.present();
+
+    paintCommittedGeometry(geometry, meta.incident_type);
+    clearDraftLayers();
+    pendingGeometry.value = null;
+    discardPendingOnClose.value = false;
+    formModalOpen.value = false;
+
+    await syncStore.refreshCount();
+    await toast('Geo-tag saved offline. Will sync to MAO when online.', 'success');
+  } catch (err) {
+    console.warn('[AGRI-AKAP] Failed to queue geo-tag:', err);
+    await toast('Could not save locally. Please try again.', 'danger');
   } finally {
-    submitting.value = false;
+    saving.value = false;
   }
 };
+
+watch(
+  () => [route.query.farmerName, route.query.farmer_name, route.query.name],
+  () => {
+    const n = String(route.query.farmerName || route.query.farmer_name || route.query.name || '').trim();
+    if (n) farmerName.value = n;
+  },
+);
+
+onMounted(async () => {
+  await initMap();
+  await startLiveTracking();
+});
+
+onBeforeUnmount(async () => {
+  await stopLiveTracking();
+  clearDraftLayers();
+  committedLayers.forEach((l) => map?.removeLayer(l));
+  committedLayers = [];
+  if (map) {
+    map.remove();
+    map = null;
+  }
+});
 </script>
 
 <style scoped>
-.page-bg { --background: #f4f8f5; }
-.lede { margin: 0 0 0.85rem; font-size: 0.88rem; color: #64748b; line-height: 1.4; }
-.gps-card {
-  margin: 0 0 0.85rem;
-  border-radius: 14px;
-  border: 2px solid #e2e8f0;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+.gis-content {
+  --background: #0f2419;
 }
-.gps-card.locked { border-color: #2e7d32; background: #f1f8f4; }
-.gps-label { margin: 0; font-size: 0.72rem; font-weight: 800; color: #64748b; text-transform: uppercase; }
-.gps-coords { margin: 0.4rem 0 0.65rem; font-size: 1.15rem; font-weight: 900; color: #1a4731; letter-spacing: 0.02em; }
-.gps-coords.muted { color: #94a3b8; font-weight: 600; font-size: 1rem; }
-.lock-chip { margin: 0 0 0.65rem; }
-.gps-btn { text-transform: none; font-weight: 800; margin: 0; min-height: 48px; }
-.search-box { position: relative; margin-bottom: 0.75rem; }
-.field {
-  --background: #fff;
-  border: 1px solid #e2e8f0;
+
+.workspace {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 100%;
+}
+
+.map-shell {
+  position: relative;
+  flex: 0 0 70%;
+  height: 70%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.map-canvas {
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  z-index: 0;
+}
+
+.top-float {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+}
+
+.float-label {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.float-farmer {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #1a4731;
+  line-height: 1.2;
+}
+
+.float-acc {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #b45309;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  padding: 0.35rem 0.55rem;
+}
+
+.float-acc.good {
+  color: #166534;
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+}
+
+.action-hub-float {
+  position: absolute;
+  top: 68px;
+  left: 12px;
+  right: 12px;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.6rem;
   border-radius: 10px;
-  padding: 0 10px;
+  background: rgba(15, 36, 25, 0.72);
+  backdrop-filter: blur(2px);
 }
-.hint { font-size: 0.8rem; color: #94a3b8; margin-top: 4px; }
-.suggest {
-  list-style: none; margin: 4px 0 0; padding: 0;
-  border: 1px solid #e2e8f0; border-radius: 10px; background: #fff;
-  max-height: 200px; overflow: auto;
+
+.hub-label {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #cfe8d8;
+  flex-shrink: 0;
 }
-.suggest li {
-  padding: 0.65rem 0.75rem; cursor: pointer;
-  display: flex; flex-direction: column; border-bottom: 1px solid #f1f5f9;
+
+.refusal-btn {
+  border: 1px solid #fca5a5;
+  background: rgba(254, 242, 242, 0.95);
+  color: #b91c1c;
+  font-size: 0.7rem;
+  font-weight: 800;
+  border-radius: 8px;
+  padding: 0.4rem 0.55rem;
+  line-height: 1.2;
+  white-space: nowrap;
 }
-.suggest li:active { background: #e8f5e9; }
-.suggest li span { font-size: 0.78rem; color: #64748b; }
-.demo-card {
-  background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
-  padding: 0.65rem; margin-bottom: 0.75rem; display: flex; flex-direction: column; gap: 0.35rem;
+
+.refusal-btn:active {
+  background: #fee2e2;
 }
-.ro { display: flex; flex-direction: column; }
-.lbl { font-size: 0.65rem; font-weight: 700; color: #64748b; text-transform: uppercase; }
-.form-list {
-  background: #fff; border-radius: 12px; border: 1px solid #e2e8f0;
-  margin-bottom: 0.85rem; overflow: hidden;
+
+.tool-palette {
+  flex: 0 0 30%;
+  height: 30%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #f4f8f5;
+  border-radius: 16px 16px 0 0;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.12);
+  padding: 0.65rem 0.85rem calc(0.85rem + env(safe-area-inset-bottom, 0px));
+  overflow: auto;
+  z-index: 10;
 }
-.save-btn {
-  --background: #1a4731;
+
+.mode-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+  margin-bottom: 0.55rem;
+}
+
+.mode-tab {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #475569;
+  font-weight: 800;
+  font-size: 0.78rem;
+  border-radius: 10px;
+  padding: 0.55rem 0.4rem;
+  min-height: 42px;
+}
+
+.mode-tab.active {
+  background: #1a4731;
+  border-color: #1a4731;
+  color: #fff;
+}
+
+.mode-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  flex: 1;
+}
+
+.mode-hint {
+  margin: 0 0 0.25rem;
+  font-size: 0.78rem;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+.palette-btn {
   text-transform: none;
   font-weight: 800;
-  min-height: 52px;
-  margin-bottom: 1.75rem;
+  min-height: 46px;
+  margin: 0;
+}
+
+.palette-btn.primary {
+  --background: #1a4731;
+}
+
+.form-sheet {
+  --background: #f8faf9;
+}
+
+.meta-list {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  margin-bottom: 0.85rem;
+  overflow: hidden;
+}
+
+.schedule-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.schedule-row .schedule-item:first-child {
+  border-right: 1px solid #f1f5f9;
+}
+
+.rcm-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.75rem 0.85rem;
+  margin-bottom: 0.75rem;
+}
+
+.rcm-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #1a4731;
+}
+
+.area-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.25rem 0;
+}
+
+.area-row.final {
+  margin-top: 0.35rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed #e2e8f0;
+}
+
+.area-lbl {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #64748b;
+}
+
+.area-val {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #334155;
+}
+
+.area-val.final-val {
+  font-size: 1.05rem;
+  color: #1a4731;
+}
+
+.npa-item {
+  --background: #f8faf9;
+  border-radius: 10px;
+  margin: 0.35rem 0;
+}
+
+.area-hint {
+  margin: 0.3rem 0 0;
+  font-size: 0.72rem;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+.discrepancy-item {
+  --background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 12px;
+  margin-bottom: 0.75rem;
+  --padding-start: 0.75rem;
+  --inner-padding-end: 0.75rem;
+}
+
+.discrepancy-label {
+  font-size: 0.85rem;
+  font-weight: 800;
+  color: #9a3412;
+}
+
+.discrepancy-sub {
+  margin: 0.15rem 0 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #b45309;
+  white-space: normal;
+}
+
+.photo-block {
+  margin-bottom: 0.75rem;
+}
+
+.camera-btn {
+  --background: #0f766e;
+  text-transform: none;
+  font-weight: 800;
+  min-height: 48px;
+  margin: 0 0 0.65rem;
+}
+
+.thumb-wrap {
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  max-height: 180px;
+}
+
+.thumb {
+  display: block;
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+}
+
+.spatial-summary {
+  margin: 0 0 0.75rem;
+  font-size: 0.78rem;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.signature-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem 0.85rem;
+  margin-bottom: 0.85rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.signature-title {
+  margin: 0;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #1a4731;
+}
+
+.save-geo-btn {
+  --background: #1a4731;
+  text-transform: none;
+  font-weight: 900;
+  font-size: 1rem;
+  min-height: 56px;
+  margin-bottom: 1.5rem;
+}
+
+:deep(.geo-pin) {
+  background: transparent;
+  border: none;
+}
+
+:deep(.geo-pin-dot) {
+  display: block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  margin: 0 auto;
+}
+
+:deep(.geo-pin-lbl) {
+  display: block;
+  text-align: center;
+  font-size: 0.65rem;
+  font-weight: 900;
+  color: #0f172a;
+  text-shadow: 0 0 3px #fff;
+  margin-top: 1px;
+}
+
+:deep(.leaflet-container) {
+  font: inherit;
+  background: #dce8df;
 }
 </style>

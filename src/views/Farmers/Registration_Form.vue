@@ -589,9 +589,9 @@ import { useRouter } from "vue-router";
 
 const router = useRouter();
 
-// Return to the farmer registry within the current environment (admin vs technician).
+// Return to the farmer registry (admin) or technician home (tech uses QR lookup).
 const farmersHome = computed(() =>
-  router.currentRoute.value.path.startsWith("/tech") ? "/tech/farmers" : "/admin/farmers"
+  router.currentRoute.value.path.startsWith("/tech") ? "/tech/dashboard" : "/admin/farmers"
 );
 
 /* state  */

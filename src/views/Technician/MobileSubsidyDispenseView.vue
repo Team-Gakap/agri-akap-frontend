@@ -99,6 +99,16 @@
               <strong>{{ selectedProgram.per_hectare_allocation || selectedProgram.items_per_hectare }} {{ selectedProgram.unit_of_measurement }}/ha</strong>
             </div>
           </div>
+          
+          <!-- RFFA Eligibility Lock -->
+          <div v-if="isRffaBlocked" class="rffa-lock-banner">
+            <ion-icon :icon="alertCircleOutline" class="lock-icon"></ion-icon>
+            <div class="lock-text">
+              <strong>Not Eligible for RFFA</strong>
+              <p>Exceeds 2.0ha limit or invalid commodity.</p>
+            </div>
+          </div>
+          
           <p v-if="!programs.length" class="hint danger">
             No active subsidy programs. Ask MAO admin to activate a campaign.
           </p>
@@ -108,7 +118,7 @@
       <ion-button
         expand="block"
         class="continue-btn"
-        :disabled="!farmer || !selectedProgramId || verifying"
+        :disabled="!farmer || !selectedProgramId || verifying || isRffaBlocked"
         @click="continueToRelease"
       >
         {{ verifying ? 'Checking eligibility…' : 'Continue to Release' }}
@@ -134,7 +144,7 @@ import {
   IonButton, IonIcon, IonInput, IonCard, IonCardHeader, IonCardTitle, IonCardSubtitle,
   IonCardContent, IonItem, IonSelect, IonSelectOption, toastController,
 } from '@ionic/vue';
-import { qrCodeOutline } from 'ionicons/icons';
+import { qrCodeOutline, alertCircleOutline } from 'ionicons/icons';
 import { Capacitor } from '@capacitor/core';
 import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
 import { getPrograms, lookupFarmer, searchFarmers } from '@/services/syncService';
@@ -169,6 +179,13 @@ let searchTimer: ReturnType<typeof setTimeout> | undefined;
 const selectedProgram = computed(() =>
   programs.value.find((p) => p.id === selectedProgramId.value) ?? null
 );
+
+const isRffaBlocked = computed(() => {
+  if (!farmer.value || !selectedProgram.value) return false;
+  const programName = selectedProgram.value.name || selectedProgram.value.program_name || '';
+  const isRffa = /rffa/i.test(programName);
+  return isRffa && farmer.value.is_rffa_eligible === false;
+});
 
 const formatName = (f: any) => {
   if (!f) return '';
@@ -523,6 +540,39 @@ onBeforeUnmount(() => {
 }
 
 .program-details { margin-top: 0.75rem; }
+
+.rffa-lock-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  background: #fef2f2;
+  border: 2px solid #ef4444;
+  border-radius: 10px;
+  padding: 0.85rem;
+  margin-top: 0.85rem;
+}
+
+.rffa-lock-banner .lock-icon {
+  font-size: 24px;
+  color: #dc2626;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.rffa-lock-banner .lock-text strong {
+  display: block;
+  color: #991b1b;
+  font-weight: 800;
+  font-size: 0.92rem;
+  margin-bottom: 0.15rem;
+}
+
+.rffa-lock-banner .lock-text p {
+  margin: 0;
+  color: #7f1d1d;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
 
 .detail-row {
   display: flex;

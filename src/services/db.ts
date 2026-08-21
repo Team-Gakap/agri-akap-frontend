@@ -14,5 +14,8 @@ export {
   type OfflinePlantingLog,
   type OfflinePestReport,
   type OfflineFarmProfile,
+  type OfflineGeoTag,
+  type GeoTagGeometryType,
+  type GeoTagIncidentType,
   type CachedRecord,
 } from '@/database/db';

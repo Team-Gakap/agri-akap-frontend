@@ -10,6 +10,8 @@ import {
   type OfflinePlantingLog,
   type OfflinePestReport,
   type OfflineFarmProfile,
+  type OfflineGeoTag,
+  type OfflineGeoRefusal,
 } from '@/database/db';
 
 export interface SyncOutcome {
@@ -240,6 +242,32 @@ export async function queueFarmProfile(
   return { ...record, id };
 }
 
+export async function queueGeoTag(
+  input: Omit<OfflineGeoTag, 'id' | 'client_id' | 'sync_status' | 'created_at'>,
+): Promise<OfflineGeoTag> {
+  const record: OfflineGeoTag = {
+    ...input,
+    client_id: newUuid(),
+    sync_status: 'pending',
+    created_at: new Date().toISOString(),
+  };
+  const id = await db.offline_geo_tags.add(record);
+  return { ...record, id };
+}
+
+export async function queueGeoTagRefusal(
+  input: Omit<OfflineGeoRefusal, 'id' | 'client_id' | 'sync_status' | 'created_at'>,
+): Promise<OfflineGeoRefusal> {
+  const record: OfflineGeoRefusal = {
+    ...input,
+    client_id: newUuid(),
+    sync_status: 'pending',
+    created_at: new Date().toISOString(),
+  };
+  const id = await db.offline_geo_refusals.add(record);
+  return { ...record, id };
+}
+
 export async function queueOfflineDistribution(
   input: Omit<OfflineDistribution, 'id' | 'client_id' | 'sync_status' | 'timestamp'> & {
     timestamp?: string;
@@ -267,7 +295,9 @@ type AutoIncTable =
   | 'offline_planting_logs'
   | 'offline_pest_reports'
   | 'offline_farm_profiles'
-  | 'offline_distributions';
+  | 'offline_distributions'
+  | 'offline_geo_tags'
+  | 'offline_geo_refusals';
 
 async function clearSyncedRows(
   table: AutoIncTable,
@@ -307,6 +337,8 @@ export async function syncAllPendingData(): Promise<{ synced: number; failed: nu
     pest_reports,
     farm_profiles,
     field_distributions,
+    geo_tags,
+    geo_refusals,
   ] = await Promise.all([
     db.pendingDistributions.toArray(),
     db.pendingAssessments.toArray(),
@@ -314,6 +346,8 @@ export async function syncAllPendingData(): Promise<{ synced: number; failed: nu
     db.offline_pest_reports.where('sync_status').equals('pending').toArray(),
     db.offline_farm_profiles.where('sync_status').equals('pending').toArray(),
     db.offline_distributions.where('sync_status').equals('pending').toArray(),
+    db.offline_geo_tags.where('sync_status').equals('pending').toArray(),
+    db.offline_geo_refusals.where('sync_status').equals('pending').toArray(),
   ]);
 
   const hasWork =
@@ -322,7 +356,9 @@ export async function syncAllPendingData(): Promise<{ synced: number; failed: nu
     || planting_logs.length
     || pest_reports.length
     || farm_profiles.length
-    || field_distributions.length;
+    || field_distributions.length
+    || geo_tags.length
+    || geo_refusals.length;
 
   if (!hasWork) {
     return { synced: 0, failed: 0 };
@@ -339,6 +375,8 @@ export async function syncAllPendingData(): Promise<{ synced: number; failed: nu
     const pestIds = pest_reports.map((r) => r.id!).filter(Boolean);
     const farmIds = farm_profiles.map((r) => r.id!).filter(Boolean);
     const fieldIds = field_distributions.map((r) => r.id!).filter(Boolean);
+    const geoTagIds = geo_tags.map((r) => r.id!).filter(Boolean);
+    const geoRefusalIds = geo_refusals.map((r) => r.id!).filter(Boolean);
 
     if (plantingIds.length) {
       await db.offline_planting_logs.where('id').anyOf(plantingIds).modify({ sync_status: 'syncing' });
@@ -351,6 +389,12 @@ export async function syncAllPendingData(): Promise<{ synced: number; failed: nu
     }
     if (fieldIds.length) {
       await db.offline_distributions.where('id').anyOf(fieldIds).modify({ sync_status: 'syncing' });
+    }
+    if (geoTagIds.length) {
+      await db.offline_geo_tags.where('id').anyOf(geoTagIds).modify({ sync_status: 'syncing' });
+    }
+    if (geoRefusalIds.length) {
+      await db.offline_geo_refusals.where('id').anyOf(geoRefusalIds).modify({ sync_status: 'syncing' });
     }
 
     const payload = {
@@ -426,6 +470,36 @@ export async function syncAllPendingData(): Promise<{ synced: number; failed: nu
         farmer_id: r.farmer_id,
         program_id: r.program_id,
       })),
+      geo_tags: geo_tags.map((r) => ({
+        client_id: r.client_id,
+        farmer_id: r.farmer_id,
+        rsbsa_no: r.rsbsa_no,
+        device_id: getDeviceId(),
+        geometry_type: r.geometry_type,
+        coordinates: r.coordinates,
+        crop_planted: r.crop_planted,
+        crop_variety: r.crop_variety,
+        parcel_name: r.parcel_name,
+        incident_type: r.incident_type,
+        observations: r.observations,
+        photo_base64: r.photo_base64,
+        accuracy_m: r.accuracy_m,
+        non_productive_area_sqm: r.non_productive_area_sqm,
+        has_discrepancy: r.has_discrepancy,
+        notify_sms: r.notify_sms ?? true,
+        planting_start_month: r.planting_start_month,
+        planting_end_month: r.planting_end_month,
+        farmer_signature_base64: r.farmer_signature_base64,
+        aew_signature_base64: r.aew_signature_base64,
+      })),
+      geo_tag_refusals: geo_refusals.map((r) => ({
+        client_id: r.client_id,
+        farmer_id: r.farmer_id,
+        rsbsa_no: r.rsbsa_no,
+        device_id: getDeviceId(),
+        attempt_number: r.attempt_number,
+        reason: r.reason,
+      })),
     };
 
     const res = await apiClient.post('/sync/bulk', payload);
@@ -478,6 +552,8 @@ export async function syncAllPendingData(): Promise<{ synced: number; failed: nu
       results.field_distributions ?? results.offline_distributions,
       counters,
     );
+    await clearSyncedRows('offline_geo_tags', geo_tags, results.geo_tags, counters);
+    await clearSyncedRows('offline_geo_refusals', geo_refusals, results.geo_tag_refusals, counters);
 
     return counters;
   } catch {
@@ -487,6 +563,8 @@ export async function syncAllPendingData(): Promise<{ synced: number; failed: nu
     await db.offline_pest_reports.where('sync_status').equals('syncing').modify({ sync_status: 'pending' });
     await db.offline_farm_profiles.where('sync_status').equals('syncing').modify({ sync_status: 'pending' });
     await db.offline_distributions.where('sync_status').equals('syncing').modify({ sync_status: 'pending' });
+    await db.offline_geo_tags.where('sync_status').equals('syncing').modify({ sync_status: 'pending' });
+    await db.offline_geo_refusals.where('sync_status').equals('syncing').modify({ sync_status: 'pending' });
     return { synced: 0, failed: 0 };
   } finally {
     syncingAll = false;
