@@ -15,101 +15,159 @@
         <div class="map-shell">
           <div ref="mapEl" class="map-canvas"></div>
 
-          <!-- Top floating bar: farmer + GPS accuracy -->
-          <div class="top-float">
-            <div class="float-main">
-              <span class="float-label">Farmer</span>
-              <strong class="float-farmer">{{ farmerDisplayName }}</strong>
+          <!-- Map overlays: stacked so farmer card never collides with Action Hub -->
+          <div class="map-overlays">
+            <div class="top-float" :class="{ interactive: hasAssignedFarmer }">
+              <div class="float-main">
+                <span class="float-label">Farmer</span>
+                <strong class="float-farmer">{{ farmerDisplayName }}</strong>
+                <button
+                  v-if="hasAssignedFarmer"
+                  type="button"
+                  class="change-farmer-btn"
+                  @click="clearFarmer"
+                >
+                  Change farmer
+                </button>
+              </div>
+              <div class="float-acc" :class="{ good: accuracyM != null && accuracyM <= 10 }">
+                Accuracy: {{ accuracyLabel }}
+              </div>
             </div>
-            <div class="float-acc" :class="{ good: accuracyM != null && accuracyM <= 10 }">
-              Accuracy: {{ accuracyLabel }}
-            </div>
-          </div>
 
-          <!-- Farmer Action Hub: secondary actions that don't require an active geometry draft -->
-          <div class="action-hub-float">
-            <span class="hub-label">Farmer Action Hub</span>
-            <button type="button" class="refusal-btn" @click="openRefusalPrompt">
-              🚫 Log Georeferencing Refusal
-            </button>
+            <div v-if="hasAssignedFarmer" class="action-hub-float">
+              <span class="hub-label">Farmer Action Hub</span>
+              <button type="button" class="refusal-btn" @click="openRefusalPrompt">
+                🚫 Log Georeferencing Refusal
+              </button>
+            </div>
           </div>
         </div>
 
         <!-- Dual-mode tool palette = ~30% -->
         <div class="tool-palette">
-          <div class="mode-tabs">
-            <button
-              type="button"
-              class="mode-tab"
-              :class="{ active: toolMode === 'boundary' }"
-              @click="setToolMode('boundary')"
-            >
-              Mode A · Boundary
-            </button>
-            <button
-              type="button"
-              class="mode-tab"
-              :class="{ active: toolMode === 'incident' }"
-              @click="setToolMode('incident')"
-            >
-              Mode B · Incident
-            </button>
-          </div>
-
-          <!-- Mode A: Polygon boundary -->
-          <div v-if="toolMode === 'boundary'" class="mode-body">
-            <p class="mode-hint">
-              Walk the perimeter. Drop points at your GPS, then complete the farm boundary.
-              <span v-if="drawing">· {{ draftPoints.length }} point(s)</span>
-            </p>
+          <!-- Assignment gate: QR + search before any drawing -->
+          <div v-if="!hasAssignedFarmer" class="assign-panel">
+            <p class="assign-title">Assign farmer to begin</p>
+            <p class="mode-hint">Scan the RSBSA QR, or search by name / RSBSA number.</p>
             <ion-button
-              v-if="!drawing"
               expand="block"
               class="palette-btn primary"
-              :disabled="!currentPos"
-              @click="startBoundaryDraw"
+              :disabled="lookingUp || isScanning"
+              @click="startScan"
             >
-              Start Drawing Polygon
+              <ion-icon slot="start" :icon="qrCodeOutline"></ion-icon>
+              {{ lookingUp ? 'Looking up…' : 'Scan Farmer QR' }}
             </ion-button>
-            <template v-else>
-              <ion-button
-                expand="block"
-                class="palette-btn"
-                color="secondary"
-                :disabled="!currentPos"
-                @click="dropBoundaryPoint"
+            <div class="assign-search">
+              <ion-input
+                class="search-input"
+                label="Search farmer (name or RSBSA)"
+                label-placement="stacked"
+                placeholder="Type at least 2 characters…"
+                :value="searchQuery"
+                @ionInput="onSearchInput"
+              ></ion-input>
+              <div v-if="searching" class="search-hint">Searching…</div>
+              <ul v-if="searchResults.length" class="suggest">
+                <li v-for="f in searchResults" :key="f.id" @click="selectSearchedFarmer(f)">
+                  <strong>{{ formatFarmerName(f) }}</strong>
+                  <span>{{ f.rsbsa_no || 'No RSBSA' }} · {{ f.permanent_brgy || f.barangay || '—' }}</span>
+                </li>
+              </ul>
+              <p
+                v-else-if="searchQuery.trim().length >= 2 && !searching"
+                class="search-hint"
               >
-                Drop Point
+                No farmers match “{{ searchQuery.trim() }}”.
+              </p>
+            </div>
+          </div>
+
+          <template v-else>
+            <div class="mode-tabs">
+              <button
+                type="button"
+                class="mode-tab"
+                :class="{ active: toolMode === 'boundary' }"
+                @click="setToolMode('boundary')"
+              >
+                Mode A · Boundary
+              </button>
+              <button
+                type="button"
+                class="mode-tab"
+                :class="{ active: toolMode === 'incident' }"
+                @click="setToolMode('incident')"
+              >
+                Mode B · Incident
+              </button>
+            </div>
+
+            <!-- Mode A: Polygon boundary -->
+            <div v-if="toolMode === 'boundary'" class="mode-body">
+              <p class="mode-hint">
+                Walk the perimeter. Drop points at your GPS, then complete the farm boundary.
+                <span v-if="drawing">· {{ draftPoints.length }} point(s)</span>
+              </p>
+              <ion-button
+                v-if="!drawing"
+                expand="block"
+                class="palette-btn primary"
+                :disabled="!currentPos || !hasAssignedFarmer"
+                @click="startBoundaryDraw"
+              >
+                Start Drawing Polygon
               </ion-button>
+              <template v-else>
+                <ion-button
+                  expand="block"
+                  class="palette-btn"
+                  color="secondary"
+                  :disabled="!currentPos"
+                  @click="dropBoundaryPoint"
+                >
+                  Drop Point
+                </ion-button>
+                <ion-button
+                  expand="block"
+                  class="palette-btn primary"
+                  :disabled="draftPoints.length < 3"
+                  @click="completeFarmBoundary"
+                >
+                  Complete Farm Boundary
+                </ion-button>
+                <ion-button expand="block" fill="clear" color="medium" @click="cancelBoundaryDraw">
+                  Cancel Drawing
+                </ion-button>
+              </template>
+            </div>
+
+            <!-- Mode B: Incident marker -->
+            <div v-else class="mode-body">
+              <p class="mode-hint">
+                Drop a pin at your exact GPS fix for pests, damage, or healthy crop notes.
+              </p>
               <ion-button
                 expand="block"
                 class="palette-btn primary"
-                :disabled="draftPoints.length < 3"
-                @click="completeFarmBoundary"
+                :disabled="!currentPos || !hasAssignedFarmer"
+                @click="dropIncidentPin"
               >
-                Complete Farm Boundary
+                📍 Drop Incident Pin Here
               </ion-button>
-              <ion-button expand="block" fill="clear" color="medium" @click="cancelBoundaryDraw">
-                Cancel Drawing
-              </ion-button>
-            </template>
-          </div>
-
-          <!-- Mode B: Incident marker -->
-          <div v-else class="mode-body">
-            <p class="mode-hint">
-              Drop a pin at your exact GPS fix for pests, damage, or healthy crop notes.
-            </p>
-            <ion-button
-              expand="block"
-              class="palette-btn primary"
-              :disabled="!currentPos"
-              @click="dropIncidentPin"
-            >
-              📍 Drop Incident Pin Here
-            </ion-button>
-          </div>
+            </div>
+          </template>
         </div>
+      </div>
+
+      <div v-if="isScanning" class="scan-overlay">
+        <div class="scan-frame" aria-hidden="true"></div>
+        <p class="scan-label">Scanning…</p>
+        <p class="scan-hint">Align the RSBSA QR inside the frame</p>
+        <ion-button class="cancel-scan-btn" fill="solid" color="light" @click="stopScan">
+          Cancel
+        </ion-button>
       </div>
 
       <!-- Agricultural metadata bottom sheet -->
@@ -241,6 +299,29 @@
             </p>
           </div>
 
+          <div v-if="hasAssignedFarmer && pendingGeometry?.type === 'polygon'" class="budget-card">
+            <p class="rcm-title">Registered Area Budget</p>
+            <div class="area-row">
+              <span class="area-lbl">Registered Farm Area</span>
+              <span class="area-val">{{ registeredAreaHa.toFixed(2) }} ha</span>
+            </div>
+            <div class="area-row">
+              <span class="area-lbl">Currently Mapped Plots{{ replacingPlotLabel }}</span>
+              <span class="area-val">{{ mappedForBudgetHa.toFixed(2) }} ha</span>
+            </div>
+            <div class="area-row">
+              <span class="area-lbl">Remaining Unmapped Quota</span>
+              <span class="area-val">{{ remainingQuotaHa.toFixed(2) }} ha</span>
+            </div>
+            <div class="area-row">
+              <span class="area-lbl">This Polygon</span>
+              <span class="area-val">{{ finalVerifiedAreaHa.toFixed(4) }} ha</span>
+            </div>
+            <p v-if="polygonExceedsQuota" class="budget-warn">
+              Polygon exceeds remaining registered area. Adjust the boundary, or flag spatial discrepancy to save as an undeclared field revision.
+            </p>
+          </div>
+
           <ion-item class="discrepancy-item" lines="none">
             <ion-checkbox
               slot="start"
@@ -248,8 +329,8 @@
               @ionChange="(e: any) => meta.has_discrepancy = e.detail.checked"
             ></ion-checkbox>
             <ion-label class="discrepancy-label">
-              ⚠️ Flag Spatial Discrepancy
-              <p class="discrepancy-sub">Farm overlaps another property, or an undeclared field was found.</p>
+              Flag Spatial Discrepancy
+              <p class="discrepancy-sub">Farm overlaps another property, or an undeclared field was found. Required to save when the polygon exceeds the remaining registered area.</p>
             </ion-label>
           </ion-item>
 
@@ -306,7 +387,9 @@ import {
   IonButton, IonIcon, IonModal, IonList, IonItem, IonInput, IonSelect, IonSelectOption,
   IonTextarea, IonCheckbox, IonLabel, toastController, alertController,
 } from '@ionic/vue';
-import { cameraOutline } from 'ionicons/icons';
+import { cameraOutline, qrCodeOutline } from 'ionicons/icons';
+import { Capacitor } from '@capacitor/core';
+import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
 import { Geolocation } from '@capacitor/geolocation';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import L from 'leaflet';
@@ -314,8 +397,9 @@ import 'leaflet/dist/leaflet.css';
 import { ensureLocationPermission } from '@/composables/useNativeHardware';
 import { db, newUuid, type GeoTagIncidentType, type GeoTagGeometryType, type GeoTagRefusalAttempt } from '@/database/db';
 import { useSyncStore } from '@/stores/syncStore';
-import { queueGeoTagRefusal } from '@/services/syncService';
+import { queueGeoTagRefusal, lookupFarmer, searchFarmers } from '@/services/syncService';
 import SignaturePad from '@/components/SignaturePad.vue';
+import apiClient from '@/utils/axios';
 
 type ToolMode = 'boundary' | 'incident';
 
@@ -368,10 +452,177 @@ const pendingGeometry = ref<PendingGeometry | null>(null);
 
 const farmerId = ref(String(route.query.farmer || route.query.farmer_id || '').trim());
 const farmerName = ref(
-  String(route.query.farmerName || route.query.farmer_name || route.query.name || '').trim()
-    || 'Unassigned Farmer',
+  String(route.query.farmerName || route.query.farmer_name || route.query.name || '').trim(),
 );
 const rsbsaNo = ref(String(route.query.rsbsa || route.query.rsbsa_no || '').trim());
+
+const isScanning = ref(false);
+const lookingUp = ref(false);
+const searching = ref(false);
+const searchQuery = ref('');
+const searchResults = ref<any[]>([]);
+let searchTimer: ReturnType<typeof setTimeout> | undefined;
+
+const hasAssignedFarmer = computed(() => !!farmerId.value);
+const farmerDisplayName = computed(() =>
+  farmerName.value.trim() || (hasAssignedFarmer.value ? 'Assigned farmer' : 'Unassigned Farmer'),
+);
+
+const registeredAreaHa = ref(0);
+const farmerPlots = ref<Array<{ id: string; commodity: string; size_ha: number }>>([]);
+
+const loadFarmerBudget = async (id: string) => {
+  if (!id) {
+    registeredAreaHa.value = 0;
+    farmerPlots.value = [];
+    return;
+  }
+  try {
+    const res = await apiClient.get(`/farmers/${id}`);
+    const f = res.data?.data;
+    const plots = f?.farm_plots || f?.farmPlots || [];
+    registeredAreaHa.value = Number(f?.total_farm_area_ha ?? 0) || 0;
+    farmerPlots.value = plots.map((p: any) => ({
+      id: String(p.id),
+      commodity: String(p.commodity || ''),
+      size_ha: Number(p.size_ha) || 0,
+    }));
+  } catch {
+    registeredAreaHa.value = 0;
+    farmerPlots.value = [];
+  }
+};
+
+const formatFarmerName = (f: any) => {
+  if (!f) return '';
+  if (f.full_name) return f.full_name;
+  const parts = [f.surname || f.last_name, [f.first_name, f.middle_name].filter(Boolean).join(' ')].filter(Boolean);
+  return parts.length ? parts.join(', ') : (f.name || 'Unknown farmer');
+};
+
+const applyFarmer = (result: any) => {
+  farmerId.value = String(result?.id || '').trim();
+  farmerName.value = formatFarmerName(result);
+  rsbsaNo.value = String(result?.rsbsa_no || result?.rsbsaNo || '').trim();
+  searchQuery.value = '';
+  searchResults.value = [];
+  void loadFarmerBudget(farmerId.value);
+};
+
+const selectSearchedFarmer = (f: any) => {
+  applyFarmer(f);
+  void toast('Farmer assigned.', 'success');
+};
+
+const clearFarmer = () => {
+  if (drawing.value) cancelBoundaryDraw();
+  farmerId.value = '';
+  farmerName.value = '';
+  rsbsaNo.value = '';
+  searchQuery.value = '';
+  searchResults.value = [];
+  registeredAreaHa.value = 0;
+  farmerPlots.value = [];
+};
+
+const onSearchInput = (e: CustomEvent) => {
+  const value = String(e.detail.value ?? '');
+  searchQuery.value = value;
+  if (searchTimer) clearTimeout(searchTimer);
+  const term = value.trim();
+  if (term.length < 2) {
+    searchResults.value = [];
+    searching.value = false;
+    return;
+  }
+  searching.value = true;
+  searchTimer = setTimeout(async () => {
+    try {
+      searchResults.value = await searchFarmers(term);
+    } catch {
+      searchResults.value = [];
+    } finally {
+      searching.value = false;
+    }
+  }, 280);
+};
+
+const fetchFarmerByQr = async (raw: string) => {
+  const value = raw.trim();
+  if (!value) return;
+  lookingUp.value = true;
+  try {
+    const result = await lookupFarmer(value);
+    if (!result) {
+      searchQuery.value = value;
+      searchResults.value = await searchFarmers(value);
+      await toast(
+        searchResults.value.length
+          ? 'Pick the matching farmer below.'
+          : 'No farmer found for that QR / RSBSA / name.',
+        'warning',
+      );
+      return;
+    }
+    applyFarmer(result);
+    await toast('Farmer assigned.', 'success');
+  } catch (err) {
+    console.warn('[AGRI-AKAP] Farmer lookup failed:', err);
+    await toast('Lookup failed. Check connection or try again.', 'danger');
+  } finally {
+    lookingUp.value = false;
+  }
+};
+
+const setScannerBackground = (active: boolean) => {
+  document.body.classList.toggle('scanner-active', active);
+};
+
+const stopScan = async () => {
+  try {
+    await BarcodeScanner.stopScan?.();
+  } catch {
+    // ignore
+  }
+  setScannerBackground(false);
+  isScanning.value = false;
+};
+
+const startScan = async () => {
+  if (isScanning.value) return;
+
+  if (!Capacitor.isNativePlatform()) {
+    await toast('Camera scanner needs a native build. Search by name or RSBSA below.', 'warning');
+    return;
+  }
+
+  try {
+    const { camera } = await BarcodeScanner.requestPermissions();
+    if (camera !== 'granted' && camera !== 'limited') {
+      await toast('Camera permission denied. Search by name or RSBSA below.', 'warning');
+      return;
+    }
+
+    isScanning.value = true;
+    setScannerBackground(true);
+
+    const { barcodes } = await BarcodeScanner.scan();
+    const raw = barcodes[0]?.rawValue?.trim();
+    await stopScan();
+
+    if (!raw) {
+      await toast('No QR code detected. Try again or search manually.', 'warning');
+      return;
+    }
+
+    searchQuery.value = raw;
+    await fetchFarmerByQr(raw);
+  } catch (err) {
+    console.warn('[AGRI-AKAP] QR scanner failed (web/native):', err);
+    await stopScan();
+    await toast('Scanner unavailable. Search by name or RSBSA below.', 'danger');
+  }
+};
 
 const meta = reactive({
   crop_planted: 'Rice',
@@ -387,6 +638,29 @@ const meta = reactive({
   photoPreviewSrc: null as string | null,
 });
 
+const matchingPlotForCrop = computed(() => {
+  const crop = String(meta.crop_planted || '').trim().toLowerCase();
+  if (!crop) return null;
+  return farmerPlots.value.find((p) => p.commodity.trim().toLowerCase() === crop)
+    || farmerPlots.value[0]
+    || null;
+});
+
+const mappedForBudgetHa = computed(() => {
+  const excludeId = matchingPlotForCrop.value?.id;
+  return farmerPlots.value
+    .filter((p) => !excludeId || p.id !== excludeId)
+    .reduce((s, p) => s + (Number(p.size_ha) || 0), 0);
+});
+
+const remainingQuotaHa = computed(() =>
+  Math.max(0, registeredAreaHa.value - mappedForBudgetHa.value),
+);
+
+const replacingPlotLabel = computed(() =>
+  matchingPlotForCrop.value ? ' (replacing matching plot)' : '',
+);
+
 interface SignaturePadHandle {
   clear: () => void;
   toBase64: () => string | null;
@@ -396,8 +670,6 @@ const farmerSigRef = ref<SignaturePadHandle | null>(null);
 const aewSigRef = ref<SignaturePadHandle | null>(null);
 const hasFarmerSignature = ref(false);
 const hasAewSignature = ref(false);
-
-const farmerDisplayName = computed(() => farmerName.value || 'Unassigned Farmer');
 
 const accuracyLabel = computed(() => {
   if (accuracyM.value == null) return locating.value ? 'Acquiring…' : '—';
@@ -479,8 +751,14 @@ const finalVerifiedAreaSqm = computed(() =>
 
 const finalVerifiedAreaHa = computed(() => finalVerifiedAreaSqm.value / 10000);
 
+const polygonExceedsQuota = computed(() =>
+  pendingGeometry.value?.type === 'polygon'
+  && finalVerifiedAreaHa.value > remainingQuotaHa.value + 0.0001,
+);
+
 const canSave = computed(() =>
-  !!pendingGeometry.value
+  hasAssignedFarmer.value
+  && !!pendingGeometry.value
   && pendingGeometry.value.points.length > 0
   && !!meta.crop_planted
   && !!meta.parcel_name?.trim()
@@ -489,6 +767,7 @@ const canSave = computed(() =>
   && !!meta.planting_end_month
   && hasFarmerSignature.value
   && hasAewSignature.value
+  && (!polygonExceedsQuota.value || !!meta.has_discrepancy)
 );
 
 const toast = async (message: string, color = 'primary') => {
@@ -676,6 +955,10 @@ const setToolMode = (mode: ToolMode) => {
 };
 
 const startBoundaryDraw = () => {
+  if (!hasAssignedFarmer.value) {
+    void toast('Assign a farmer first (scan QR or search).', 'warning');
+    return;
+  }
   drawing.value = true;
   draftPoints.value = [];
   clearDraftLayers();
@@ -760,6 +1043,10 @@ const completeFarmBoundary = async () => {
 };
 
 const dropIncidentPin = async () => {
+  if (!hasAssignedFarmer.value) {
+    await toast('Assign a farmer first (scan QR or search).', 'warning');
+    return;
+  }
   if (!currentPos.value) {
     await toast('Waiting for GPS fix…', 'warning');
     return;
@@ -816,6 +1103,10 @@ const capturePhotoEvidence = async () => {
  * protocol, reviewed by MAO staff once synced.
  */
 const openRefusalPrompt = async () => {
+  if (!hasAssignedFarmer.value) {
+    await toast('Assign a farmer first before logging a refusal.', 'warning');
+    return;
+  }
   const alert = await alertController.create({
     header: 'Log Georeferencing Refusal',
     subHeader: farmerDisplayName.value,
@@ -938,19 +1229,40 @@ const saveGeoTagRecord = async () => {
 };
 
 watch(
-  () => [route.query.farmerName, route.query.farmer_name, route.query.name],
+  () => [
+    route.query.farmer,
+    route.query.farmer_id,
+    route.query.farmerName,
+    route.query.farmer_name,
+    route.query.name,
+    route.query.rsbsa,
+    route.query.rsbsa_no,
+  ],
   () => {
-    const n = String(route.query.farmerName || route.query.farmer_name || route.query.name || '').trim();
-    if (n) farmerName.value = n;
+    const id = String(route.query.farmer || route.query.farmer_id || '').trim();
+    const name = String(route.query.farmerName || route.query.farmer_name || route.query.name || '').trim();
+    const rsbsa = String(route.query.rsbsa || route.query.rsbsa_no || '').trim();
+    if (id) farmerId.value = id;
+    if (name) farmerName.value = name;
+    if (rsbsa) rsbsaNo.value = rsbsa;
   },
 );
 
 onMounted(async () => {
   await initMap();
   await startLiveTracking();
+  if (farmerId.value) {
+    void loadFarmerBudget(farmerId.value);
+  }
+});
+
+watch(farmerId, (id) => {
+  if (id) void loadFarmerBudget(id);
 });
 
 onBeforeUnmount(async () => {
+  if (searchTimer) clearTimeout(searchTimer);
+  await stopScan();
   await stopLiveTracking();
   clearDraftLayers();
   committedLayers.forEach((l) => map?.removeLayer(l));
@@ -989,12 +1301,19 @@ onBeforeUnmount(async () => {
   z-index: 0;
 }
 
-.top-float {
+.map-overlays {
   position: absolute;
   top: 12px;
   left: 12px;
   right: 12px;
   z-index: 500;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+
+.top-float {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1004,6 +1323,10 @@ onBeforeUnmount(async () => {
   background: rgba(255, 255, 255, 0.94);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
   pointer-events: none;
+}
+
+.top-float.interactive {
+  pointer-events: auto;
 }
 
 .float-label {
@@ -1021,6 +1344,129 @@ onBeforeUnmount(async () => {
   font-weight: 800;
   color: #1a4731;
   line-height: 1.2;
+}
+
+.change-farmer-btn {
+  margin-top: 0.2rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.assign-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.15rem 0 0.35rem;
+  max-height: 100%;
+  overflow: auto;
+}
+
+.assign-title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #1a4731;
+}
+
+.assign-search {
+  background: rgba(255, 255, 255, 0.96);
+  border-radius: 10px;
+  padding: 0.25rem 0.65rem 0.55rem;
+}
+
+.assign-search .search-input {
+  --padding-start: 0;
+  --color: #0f172a;
+}
+
+.search-hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.suggest {
+  list-style: none;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  max-height: 140px;
+  overflow: auto;
+}
+
+.suggest li {
+  padding: 0.5rem 0.1rem;
+  border-top: 1px solid #eef2f0;
+  cursor: pointer;
+}
+
+.suggest li strong {
+  display: block;
+  color: #1a4731;
+  font-size: 0.88rem;
+}
+
+.suggest li span {
+  display: block;
+  color: #64748b;
+  font-size: 0.74rem;
+  margin-top: 0.1rem;
+}
+
+.scan-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 1.25rem 3rem;
+  pointer-events: none;
+  background: transparent;
+}
+
+.scan-frame {
+  position: absolute;
+  top: 22%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(72vw, 280px);
+  height: min(72vw, 280px);
+  border: 3px solid #d4af37;
+  border-radius: 16px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
+  pointer-events: none;
+}
+
+.scan-label {
+  pointer-events: none;
+  margin: 0 0 0.35rem;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.55);
+}
+
+.scan-hint {
+  pointer-events: none;
+  margin: 0 0 1.25rem;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.9);
+  text-align: center;
+}
+
+.cancel-scan-btn {
+  pointer-events: auto;
+  --border-radius: 14px;
+  min-width: 160px;
+  font-weight: 800;
+  text-transform: none;
 }
 
 .float-acc {
@@ -1041,11 +1487,6 @@ onBeforeUnmount(async () => {
 }
 
 .action-hub-float {
-  position: absolute;
-  top: 68px;
-  left: 12px;
-  right: 12px;
-  z-index: 500;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1054,6 +1495,7 @@ onBeforeUnmount(async () => {
   border-radius: 10px;
   background: rgba(15, 36, 25, 0.72);
   backdrop-filter: blur(2px);
+  pointer-events: auto;
 }
 
 .hub-label {
@@ -1171,6 +1613,26 @@ onBeforeUnmount(async () => {
   border-radius: 12px;
   padding: 0.75rem 0.85rem;
   margin-bottom: 0.75rem;
+}
+
+.budget-card {
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 12px;
+  padding: 0.75rem 0.85rem;
+  margin-bottom: 0.75rem;
+}
+
+.budget-warn {
+  margin: 0.5rem 0 0;
+  padding: 0.45rem 0.55rem;
+  border-radius: 8px;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  color: #9a3412;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.35;
 }
 
 .rcm-title {

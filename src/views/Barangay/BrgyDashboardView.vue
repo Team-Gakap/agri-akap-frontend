@@ -73,15 +73,17 @@
           <ion-card-content class="chart-row">
             <div class="chart-pane">
               <p class="chart-caption">Active Crop Stages</p>
-              <div class="chart-box">
+              <div v-if="hasStageData(dashboardData.crop_stages)" class="chart-box">
                 <Doughnut :data="cropStageChartData" :options="doughnutOptions" />
               </div>
+              <p v-else class="empty-inline">No standing crop recorded yet.</p>
             </div>
             <div class="chart-pane">
               <p class="chart-caption">Harvest Yields vs Crop Damage</p>
-              <div class="chart-box">
+              <div v-if="hasMonthlyData(dashboardData.monthly_yield_damage)" class="chart-box">
                 <Bar :data="yieldDamageChartData" :options="barOptions" />
               </div>
+              <p v-else class="empty-inline">No harvest or damage recorded yet.</p>
             </div>
           </ion-card-content>
         </ion-card>
@@ -90,7 +92,7 @@
         <ion-card class="dense-card lg:col-span-4">
           <ion-card-header class="dense-head">
             <ion-card-title>Weather</ion-card-title>
-            <ion-card-subtitle>6-hour action window</ion-card-subtitle>ion-card-subti
+            <ion-card-subtitle>6-hour action window</ion-card-subtitle>
           </ion-card-header>
           <ion-card-content class="climate-body">
             <div class="climate-now">
@@ -260,29 +262,25 @@ interface DashboardData {
 const CROP_STAGE_LABELS: Array<keyof CropStages> = ['seedling', 'vegetative', 'reproductive', 'maturity'];
 const CROP_STAGE_TITLES = ['Seedling', 'Vegetative', 'Reproductive', 'Maturity'];
 
-const MOCK_CROP_STAGES: CropStages = {
-  seedling: 12,
-  vegetative: 28,
-  reproductive: 19,
-  maturity: 9,
+const EMPTY_CROP_STAGES: CropStages = {
+  seedling: 0,
+  vegetative: 0,
+  reproductive: 0,
+  maturity: 0,
 };
 
 function lastSixMonthKeys(): MonthlyYieldDamage[] {
   const now = new Date();
   return Array.from({ length: 6 }, (_, i) => {
     const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
-    const mockHarvest = [4.2, 6.1, 8.4, 11.2, 9.6, 7.3][i];
-    const mockDamage = [1.1, 0.8, 2.4, 3.1, 1.6, 0.9][i];
     return {
       month: d.toLocaleString('en-PH', { month: 'short' }),
       key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
-      harvest: mockHarvest,
-      damage: mockDamage,
+      harvest: 0,
+      damage: 0,
     };
   });
 }
-
-const MOCK_MONTHLY: MonthlyYieldDamage[] = lastSixMonthKeys();
 
 const router = useRouter();
 const authStore = useAuthStore();
@@ -304,8 +302,8 @@ const dashboardData = reactive<DashboardData>({
   claimed_subsidies: 0,
   unclaimed_subsidies: 0,
   active_threats: 0,
-  crop_stages: { ...MOCK_CROP_STAGES },
-  monthly_yield_damage: [...MOCK_MONTHLY],
+  crop_stages: { ...EMPTY_CROP_STAGES },
+  monthly_yield_damage: lastSixMonthKeys(),
 });
 
 const currentWeather = ref<CurrentWeather | null>(null);
@@ -510,8 +508,8 @@ const fetchDashboard = async () => {
       claimed_subsidies: Number(desc.claimed_subsidies ?? 0),
       unclaimed_subsidies: Number(desc.unclaimed_subsidies ?? desc.pending_subsidies ?? 0),
       active_threats: Number(desc.active_threats ?? 0),
-      crop_stages: hasStageData(stages) ? stages : { ...MOCK_CROP_STAGES },
-      monthly_yield_damage: hasMonthlyData(monthly) ? monthly : [...MOCK_MONTHLY],
+      crop_stages: stages,
+      monthly_yield_damage: monthly.length ? monthly : lastSixMonthKeys(),
     });
 
     currentWeather.value = diag.current_weather ?? null;

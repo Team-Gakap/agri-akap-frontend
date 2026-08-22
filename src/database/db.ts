@@ -66,6 +66,7 @@ export interface OfflinePlantingLog {
   id?: number;
   client_id: string;
   farmer_id: string;
+  farm_plot_id?: string;
   crop_type: string;
   variety: string;
   area_planted: number;
@@ -97,6 +98,7 @@ export interface OfflinePestReport {
   lat: number | null;
   lng: number | null;
   report_id?: string;
+  server_id?: string;
   item_distributed?: string;
   quantity?: string;
   sync_status: OfflineSyncStatus;

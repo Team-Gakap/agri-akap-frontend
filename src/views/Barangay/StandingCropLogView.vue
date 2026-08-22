@@ -1,6 +1,6 @@
 <template>
-  <ion-page>
-    <ion-header class="no-print">
+  <component :is="embedded ? 'div' : IonPage" class="encode-root">
+    <ion-header v-if="!embedded" class="no-print">
       <ion-toolbar color="primary">
         <ion-buttons slot="start">
           <ion-menu-button></ion-menu-button>
@@ -9,11 +9,16 @@
       </ion-toolbar>
     </ion-header>
 
-    <ion-content class="ion-padding page-bg">
+    <component :is="embedded ? 'div' : IonContent" class="ion-padding page-bg" :class="{ 'embedded-encode-body': embedded }">
       <div class="wrapper no-print">
-        <div v-if="!assignedBarangay" class="warn-banner">
-          No assigned barangay on this account. Ask MAO admin to set <code>assigned_barangay</code> before encoding.
-        </div>
+        <EncodingBarangaySelector
+          :is-admin-override="isAdminOverride"
+          v-model:selected-barangay="selectedBarangay"
+          :barangay-options="barangayOptions"
+          :loading-barangays="loadingBarangays"
+          :can-encode="canEncode"
+          @change="onTargetBarangayChange"
+        />
 
         <div class="form-card">
           <h3>Add Record</h3>
@@ -24,7 +29,7 @@
               label="Search Farmer (RSBSA / Name)"
               label-placement="stacked"
               :value="farmerSearch.query.value"
-              :disabled="!assignedBarangay"
+              :disabled="!canEncode"
               placeholder="Type to search…"
               @ionInput="(e: any) => farmerSearch.onQueryInput(e.detail.value || '')"
             ></ion-input>
@@ -101,7 +106,7 @@
           </ion-button>
         </div>
 
-        <div class="preview-section no-print">
+        <div v-if="!embedded" class="preview-section no-print">
           <div class="preview-toolbar">
             <div class="preview-meta">
               <h3>Form Preview</h3>
@@ -118,26 +123,27 @@
         </div>
       </div>
 
-      <div class="form-preview print-document">
+      <div v-if="!embedded" class="form-preview print-document">
         <StandingCropPrint
           :rows="previewRows"
-          :barangay="assignedBarangay || ''"
+          :barangay="effectiveBarangay || ''"
           :crop="previewCrop"
         />
       </div>
-    </ion-content>
-  </ion-page>
+    </component>
+  </component>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, defineAsyncComponent, onMounted, watch } from 'vue';
+import { ref, reactive, computed, defineAsyncComponent, onMounted } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
   IonButton, IonIcon, IonInput, IonSelect, IonSelectOption, toastController,
 } from '@ionic/vue';
 import FormExportActions from '@/components/FormExportActions.vue';
 import { exportStandingCropExcel } from '@/utils/statutoryFormExcel';
-import { useAuthStore } from '@/stores/authStore';
+import { useEncodingBarangay } from '@/composables/useEncodingBarangay';
+import EncodingBarangaySelector from '@/components/EncodingBarangaySelector.vue';
 import {
   useBarangayFarmerSearch,
   formatBirthday,
@@ -146,6 +152,9 @@ import {
 import apiClient from '@/utils/axios';
 
 const StandingCropPrint = defineAsyncComponent(() => import('@/components/StandingCropPrint.vue'));
+
+withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
+const emit = defineEmits<{ saved: [] }>();
 
 interface StandingCropEntry {
   id: string;
@@ -162,9 +171,15 @@ interface StandingCropEntry {
   est_harvest_date: string;
 }
 
-const authStore = useAuthStore();
-const assignedBarangay = computed(() => authStore.user?.assigned_barangay || null);
-const farmerSearch = useBarangayFarmerSearch(() => assignedBarangay.value);
+const {
+  isAdminOverride,
+  selectedBarangay,
+  barangayOptions,
+  loadingBarangays,
+  effectiveBarangay,
+  canEncode,
+} = useEncodingBarangay();
+const farmerSearch = useBarangayFarmerSearch(() => effectiveBarangay.value);
 
 const entries = ref<StandingCropEntry[]>([]);
 const saving = ref(false);
@@ -206,31 +221,10 @@ const form = reactive({
 });
 
 const canAdd = computed(() =>
-  !!form.farmer_id && !!form.area_ha && !!form.variety && !!form.est_harvest_date && !saving.value
+  canEncode.value && !!form.farmer_id && !!form.area_ha && !!form.variety && !!form.est_harvest_date && !saving.value
 );
 
-const debugFormSnapshot = () => ({
-  farmer_id: !!form.farmer_id,
-  plot_id: form.plot_id || null,
-  area_ha: form.area_ha || null,
-  variety: form.variety || null,
-  est_harvest_date: form.est_harvest_date || null,
-  crop_type: form.crop_type,
-  canAdd: !!form.farmer_id && !!form.area_ha && !!form.variety && !!form.est_harvest_date,
-  entries: entries.value.length,
-  assignedBarangay: assignedBarangay.value || null,
-});
-
-watch(canAdd, (v) => {
-  // #region agent log
-  fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7cd166'},body:JSON.stringify({sessionId:'7cd166',runId:'pre-fix',hypothesisId:'H2',location:'StandingCropLogView.vue:canAdd',message:'standing canAdd changed',data:{...debugFormSnapshot(),canAdd:v},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
-}, { immediate: true });
-
 onMounted(() => {
-  // #region agent log
-  fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7cd166'},body:JSON.stringify({sessionId:'7cd166',runId:'pre-fix',hypothesisId:'H1',location:'StandingCropLogView.vue:onMounted',message:'standing page mounted with no API load',data:{assignedBarangay:assignedBarangay.value||null,entries:entries.value.length,hasLoadLedger:false},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   void loadLedger();
 });
 
@@ -241,8 +235,14 @@ const totalHa = computed(() =>
 const sliceDate = (v: any) => String(v || '').slice(0, 10);
 
 const loadLedger = async () => {
+  if (!effectiveBarangay.value) {
+    entries.value = [];
+    return;
+  }
   try {
-    const res = await apiClient.get('/standing-crop-logs', { params: { per_page: 200 } });
+    const res = await apiClient.get('/standing-crop-logs', {
+      params: { per_page: 200, barangay: effectiveBarangay.value },
+    });
     const rows = res.data?.data?.data ?? [];
     entries.value = rows.map((r: any) => {
       const farmer = r.farmer || {};
@@ -261,23 +261,19 @@ const loadLedger = async () => {
         est_harvest_date: sliceDate(r.est_harvest_date),
       } as StandingCropEntry;
     });
-    // #region agent log
-    fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7cd166'},body:JSON.stringify({sessionId:'7cd166',runId:'post-fix',hypothesisId:'H1',location:'StandingCropLogView.vue:loadLedger',message:'standing ledger loaded from API',data:{ok:true,entries:entries.value.length,status:res.status},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-  } catch (e: any) {
+  } catch {
     entries.value = [];
-    // #region agent log
-    fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7cd166'},body:JSON.stringify({sessionId:'7cd166',runId:'post-fix',hypothesisId:'H1',location:'StandingCropLogView.vue:loadLedger',message:'standing ledger load failed',data:{ok:false,status:e?.response?.status||null,err:e?.response?.data?.message||e?.message||'error'},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
   }
+};
+
+const onTargetBarangayChange = () => {
+  resetForm();
+  void loadLedger();
 };
 
 const onSelectFarmer = async (f: FarmerOption) => {
   await farmerSearch.selectFarmer(f);
   const sel = farmerSearch.selected.value;
-  // #region agent log
-  fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7cd166'},body:JSON.stringify({sessionId:'7cd166',runId:'pre-fix',hypothesisId:'H5',location:'StandingCropLogView.vue:onSelectFarmer',message:'standing farmer selected',data:{selected:!!sel,plotCount:sel?.plots?.length||0,searchId:f.id||null},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   if (!sel) return;
   form.farmer_id = sel.id;
   form.rsbsa_no = sel.rsbsa_no;
@@ -328,9 +324,6 @@ const resetForm = () => {
 };
 
 const addEntry = async () => {
-  // #region agent log
-  fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7cd166'},body:JSON.stringify({sessionId:'7cd166',runId:'pre-fix',hypothesisId:'H3',location:'StandingCropLogView.vue:addEntry',message:'standing addEntry clicked',data:debugFormSnapshot(),timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   if (!canAdd.value) return;
   saving.value = true;
   const id = crypto.randomUUID();
@@ -360,19 +353,11 @@ const addEntry = async () => {
       growth_stage: form.growth_stage,
       est_harvest_date: form.est_harvest_date,
     });
-    // #region agent log
-    fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7cd166'},body:JSON.stringify({sessionId:'7cd166',runId:'pre-fix',hypothesisId:'H4',location:'StandingCropLogView.vue:addEntry:afterPush',message:'standing local push done',data:{entries:entries.value.length,lastId:id},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-    // #region agent log
-    fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7cd166'},body:JSON.stringify({sessionId:'7cd166',runId:'post-fix',hypothesisId:'H1',location:'StandingCropLogView.vue:addEntry:saved',message:'standing entry persisted',data:{ok:true,entries:entries.value.length,id},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     resetForm();
     const t = await toastController.create({ message: 'Standing crop entry saved.', color: 'success', duration: 1800, position: 'top' });
     await t.present();
+    emit('saved');
   } catch (e: any) {
-    // #region agent log
-    fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7cd166'},body:JSON.stringify({sessionId:'7cd166',runId:'post-fix',hypothesisId:'H1',location:'StandingCropLogView.vue:addEntry:saved',message:'standing entry persist failed',data:{ok:false,status:e?.response?.status||null,err:e?.response?.data?.message||'error'},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     const t = await toastController.create({
       message: e?.response?.data?.message || 'Failed to save standing crop entry.',
       color: 'danger',
@@ -392,7 +377,7 @@ const printForm = () => {
 const downloadExcel = async () => {
   await exportStandingCropExcel({
     rows: previewRows.value,
-    barangay: assignedBarangay.value || '',
+    barangay: effectiveBarangay.value || '',
     crop: previewCrop.value,
   });
 };

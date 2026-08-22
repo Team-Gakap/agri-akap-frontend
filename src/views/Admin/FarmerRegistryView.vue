@@ -86,6 +86,7 @@
                     <strong>{{ formatName(f) }}</strong>
                     <span v-if="f.verification_status === 'rts'" class="status-badge rts">RTS</span>
                     <span v-else-if="f.verification_status === 'approved'" class="status-badge approved">Approved</span>
+                    <span v-if="f.area_mismatch" class="status-badge mismatch">Area Mismatch (Legacy)</span>
                   </td>
                   <td>{{ f.permanent_brgy || '—' }}</td>
                   <td>{{ f.mobile_number || '—' }}</td>
@@ -150,10 +151,53 @@
                 {{ (selectedFarmer.verification_status || 'pending').toUpperCase() }}
               </strong>
             </div>
+            <div class="info-row">
+              <span>Registered Area:</span>
+              <strong>{{ fmtHa(selectedFarmer.total_farm_area_ha) }} ha</strong>
+            </div>
+            <div class="info-row">
+              <span>Mapped Area:</span>
+              <strong>{{ fmtHa(selectedFarmer.mapped_area_ha) }} ha</strong>
+            </div>
+            <div v-if="selectedFarmer.area_mismatch" class="mismatch-banner">
+              <span class="status-badge mismatch">Area Mismatch (Legacy)</span>
+              <p>Mapped plots exceed the registered farm area. Review and remove duplicate plots below.</p>
+            </div>
             <div v-if="selectedFarmer.rts_reason" class="rts-reason-box">
               <strong>RTS Reason:</strong>
               <p>{{ selectedFarmer.rts_reason }}</p>
             </div>
+          </div>
+
+          <div class="plots-review">
+            <div class="plots-head">
+              <h3>Farm Plots</h3>
+              <ion-button size="small" fill="outline" :disabled="loadingPlots" @click="loadFarmerPlots">
+                {{ loadingPlots ? 'Loading…' : 'Review Plots' }}
+              </ion-button>
+            </div>
+            <div v-if="reviewPlots.length" class="plot-list">
+              <div v-for="p in reviewPlots" :key="p.id" class="plot-row">
+                <div>
+                  <strong>{{ p.commodity || 'Plot' }}</strong>
+                  <p>{{ fmtHa(p.size_ha) }} ha · {{ p.location_brgy || '—' }}</p>
+                  <p class="plot-meta">
+                    Created {{ fmtDate(p.created_at) }}
+                    <span v-if="p.has_discrepancy"> · discrepancy flagged</span>
+                  </p>
+                </div>
+                <ion-button
+                  size="small"
+                  color="danger"
+                  fill="outline"
+                  :disabled="deletingPlotId === p.id"
+                  @click="confirmDeletePlot(p)"
+                >
+                  {{ deletingPlotId === p.id ? 'Removing…' : 'Remove' }}
+                </ion-button>
+              </div>
+            </div>
+            <p v-else-if="plotsLoaded" class="plots-empty">No active farm plots.</p>
           </div>
 
           <div class="action-buttons">
@@ -164,7 +208,7 @@
               @click="promptRtsReason"
             >
               <ion-icon slot="start" :icon="warningOutline"></ion-icon>
-              {{ processingRts ? 'Processing…' : '⚠️ Return for Correction (RTS)' }}
+              {{ processingRts ? 'Processing…' : 'Return for Correction (RTS)' }}
             </ion-button>
           </div>
         </div>
@@ -196,10 +240,24 @@ const meta = ref({ current_page: 1, last_page: 1, total: 0 });
 const verificationModalOpen = ref(false);
 const selectedFarmer = ref<any | null>(null);
 const processingRts = ref(false);
+const reviewPlots = ref<any[]>([]);
+const loadingPlots = ref(false);
+const plotsLoaded = ref(false);
+const deletingPlotId = ref<string | null>(null);
 
 const formatName = (f: any) => {
   const parts = [f.surname, f.first_name, f.middle_name, f.ext_name].filter(Boolean);
   return parts.length ? `${f.surname}, ${[f.first_name, f.middle_name, f.ext_name].filter(Boolean).join(' ')}` : '—';
+};
+
+const fmtHa = (v: unknown) => Number(v ?? 0).toLocaleString('en-PH', { maximumFractionDigits: 2 });
+const fmtDate = (d: string) => {
+  if (!d) return '—';
+  try {
+    return new Date(d).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: '2-digit' });
+  } catch {
+    return d;
+  }
 };
 
 const toast = async (message: string, color: 'success' | 'warning' | 'danger' | 'primary' = 'success') => {
@@ -276,14 +334,92 @@ onMounted(() => {
   fetchFarmers();
 });
 
-const openVerificationModal = (farmer: any) => {
+const openVerificationModal = async (farmer: any) => {
   selectedFarmer.value = farmer;
+  reviewPlots.value = [];
+  plotsLoaded.value = false;
   verificationModalOpen.value = true;
+  try {
+    const res = await apiClient.get(`/farmers/${farmer.id}`);
+    if (res.data?.data) {
+      selectedFarmer.value = { ...farmer, ...res.data.data };
+    }
+  } catch {
+    /* keep list row fields */
+  }
+  if (selectedFarmer.value?.area_mismatch) {
+    await loadFarmerPlots();
+  }
 };
 
 const closeVerificationModal = () => {
   verificationModalOpen.value = false;
   selectedFarmer.value = null;
+  reviewPlots.value = [];
+  plotsLoaded.value = false;
+  deletingPlotId.value = null;
+};
+
+const loadFarmerPlots = async () => {
+  if (!selectedFarmer.value?.id) return;
+  loadingPlots.value = true;
+  try {
+    const res = await apiClient.get('/farm-plots', {
+      params: { farmer_id: selectedFarmer.value.id },
+    });
+    reviewPlots.value = res.data?.data ?? [];
+    plotsLoaded.value = true;
+  } catch (err: any) {
+    await toast(err?.response?.data?.message || 'Could not load farm plots.', 'danger');
+  } finally {
+    loadingPlots.value = false;
+  }
+};
+
+const confirmDeletePlot = async (plot: any) => {
+  const alert = await alertController.create({
+    header: 'Remove farm plot?',
+    message: `Soft-delete ${plot.commodity || 'plot'} (${fmtHa(plot.size_ha)} ha)? This reduces the mapped total for area mismatch cleanup.`,
+    buttons: [
+      { text: 'Cancel', role: 'cancel' },
+      {
+        text: 'Remove',
+        role: 'destructive',
+        handler: () => {
+          void deletePlot(plot.id);
+        },
+      },
+    ],
+  });
+  await alert.present();
+};
+
+const deletePlot = async (plotId: string) => {
+  deletingPlotId.value = plotId;
+  try {
+    await apiClient.delete(`/farm-plots/${plotId}`);
+    reviewPlots.value = reviewPlots.value.filter((p) => p.id !== plotId);
+    await toast('Farm plot removed.', 'success');
+    if (selectedFarmer.value?.id) {
+      const res = await apiClient.get(`/farmers/${selectedFarmer.value.id}`);
+      if (res.data?.data) {
+        selectedFarmer.value = { ...selectedFarmer.value, ...res.data.data };
+        const idx = farmers.value.findIndex((f) => f.id === selectedFarmer.value?.id);
+        if (idx !== -1) {
+          farmers.value[idx] = {
+            ...farmers.value[idx],
+            area_mismatch: selectedFarmer.value.area_mismatch,
+            mapped_area_ha: selectedFarmer.value.mapped_area_ha,
+            farm_plots_count: reviewPlots.value.length,
+          };
+        }
+      }
+    }
+  } catch (err: any) {
+    await toast(err?.response?.data?.message || 'Failed to remove plot.', 'danger');
+  } finally {
+    deletingPlotId.value = null;
+  }
 };
 
 const promptRtsReason = async () => {
@@ -454,6 +590,80 @@ td strong { color: #1a4731; }
   background: #f0fdf4;
   color: #16a34a;
   border: 1px solid #86efac;
+}
+
+.status-badge.mismatch {
+  background: #ffedd5;
+  color: #9a3412;
+  border: 1px solid #fdba74;
+}
+
+.mismatch-banner {
+  margin-top: 0.75rem;
+  padding: 0.7rem 0.8rem;
+  border-radius: 8px;
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+}
+
+.mismatch-banner p {
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+  color: #9a3412;
+}
+
+.plots-review {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.plots-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.plots-head h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: #1a4731;
+}
+
+.plot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.plot-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+}
+
+.plot-row p {
+  margin: 0.15rem 0 0;
+  font-size: 0.82rem;
+  color: #475569;
+}
+
+.plot-meta {
+  font-size: 0.75rem !important;
+  color: #64748b !important;
+}
+
+.plots-empty {
+  margin: 0.35rem 0 0;
+  color: #94a3b8;
+  font-size: 0.85rem;
 }
 
 .verification-content {

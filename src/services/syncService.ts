@@ -428,6 +428,7 @@ export async function syncAllPendingData(): Promise<{ synced: number; failed: nu
       planting_logs: planting_logs.map((r) => ({
         client_id: r.client_id,
         farmer_id: r.farmer_id,
+        farm_plot_id: r.farm_plot_id,
         rsbsa_no: r.rsbsa_no,
         crop_type: r.crop_type,
         variety: r.variety,
@@ -452,6 +453,7 @@ export async function syncAllPendingData(): Promise<{ synced: number; failed: nu
         lat: r.lat,
         lng: r.lng,
         report_id: r.report_id,
+        server_id: r.server_id,
         item_distributed: r.item_distributed,
         quantity: r.quantity,
       })),

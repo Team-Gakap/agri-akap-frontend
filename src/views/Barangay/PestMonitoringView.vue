@@ -90,11 +90,6 @@
             <ion-input class="field" type="number" label="Area Damaged (%)" label-placement="stacked" :value="form.area_damage_pct" @ionInput="(e: any) => form.area_damage_pct = e.detail.value"></ion-input>
             <ion-input class="field grow" label="Damage by Pest/Disease" label-placement="stacked" :value="form.damage_by" @ionInput="(e: any) => form.damage_by = e.detail.value"></ion-input>
             <ion-input class="field" type="date" label="Date of Inspection" label-placement="stacked" :value="form.date_of_inspection" @ionInput="(e: any) => form.date_of_inspection = e.detail.value"></ion-input>
-            <div class="field photo-field">
-              <label class="photo-lbl">Photo Evidence (optional)</label>
-              <input type="file" accept="image/*" @change="onPhoto" />
-              <img v-if="form.photo_preview" :src="form.photo_preview" alt="Evidence" class="photo-prev" />
-            </div>
           </div>
 
           <ion-button expand="block" class="add-btn" :disabled="!canAdd" @click="addEntry">
@@ -169,7 +164,6 @@ interface PestEntry {
   area_damage_pct: number;
   damage_by: string;
   date_of_inspection: string;
-  photo_preview: string | null;
 }
 
 const {
@@ -225,7 +219,6 @@ const form = reactive({
   area_damage_pct: '',
   damage_by: '',
   date_of_inspection: '',
-  photo_preview: null as string | null,
 });
 
 const matchingPlots = computed(() => farmerSearch.plotsForCommodity(crop.value));
@@ -281,7 +274,6 @@ const loadLedger = async () => {
         area_damage_pct: Number(r.area_damage_pct ?? r.incidence) || 0,
         damage_by: r.pest_name || '',
         date_of_inspection: r.date_of_inspection?.slice?.(0, 10) || r.date_of_inspection || '',
-        photo_preview: null,
       } as PestEntry;
     });
   } catch {
@@ -346,20 +338,6 @@ const onPlotChange = (e: any) => {
   }
 };
 
-const onPhoto = (ev: Event) => {
-  const input = ev.target as HTMLInputElement;
-  const file = input.files?.[0];
-  if (!file) {
-    form.photo_preview = null;
-    return;
-  }
-  const reader = new FileReader();
-  reader.onload = () => {
-    form.photo_preview = String(reader.result || null);
-  };
-  reader.readAsDataURL(file);
-};
-
 const resetForm = () => {
   farmerSearch.clearSelection();
   form.farmer_id = '';
@@ -379,7 +357,6 @@ const resetForm = () => {
   form.area_damage_pct = '';
   form.damage_by = '';
   form.date_of_inspection = '';
-  form.photo_preview = null;
 };
 
 const addEntry = async () => {
@@ -410,7 +387,6 @@ const addEntry = async () => {
       damage_by: form.damage_by,
       date_of_inspection: form.date_of_inspection,
       farm_location: form.farm_location,
-      photo_base64: form.photo_preview || undefined,
       barangay_name: payloadBarangayName(),
     });
 
@@ -432,7 +408,6 @@ const addEntry = async () => {
       area_damage_pct: Number(form.area_damage_pct),
       damage_by: form.damage_by,
       date_of_inspection: form.date_of_inspection,
-      photo_preview: form.photo_preview,
     });
     resetForm();
     const t = await toastController.create({ message: 'Pest inspection saved.', color: 'success', duration: 1800, position: 'top' });
@@ -553,8 +528,5 @@ onMounted(() => {
 }
 .ro.full { flex: 1 1 100%; }
 .lbl { display: block; font-size: 0.68rem; color: #64748b; text-transform: uppercase; font-weight: 700; }
-.photo-field { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; }
-.photo-lbl { font-size: 0.75rem; font-weight: 700; color: #64748b; text-transform: uppercase; }
-.photo-prev { max-width: 160px; max-height: 120px; border-radius: 8px; border: 1px solid #e2e8f0; object-fit: cover; }
 .add-btn { --background: #1a4731; text-transform: none; font-weight: 700; }
 </style>

@@ -42,7 +42,7 @@ import { IonModal, IonHeader, IonToolbar, IonTitle, IonButtons, IonButton, IonCo
 import MobileSubsidyDispenseView from '@/views/Technician/MobileSubsidyDispenseView.vue';
 import ReleasePage from '@/views/Scanner/ReleasePage.vue';
 
-export type EncodeKind = 'planting' | 'harvest' | 'pest' | 'damage' | 'subsidy';
+export type EncodeKind = 'planting' | 'harvest' | 'pest' | 'damage' | 'subsidy' | 'standing';
 
 const props = defineProps<{
   isOpen: boolean;

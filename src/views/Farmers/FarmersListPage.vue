@@ -367,7 +367,10 @@
             </ion-item>
           </ion-list>
 
-          <h3 class="section-title">Farm Plots ({{ (selectedFarmer.farm_plots || []).length }})</h3>
+          <h3 class="section-title">
+            Farm Plots ({{ (selectedFarmer.farm_plots || []).length }})
+            · Total {{ totalPlotHa(selectedFarmer) }} ha
+          </h3>
           <ion-card v-for="plot in (selectedFarmer.farm_plots || [])" :key="plot.id" class="plot-card">
             <ion-card-content>
               <div class="plot-row">
@@ -436,6 +439,12 @@ const API_BASE = import.meta.env.VITE_API_URL?.replace('/api', '') ?? 'http://12
 const isModalOpen = ref(false);
 const selectedFarmer = ref<any>(null);
 const isLoadingDetail = ref(false);
+
+const totalPlotHa = (farmer: any) => {
+  const plots = farmer?.farm_plots || farmer?.farmPlots || [];
+  const sum = plots.reduce((s: number, p: any) => s + (Number(p.size_ha) || 0), 0);
+  return sum.toLocaleString('en-PH', { maximumFractionDigits: 2 });
+};
 
 // ── Filter state ──────────────────────────────────────────────────
 const barangays = ref<string[]>([]);

@@ -133,28 +133,11 @@
           <ion-card-title>Damage Classification</ion-card-title>
         </ion-card-header>
         <ion-card-content>
-          <ion-segment
-            class="damage-segment"
-            :value="state.damageType"
-            @ionChange="onDamageTypeChange"
-          >
-            <ion-segment-button value="total">
-              <ion-label>Totally Damaged</ion-label>
-            </ion-segment-button>
-            <ion-segment-button value="partial">
-              <ion-label>Partially Damaged</ion-label>
-            </ion-segment-button>
-          </ion-segment>
-
-          <div class="damage-type-hint" :class="state.damageType">
-            {{ state.damageType === 'total' ? 'Total crop loss — yield set to 100%' : 'Adjust estimated yield loss below' }}
-          </div>
-
-          <ion-item v-if="state.damageType === 'partial'" class="field-item range-item" lines="none">
+          <ion-item class="field-item range-item" lines="none">
             <ion-label position="stacked">Estimated Yield Loss (%)</ion-label>
             <ion-range
-              :min="1"
-              :max="99"
+              :min="0"
+              :max="100"
               :step="1"
               :value="state.yieldLossPct"
               pin
@@ -164,18 +147,24 @@
             <ion-note slot="end" class="range-note">{{ state.yieldLossPct }}%</ion-note>
           </ion-item>
 
-          <div v-else class="yield-lock">
-            <span class="yield-lock-label">Estimated Yield Loss</span>
-            <span class="yield-lock-value">100%</span>
-          </div>
-
           <ion-item class="field-item" lines="none">
             <ion-input
               type="number"
               label="Area Damaged (Hectares)"
               label-placement="stacked"
               :value="state.areaDamaged"
-              @ionInput="(e: CustomEvent) => state.areaDamaged = e.detail.value ?? ''"
+              @ionInput="onAreaDamagedInput"
+            ></ion-input>
+          </ion-item>
+
+          <ion-item class="field-item" lines="none">
+            <ion-input
+              type="number"
+              label="Estimated Value Lost (PHP)"
+              label-placement="stacked"
+              placeholder="Enter peso amount"
+              :value="state.valueLost"
+              @ionInput="(e: CustomEvent) => state.valueLost = e.detail.value ?? ''"
             ></ion-input>
           </ion-item>
         </ion-card-content>
@@ -241,7 +230,7 @@ import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonBackButton,
   IonCard, IonCardHeader, IonCardTitle, IonCardSubtitle, IonCardContent,
   IonButton, IonIcon, IonInput, IonItem, IonSelect, IonSelectOption,
-  IonSegment, IonSegmentButton, IonLabel, IonRange, IonNote, IonChip,
+  IonLabel, IonRange, IonNote, IonChip,
   toastController,
 } from '@ionic/vue';
 import {
@@ -256,8 +245,6 @@ import {
 import apiClient from '@/utils/axios';
 import { formatFarmerName } from '@/data/technicianDispatchQueues';
 
-type DamageType = 'total' | 'partial';
-
 interface CalamityAssessmentState {
   assessmentId: string;
   farmPlotId: string;
@@ -270,9 +257,10 @@ interface CalamityAssessmentState {
   variety: string;
   cropStage: string;
   areaPlanted: string;
-  damageType: DamageType;
   yieldLossPct: number;
   areaDamaged: string;
+  valueLost: string;
+  plotSizeHa: number;
   latitude: number | null;
   longitude: number | null;
   photoDataUrl: string | null;
@@ -304,9 +292,10 @@ const state = reactive<CalamityAssessmentState>({
   variety: '',
   cropStage: 'Vegetative',
   areaPlanted: '',
-  damageType: 'partial',
   yieldLossPct: 40,
   areaDamaged: '',
+  valueLost: '',
+  plotSizeHa: 0,
   latitude: null,
   longitude: null,
   photoDataUrl: null,
@@ -332,6 +321,7 @@ const canSubmit = computed(() =>
   && (!!state.variety || !!state.assessmentId)
   && !!state.areaPlanted
   && !!state.areaDamaged
+  && Number(state.valueLost) > 0
   && state.latitude != null
   && !!state.photoDataUrl
 );
@@ -352,14 +342,10 @@ const applyAssessment = (r: any) => {
   state.cropType = plot.commodity || state.cropType;
   state.cropStage = r.crop_stage || state.cropStage;
   state.areaPlanted = String(r.area_planted_ha ?? plot.size_ha ?? '');
+  state.plotSizeHa = Number(plot.size_ha ?? r.area_planted_ha ?? 0);
   state.areaDamaged = String(r.area_destroyed_ha ?? '');
-  const planted = Number(state.areaPlanted) || 0;
-  const damaged = Number(state.areaDamaged) || 0;
-  if (planted > 0) {
-    const pct = Math.min(100, (damaged / planted) * 100);
-    state.damageType = pct >= 99 ? 'total' : 'partial';
-    state.yieldLossPct = Number(r.damage_percentage) || (state.damageType === 'total' ? 100 : Math.round(pct * 10) / 10);
-  }
+  state.valueLost = r.estimated_value_lost != null ? String(r.estimated_value_lost) : '';
+  state.yieldLossPct = Number(r.damage_percentage) || 0;
 };
 
 onMounted(async () => {
@@ -417,11 +403,13 @@ const onSelectFarmer = async (f: FarmerOption) => {
     const p = sel.plots[0];
     state.farmPlotId = p.id;
     state.areaPlanted = String(p.size_ha || '');
+    state.plotSizeHa = Number(p.size_ha) || 0;
     if (['Rice', 'Corn'].includes(p.commodity)) state.cropType = p.commodity;
   } else if (sel.plots.length) {
     const match = sel.plots.find((p) => p.commodity === state.cropType) || sel.plots[0];
     state.farmPlotId = match.id;
     state.areaPlanted = String(match.size_ha || state.areaPlanted);
+    state.plotSizeHa = Number(match.size_ha) || 0;
   }
 };
 
@@ -429,14 +417,19 @@ const onAreaPlantedInput = (e: CustomEvent) => {
   state.areaPlanted = e.detail.value ?? '';
 };
 
-const onDamageTypeChange = (e: CustomEvent) => {
-  const val = e.detail.value as DamageType;
-  state.damageType = val;
-  if (val === 'total') {
-    state.yieldLossPct = 100;
-  } else if (state.yieldLossPct >= 100) {
-    state.yieldLossPct = 40;
+const onAreaDamagedInput = (e: CustomEvent) => {
+  const raw = e.detail.value ?? '';
+  const planted = Number(state.areaPlanted) || 0;
+  const cap = Math.min(
+    state.plotSizeHa > 0 ? state.plotSizeHa : Number.POSITIVE_INFINITY,
+    planted > 0 ? planted : Number.POSITIVE_INFINITY,
+  );
+  let next = raw;
+  const n = Number(raw);
+  if (!Number.isNaN(n) && Number.isFinite(cap) && n > cap) {
+    next = String(cap);
   }
+  state.areaDamaged = next;
 };
 
 const lockGps = async () => {
@@ -508,6 +501,7 @@ const submitAssessment = async () => {
         area_destroyed_ha: Number(state.areaDamaged) || 0,
         damage_percentage: state.yieldLossPct,
         crop_stage: state.cropStage || undefined,
+        estimated_value_lost: Number(state.valueLost) || 0,
       });
     } else {
       if (!state.farmPlotId) {
@@ -531,6 +525,7 @@ const submitAssessment = async () => {
         area_planted_ha: Number(state.areaPlanted) || 0,
         date_of_calamity: new Date().toISOString().slice(0, 10),
         damage_percentage: state.yieldLossPct,
+        estimated_value_lost: Number(state.valueLost) || 0,
         latitude: state.latitude,
         longitude: state.longitude,
         photo_base64: photo,

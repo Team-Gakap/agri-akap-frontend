@@ -58,6 +58,7 @@ const routes: Array<RouteRecordRaw> = [
       { path: "reports", redirect: "/admin/reports/subsidies" },
       { path: "reports/subsidies", name: "ReportSubsidies", component: () => import("@/views/Admin/Reports/SubsidyReportView.vue") },
       { path: "reports/crop-production", name: "ReportCropProduction", component: () => import("@/views/Admin/Reports/CropProductionReportView.vue") },
+      { path: "reports/standing-crop", name: "ReportStandingCrop", component: () => import("@/views/Admin/Reports/StandingCropReportView.vue") },
       { path: "reports/pest-surveillance", name: "ReportPest", component: () => import("@/views/Admin/Reports/PestReportView.vue") },
       { path: "reports/damage-calamity", name: "ReportDamage", component: () => import("@/views/Admin/Reports/DamageReportView.vue") },
       // Admin override — reuse barangay encoding views (no component duplication)
@@ -84,6 +85,8 @@ const routes: Array<RouteRecordRaw> = [
       { path: "calamity-rdana", name: "MobileCalamityAssessment", component: () => import("@/views/Technician/MobileCalamityAssessmentView.vue") },
       { path: "calamity-queue", name: "MobileCalamityQueue", component: () => import("@/views/Technician/MobileCalamityQueueView.vue") },
       { path: "geo-tag", name: "MobileGeoTag", component: () => import("@/views/Technician/MobileGeoTagView.vue") },
+      { path: "planting", name: "MobilePlantingLog", component: () => import("@/views/Technician/MobilePlantingLogView.vue") },
+      { path: "harvest", name: "MobileHarvestLog", component: () => import("@/views/Technician/MobileHarvestLogView.vue") },
       { path: "farmers/register", name: "TechFarmersRegister", component: () => import("@/views/Farmers/Registration_Form.vue") },
       { path: "map", name: "TechMap", component: () => import("@/views/Map/MapPage.vue") },
       { path: "profile", name: "TechProfile", component: () => import("@/views/Technician/ProfilePage.vue") },

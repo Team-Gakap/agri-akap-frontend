@@ -76,6 +76,28 @@
                 </ion-card-content>
               </ion-card>
             </ion-col>
+            <ion-col size="6">
+              <ion-card button class="tool-card" @click="go('/tech/planting')">
+                <ion-ripple-effect type="bounded"></ion-ripple-effect>
+                <ion-card-content class="tool-content">
+                  <div class="tool-icon planting">
+                    <ion-icon :icon="leafOutline"></ion-icon>
+                  </div>
+                  <h3>Planting Log</h3>
+                </ion-card-content>
+              </ion-card>
+            </ion-col>
+            <ion-col size="6">
+              <ion-card button class="tool-card" @click="go('/tech/harvest')">
+                <ion-ripple-effect type="bounded"></ion-ripple-effect>
+                <ion-card-content class="tool-content">
+                  <div class="tool-icon harvest">
+                    <ion-icon :icon="basketOutline"></ion-icon>
+                  </div>
+                  <h3>Harvest Log</h3>
+                </ion-card-content>
+              </ion-card>
+            </ion-col>
           </ion-row>
         </ion-grid>
       </div>
@@ -92,6 +114,7 @@ import {
 } from '@ionic/vue';
 import {
   bugOutline, thunderstormOutline, qrCodeOutline, locationOutline,
+  leafOutline, basketOutline,
 } from 'ionicons/icons';
 import { useAuthStore } from '@/stores/authStore';
 import { useSyncStore } from '@/stores/syncStore';
@@ -343,6 +366,16 @@ const go = (path: string) => router.push(path);
 .tool-icon.geotag {
   background: #e0f2f1;
   color: #00695c;
+}
+
+.tool-icon.planting {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.tool-icon.harvest {
+  background: #ffedd5;
+  color: #c2410c;
 }
 
 .tool-content h3 {

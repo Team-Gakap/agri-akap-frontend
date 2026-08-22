@@ -85,18 +85,7 @@
             </ion-select>
             <ion-input class="field" label="Variety" label-placement="stacked" :value="form.variety" @ionInput="(e: any) => form.variety = e.detail.value"></ion-input>
             <ion-input class="field" type="number" label="Area Harvested (ha)" label-placement="stacked" :value="form.area_harvested" @ionInput="(e: any) => form.area_harvested = e.detail.value"></ion-input>
-            <ion-input class="field" type="number" label="Total Yield Produced" label-placement="stacked" :value="form.yield_amount" @ionInput="(e: any) => form.yield_amount = e.detail.value"></ion-input>
-            <ion-select
-              class="field"
-              label="Yield Unit"
-              label-placement="stacked"
-              interface="popover"
-              :value="form.yield_unit"
-              @ionChange="(e: any) => form.yield_unit = e.detail.value"
-            >
-              <ion-select-option value="Metric Tons">Metric Tons</ion-select-option>
-              <ion-select-option value="Kilograms">Kilograms</ion-select-option>
-            </ion-select>
+            <ion-input class="field" type="number" label="Total Yield Produced (MT)" label-placement="stacked" :value="form.yield_amount" @ionInput="(e: any) => form.yield_amount = e.detail.value"></ion-input>
             <ion-input class="field" type="date" label="Date of Harvest" label-placement="stacked" :value="form.date_of_harvest" @ionInput="(e: any) => form.date_of_harvest = e.detail.value"></ion-input>
           </div>
 
@@ -134,7 +123,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, defineAsyncComponent, onMounted, watch } from 'vue';
+import { ref, reactive, computed, defineAsyncComponent, onMounted } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
   IonButton, IonIcon, IonInput, IonSelect, IonSelectOption, toastController,
@@ -227,29 +216,9 @@ const canAdd = computed(() =>
   canEncode.value && !!form.farmer_id && !!form.area_harvested && !!form.yield_amount && !!form.date_of_harvest && !!form.variety && !saving.value
 );
 
-const debugFormSnapshot = () => ({
-  farmer_id: !!form.farmer_id,
-  plot_id: form.plot_id || null,
-  area_harvested: form.area_harvested || null,
-  yield_amount: form.yield_amount || null,
-  variety: form.variety || null,
-  date_of_harvest: form.date_of_harvest || null,
-  crop_type: form.crop_type,
-  canAdd: !!form.farmer_id && !!form.area_harvested && !!form.yield_amount && !!form.date_of_harvest && !!form.variety,
-  entries: entries.value.length,
-  assignedBarangay: effectiveBarangay.value || null,
-});
 
-watch(canAdd, (v) => {
-  // #region agent log
-  fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7cd166'},body:JSON.stringify({sessionId:'7cd166',runId:'pre-fix',hypothesisId:'H2',location:'HarvestingLogView.vue:canAdd',message:'harvest canAdd changed',data:{...debugFormSnapshot(),canAdd:v},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
-}, { immediate: true });
 
 onMounted(() => {
-  // #region agent log
-  fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7cd166'},body:JSON.stringify({sessionId:'7cd166',runId:'pre-fix',hypothesisId:'H1',location:'HarvestingLogView.vue:onMounted',message:'harvest page mounted with no API load',data:{assignedBarangay:effectiveBarangay.value||null,entries:entries.value.length,hasLoadLedger:false},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   void loadLedger();
 });
 
@@ -289,23 +258,14 @@ const loadLedger = async () => {
         date_of_harvest: sliceDate(r.date_harvested),
       } as HarvestEntry;
     });
-    // #region agent log
-    fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7cd166'},body:JSON.stringify({sessionId:'7cd166',runId:'post-fix',hypothesisId:'H1',location:'HarvestingLogView.vue:loadLedger',message:'harvest ledger loaded from API',data:{ok:true,entries:entries.value.length,status:res.status},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
   } catch (e: any) {
     entries.value = [];
-    // #region agent log
-    fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7cd166'},body:JSON.stringify({sessionId:'7cd166',runId:'post-fix',hypothesisId:'H1',location:'HarvestingLogView.vue:loadLedger',message:'harvest ledger load failed',data:{ok:false,status:e?.response?.status||null,err:e?.response?.data?.message||e?.message||'error'},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
   }
 };
 
 const onSelectFarmer = async (f: FarmerOption) => {
   await farmerSearch.selectFarmer(f);
   const sel = farmerSearch.selected.value;
-  // #region agent log
-  fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7cd166'},body:JSON.stringify({sessionId:'7cd166',runId:'pre-fix',hypothesisId:'H5',location:'HarvestingLogView.vue:onSelectFarmer',message:'harvest farmer selected',data:{selected:!!sel,plotCount:sel?.plots?.length||0,searchId:f.id||null},timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   if (!sel) return;
   form.farmer_id = sel.id;
   form.rsbsa_no = sel.rsbsa_no;
@@ -361,9 +321,6 @@ const onTargetBarangayChange = () => {
 };
 
 const addEntry = async () => {
-  // #region agent log
-  fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7cd166'},body:JSON.stringify({sessionId:'7cd166',runId:'pre-fix',hypothesisId:'H3',location:'HarvestingLogView.vue:addEntry',message:'harvest addEntry clicked',data:debugFormSnapshot(),timestamp:Date.now()})}).catch(()=>{});
-  // #endregion
   if (!canAdd.value) return;
   saving.value = true;
   const id = crypto.randomUUID();
@@ -377,7 +334,7 @@ const addEntry = async () => {
       variety: form.variety,
       area_harvested: Number(form.area_harvested),
       total_yield: Number(form.yield_amount),
-      yield_unit: form.yield_unit,
+      yield_unit: 'Metric Tons',
       date_harvested: form.date_of_harvest,
       farm_location: form.farm_location,
       barangay_name: payloadBarangayName(),
@@ -394,24 +351,16 @@ const addEntry = async () => {
       variety: form.variety,
       area_harvested: Number(form.area_harvested),
       yield_amount: Number(form.yield_amount),
-      yield_unit: form.yield_unit,
+      yield_unit: 'Metric Tons',
       yield_display: yieldDisplay,
       date_of_harvest: form.date_of_harvest,
     });
-    // #region agent log
-    fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7cd166'},body:JSON.stringify({sessionId:'7cd166',runId:'pre-fix',hypothesisId:'H4',location:'HarvestingLogView.vue:addEntry:afterPush',message:'harvest local push done',data:{entries:entries.value.length,lastId:id},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
-    // #region agent log
-    fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7cd166'},body:JSON.stringify({sessionId:'7cd166',runId:'post-fix',hypothesisId:'H1',location:'HarvestingLogView.vue:addEntry:saved',message:'harvest entry persisted',data:{ok:true,entries:entries.value.length,id},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
+
     resetForm();
     const t = await toastController.create({ message: 'Harvest record saved.', color: 'success', duration: 1800, position: 'top' });
     await t.present();
     emit('saved');
   } catch (e: any) {
-    // #region agent log
-    fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7cd166'},body:JSON.stringify({sessionId:'7cd166',runId:'post-fix',hypothesisId:'H1',location:'HarvestingLogView.vue:addEntry:saved',message:'harvest entry persist failed',data:{ok:false,status:e?.response?.status||null,err:e?.response?.data?.message||'error'},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
     const t = await toastController.create({
       message: e?.response?.data?.message || 'Failed to save harvest record.',
       color: 'danger',

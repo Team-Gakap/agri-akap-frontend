@@ -340,7 +340,20 @@ const onAreaPlantedInput = (e: CustomEvent) => {
 };
 
 const onAreaDamagedInput = (e: CustomEvent) => {
-  form.area_damaged = e.detail.value ?? '';
+  const raw = e.detail.value ?? '';
+  const plot = farmerSearch.selected.value?.plots.find((x) => x.id === form.plot_id);
+  const planted = Number(form.area_planted) || 0;
+  const plotHa = Number(plot?.size_ha) || 0;
+  const cap = Math.min(
+    plotHa > 0 ? plotHa : Number.POSITIVE_INFINITY,
+    planted > 0 ? planted : Number.POSITIVE_INFINITY,
+  );
+  let next = raw;
+  const n = Number(raw);
+  if (!Number.isNaN(n) && Number.isFinite(cap) && n > cap) {
+    next = String(cap);
+  }
+  form.area_damaged = next;
   recalcYieldLoss();
 };
 

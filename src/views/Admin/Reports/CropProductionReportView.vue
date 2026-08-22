@@ -139,6 +139,7 @@
                   <th>Name</th>
                   <th>Farm Location</th>
                   <th>Crop</th>
+                  <th>Variety</th>
                   <th class="col-num">Area Harvested (ha)</th>
                   <th class="col-num">Total Yield (MT)</th>
                   <th>Date Harvested</th>
@@ -146,7 +147,7 @@
               </thead>
               <tbody>
                 <tr v-if="!filteredRows.length">
-                  <td colspan="8" class="empty-row">No harvest data records match the current filters.</td>
+                  <td colspan="9" class="empty-row">No harvest data records match the current filters.</td>
                 </tr>
                 <tr v-for="(row, i) in filteredRows" :key="i">
                   <td class="col-no">{{ i + 1 }}</td>
@@ -154,6 +155,7 @@
                   <td>{{ row.name }}</td>
                   <td>{{ row.farm_location }}</td>
                   <td>{{ row.crop }}</td>
+                  <td>{{ row.variety }}</td>
                   <td class="col-num">{{ fmtNum(row.area_harvested) }}</td>
                   <td class="col-num">{{ fmtNum(row.total_yield) }}</td>
                   <td class="mono">{{ fmtDate(row.date_harvested) }}</td>
@@ -220,6 +222,7 @@ interface HarvestRow {
   name: string;
   farm_location: string;
   crop: string;
+  variety?: string;
   area_harvested: number;
   total_yield: number;
   date_harvested: string;
@@ -328,6 +331,7 @@ async function downloadExcel() {
           { key: 'name', label: 'Name' },
           { key: 'farm_location', label: 'Farm Location' },
           { key: 'crop', label: 'Crop' },
+          { key: 'variety', label: 'Variety' },
           { key: 'area_harvested', label: 'Area Harvested (ha)' },
           { key: 'total_yield', label: 'Total Yield (MT)' },
           { key: 'date_harvested', label: 'Date Harvested' },

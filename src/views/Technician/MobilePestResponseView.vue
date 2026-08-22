@@ -269,6 +269,7 @@ interface PestResponseState {
     reportedPest: string;
     reportId: string;
   };
+  serverRecordId: string;
   /** Raw base64 from Camera (no data-URL prefix). */
   photoBase64: string | null;
   /** Bound to <img src> for preview. */
@@ -322,6 +323,7 @@ const emptyTarget = {
 
 const state = reactive<PestResponseState>({
   target: { ...emptyTarget },
+  serverRecordId: '',
   photoBase64: null,
   photoPreviewSrc: null,
   latitude: null,
@@ -341,6 +343,8 @@ const canSubmit = computed(() =>
   && state.incidencePct >= 0
   && !!state.severity
   && state.advisories.length > 0
+  && !!state.photoBase64
+  && state.latitude != null
 );
 
 const fromQueue = computed(() => route.query.from === 'queue');
@@ -364,6 +368,7 @@ onMounted(async () => {
   applyQueryTarget();
   const id = String(route.query.id || '').trim();
   if (!id) return;
+  state.serverRecordId = id;
   try {
     const res = await apiClient.get(`/pest-monitoring/${id}`);
     const r = res.data?.data;
@@ -534,44 +539,64 @@ const submitReport = async () => {
   submitting.value = true;
   try {
     const rsbsaId = state.target.rsbsaNo || state.qrScanResult || state.target.farmerId || '';
+    const photo = state.photoBase64?.startsWith('data:')
+      ? state.photoBase64
+      : `data:image/jpeg;base64,${state.photoBase64}`;
 
-    // Offline-first: persist to IndexedDB before any network call
-    await db.offline_pest_reports.add({
-      client_id: newUuid(),
-      rsbsa_id: rsbsaId,
-      farmer_id: state.target.farmerId || undefined,
-      crop: state.target.crop,
-      pest_name: state.confirmedPest,
-      incidence: state.incidencePct,
-      severity: state.severity,
-      advisory: state.advisories.join(', '),
-      is_outbreak: state.escalateOutbreak,
-      photo_base64: state.photoBase64,
-      lat: state.latitude,
-      lng: state.longitude,
-      report_id: state.target.reportId,
-      item_distributed: state.itemDistributed || undefined,
-      quantity: state.quantity || undefined,
-      sync_status: 'pending',
-      created_at: new Date().toISOString(),
-    });
+    if (state.serverRecordId && navigator.onLine) {
+      await apiClient.patch(`/pest-monitoring/${state.serverRecordId}/field-validate`, {
+        latitude: state.latitude,
+        longitude: state.longitude,
+        photo_base64: photo,
+        pest_name: state.confirmedPest,
+        incidence: state.incidencePct,
+        severity: state.severity,
+        advisory: state.advisories.join(', '),
+        item_distributed: state.itemDistributed || undefined,
+        quantity: state.quantity || undefined,
+        is_outbreak: state.escalateOutbreak,
+      });
+    } else {
+      await db.offline_pest_reports.add({
+        client_id: newUuid(),
+        rsbsa_id: rsbsaId,
+        farmer_id: state.target.farmerId || undefined,
+        crop: state.target.crop,
+        pest_name: state.confirmedPest,
+        incidence: state.incidencePct,
+        severity: state.severity,
+        advisory: state.advisories.join(', '),
+        is_outbreak: state.escalateOutbreak,
+        photo_base64: state.photoBase64,
+        lat: state.latitude,
+        lng: state.longitude,
+        report_id: state.target.reportId,
+        server_id: state.serverRecordId || undefined,
+        item_distributed: state.itemDistributed || undefined,
+        quantity: state.quantity || undefined,
+        sync_status: 'pending',
+        created_at: new Date().toISOString(),
+      });
 
-    await syncStore.refreshCount();
-    if (navigator.onLine) {
-      void syncAllPendingData().then(() => syncStore.refreshCount());
+      await syncStore.refreshCount();
+      if (navigator.onLine) {
+        void syncAllPendingData().then(() => syncStore.refreshCount());
+      }
     }
 
     const t = await toastController.create({
-      message: 'Saved locally. Will sync when online.',
+      message: state.serverRecordId && navigator.onLine
+        ? 'Field validation saved. Status updated on the pest report.'
+        : 'Saved locally. Will sync when online.',
       duration: 2800,
       color: state.escalateOutbreak ? 'danger' : 'success',
       position: 'top',
     });
     await t.present();
-  } catch (err) {
-    console.warn('[AGRI-AKAP] Failed to queue pest report:', err);
+  } catch (err: any) {
+    console.warn('[AGRI-AKAP] Failed to save pest report:', err);
     const t = await toastController.create({
-      message: 'Could not save locally. Please try again.',
+      message: err?.response?.data?.message || 'Could not save pest validation. Please try again.',
       duration: 2500,
       color: 'danger',
       position: 'top',

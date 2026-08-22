@@ -104,6 +104,7 @@
               </ion-select-option>
             </ion-select>
             <ion-input class="field" type="number" label="Area Planted (ha)" label-placement="stacked" :value="form.area_planted" @ionInput="(e: any) => form.area_planted = e.detail.value"></ion-input>
+            <ion-input class="field" label="Variety" label-placement="stacked" :value="form.variety" @ionInput="(e: any) => form.variety = e.detail.value"></ion-input>
             <ion-input class="field" type="date" label="Date of Planting" label-placement="stacked" :value="form.date_of_planting" @ionInput="(e: any) => form.date_of_planting = e.detail.value"></ion-input>
             <ion-select class="field" label="Planting Status" label-placement="stacked" interface="popover" :value="form.planting_status" @ionChange="(e: any) => form.planting_status = e.detail.value">
               <ion-select-option value="Active">Active</ion-select-option>
@@ -187,6 +188,7 @@ interface PlantingEntry {
   farmer_address: string;
   farm_location: string;
   crop: string;
+  variety: string;
   area_planted: number;
   date_of_planting: string;
   planting_status: string;
@@ -226,6 +228,7 @@ const form = reactive({
   plot_id: '',
   farm_location: '',
   area_planted: '',
+  variety: '',
   date_of_planting: '',
   planting_status: 'Active',
   water_source: 'Deepwell',
@@ -239,6 +242,7 @@ const canAdd = computed(() =>
   && !!form.farmer_id
   && !!form.plot_id
   && !!form.area_planted
+  && !!form.variety.trim()
   && !!form.date_of_planting
   && !saving.value
 );
@@ -266,6 +270,7 @@ const resetEncodeForm = () => {
   form.plot_id = '';
   form.farm_location = '';
   form.area_planted = '';
+  form.variety = '';
   form.date_of_planting = '';
   form.remarks = '';
 };
@@ -307,6 +312,7 @@ const loadLedger = async () => {
         farmer_address: mapFarmerAddress(farmer),
         farm_location: r.farm_location || r.farm_plot?.location_brgy || farmer.permanent_brgy || '',
         crop: r.crop_type || 'Rice',
+        variety: r.variety || '',
         area_planted: Number(r.area_planted) || 0,
         date_of_planting: r.date_planted?.slice?.(0, 10) || r.date_planted || '',
         planting_status: r.status || 'Active',
@@ -388,7 +394,7 @@ const addEntry = async () => {
       farmer_id: form.farmer_id,
       farm_plot_id: form.plot_id || undefined,
       crop_type: crop.value,
-      variety: 'Unspecified',
+      variety: form.variety.trim(),
       area_planted: Number(form.area_planted),
       date_planted: form.date_of_planting,
       status: form.planting_status,
@@ -412,6 +418,7 @@ const addEntry = async () => {
       farmer_address: form.farmer_address,
       farm_location: form.farm_location,
       crop: crop.value,
+      variety: form.variety.trim(),
       area_planted: Number(form.area_planted),
       date_of_planting: form.date_of_planting,
       planting_status: form.planting_status,

@@ -121,6 +121,7 @@ const mainPages: NavPage[] = [
 const reportPages = [
   { title: "Subsidy Distribution",  url: "/admin/reports/subsidies" },
   { title: "Crop Production",       url: "/admin/reports/crop-production" },
+  { title: "Standing Crop",         url: "/admin/reports/standing-crop" },
   { title: "Pest Surveillance",     url: "/admin/reports/pest-surveillance" },
   { title: "Damage & Calamity",     url: "/admin/reports/damage-calamity" },
 ];
