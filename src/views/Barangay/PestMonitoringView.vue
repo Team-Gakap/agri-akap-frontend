@@ -84,10 +84,11 @@
                 {{ p.location_brgy || 'Plot' }} · {{ p.commodity }} · {{ p.size_ha }} ha
               </ion-select-option>
             </ion-select>
-            <ion-input class="field" type="number" label="Area Planted (ha)" label-placement="stacked" :value="form.area_planted" @ionInput="(e: any) => form.area_planted = e.detail.value"></ion-input>
+            <ion-input class="field" type="number" label="Area Planted (ha)" label-placement="stacked" :value="form.area_planted" @ionInput="onAreaPlantedInput"></ion-input>
             <VarietyField v-model="form.variety" :crop="crop" select-class="field" />
             <ion-input class="field" type="number" label="Days After Planting" label-placement="stacked" :value="form.days_after_planting" @ionInput="(e: any) => form.days_after_planting = e.detail.value"></ion-input>
-            <ion-input class="field" type="number" label="Area Damaged (%)" label-placement="stacked" :value="form.area_damage_pct" @ionInput="(e: any) => form.area_damage_pct = e.detail.value"></ion-input>
+            <ion-input class="field" type="number" label="Area Damaged (%)" label-placement="stacked" :value="form.area_damage_pct" @ionInput="onDamagePctInput"></ion-input>
+            <ion-input class="field" type="number" label="Area Affected (ha)" label-placement="stacked" :value="form.area_affected_ha" readonly></ion-input>
             <ion-input class="field grow" label="Damage by Pest/Disease" label-placement="stacked" :value="form.damage_by" @ionInput="(e: any) => form.damage_by = e.detail.value"></ion-input>
             <ion-input class="field" type="date" label="Date of Inspection" label-placement="stacked" :value="form.date_of_inspection" @ionInput="(e: any) => form.date_of_inspection = e.detail.value"></ion-input>
           </div>
@@ -107,6 +108,13 @@
           </div>
           <ul v-if="entries.length" class="entry-actions">
             <li v-for="(e, i) in entries" :key="e.id">
+              <img
+                v-if="e.photo_url"
+                :src="e.photo_url"
+                class="ledger-thumb"
+                alt="Evidence"
+                @click="viewingPhoto = e.photo_url!"
+              />
               <span>{{ i + 1 }}. {{ e.surname }}, {{ e.first_name }} — {{ e.variety || '—' }}</span>
               <ion-button size="small" fill="clear" color="danger" @click="removeEntry(i)">Remove</ion-button>
             </li>
@@ -120,6 +128,12 @@
           :barangay="effectiveBarangay || ''"
           :crop="crop"
         />
+      </div>
+      <div v-if="viewingPhoto" class="photo-overlay no-print" @click.self="viewingPhoto = null">
+        <div class="photo-modal">
+          <button class="photo-close" @click="viewingPhoto = null">✕</button>
+          <img :src="viewingPhoto" class="photo-full" alt="Evidence" />
+        </div>
       </div>
     </component>
   </component>
@@ -143,6 +157,8 @@ import {
 } from '@/composables/useBarangayFarmerSearch';
 import apiClient from '@/utils/axios';
 import { toast } from '@/utils/toast';
+import { capInputToPlot, plotSizeHa } from '@/utils/plotArea';
+import { storageUrl } from '@/utils/storageUrl';
 const PestMonitoringPrint = defineAsyncComponent(() => import('@/components/PestMonitoringPrint.vue'));
 
 withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
@@ -166,6 +182,7 @@ interface PestEntry {
   area_damage_pct: number;
   damage_by: string;
   date_of_inspection: string;
+  photo_url?: string | null;
 }
 
 const {
@@ -183,6 +200,7 @@ const farmerSearch = useBarangayFarmerSearch(() => effectiveBarangay.value, {
 });
 
 const entries = ref<PestEntry[]>([]);
+const viewingPhoto = ref<string | null>(null);
 
 const previewRows = computed(() =>
   entries.value.map((e) => ({
@@ -219,11 +237,33 @@ const form = reactive({
   variety: '',
   days_after_planting: '',
   area_damage_pct: '',
+  area_affected_ha: '',
   damage_by: '',
   date_of_inspection: '',
 });
 
 const matchingPlots = computed(() => farmerSearch.plotsForCommodity(crop.value));
+const selectedPlotSize = computed(() =>
+  plotSizeHa(matchingPlots.value.find((p) => p.id === form.plot_id))
+);
+const syncAffectedHa = () => {
+  const planted = Number(form.area_planted) || 0;
+  const pct = Number(form.area_damage_pct) || 0;
+  const raw = planted * (pct / 100);
+  const cap = selectedPlotSize.value > 0 ? Math.min(planted || selectedPlotSize.value, selectedPlotSize.value) : planted;
+  const ha = cap > 0 ? Math.min(raw, cap) : raw;
+  form.area_affected_ha = planted > 0 ? String(Number(ha.toFixed(4))) : '';
+};
+const onAreaPlantedInput = (e: any) => {
+  form.area_planted = capInputToPlot(e.detail.value, selectedPlotSize.value);
+  syncAffectedHa();
+};
+const onDamagePctInput = (e: any) => {
+  const raw = e.detail.value ?? '';
+  const n = Number(raw);
+  form.area_damage_pct = !Number.isNaN(n) && n > 100 ? '100' : raw;
+  syncAffectedHa();
+};
 
 const canAdd = computed(() =>
   canEncode.value
@@ -253,6 +293,7 @@ const loadLedger = async () => {
         per_page: 200,
         crop_type: crop.value || undefined,
         barangay: effectiveBarangay.value,
+        pending_field: true,
       },
     });
     const rows = res.data?.data?.data ?? [];
@@ -276,6 +317,7 @@ const loadLedger = async () => {
         area_damage_pct: Number(r.area_damage_pct ?? r.incidence) || 0,
         damage_by: r.pest_name || '',
         date_of_inspection: r.date_of_inspection?.slice?.(0, 10) || r.date_of_inspection || '',
+        photo_url: r.photo_url || storageUrl(r.photo_path),
       } as PestEntry;
     });
   } catch {
@@ -323,6 +365,7 @@ const onSelectFarmer = async (f: FarmerOption) => {
     form.farm_location = plots[0].location_brgy || sel.barangay;
     form.area_planted = String(plots[0].size_ha || '');
   }
+  syncAffectedHa();
 };
 
 const onPlotChange = (e: any) => {
@@ -332,6 +375,7 @@ const onPlotChange = (e: any) => {
     form.farm_location = p.location_brgy || form.farm_location;
     form.area_planted = String(p.size_ha || form.area_planted);
   }
+  syncAffectedHa();
 };
 
 const resetForm = () => {
@@ -351,6 +395,7 @@ const resetForm = () => {
   form.variety = '';
   form.days_after_planting = '';
   form.area_damage_pct = '';
+  form.area_affected_ha = '';
   form.damage_by = '';
   form.date_of_inspection = '';
 };
@@ -409,8 +454,19 @@ const addEntry = async () => {
   }
 };
 
-const removeEntry = (i: number) => {
-  entries.value.splice(i, 1);
+const removeEntry = async (i: number) => {
+  const row = entries.value[i];
+  if (!row?.id) {
+    entries.value.splice(i, 1);
+    return;
+  }
+  try {
+    await apiClient.delete(`/pest-monitoring/${row.id}`);
+    entries.value.splice(i, 1);
+    await toast.success('Pest inspection removed.');
+  } catch (e: any) {
+    await toast.error(e?.response?.data?.message || 'Could not remove this inspection.');
+  }
 };
 
 const printForm = () => {
@@ -491,6 +547,39 @@ onMounted(() => {
   font-size: 0.88rem;
 }
 .entry-actions li:last-child { border-bottom: none; }
+.ledger-thumb {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+.photo-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.72);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+.photo-modal { position: relative; max-width: min(90vw, 720px); }
+.photo-full { width: 100%; border-radius: 10px; }
+.photo-close {
+  position: absolute;
+  top: -12px;
+  right: -12px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 999px;
+  background: #fff;
+  cursor: pointer;
+  font-weight: 800;
+}
 .crop-hint { margin: -0.35rem 0 0.85rem; font-size: 0.82rem; color: #64748b; }
 .search-box { position: relative; margin-bottom: 0.75rem; }
 .hint { font-size: 0.8rem; color: #94a3b8; margin-top: 4px; }

@@ -84,7 +84,7 @@
               <ion-select-option value="High-Value">High-Value</ion-select-option>
             </ion-select>
             <VarietyField v-model="form.variety" :crop="form.crop_type" label="Seed Variety" select-class="field" />
-            <ion-input class="field" type="number" label="Area (Hectares)" label-placement="stacked" :value="form.area_ha" @ionInput="(e: any) => form.area_ha = e.detail.value"></ion-input>
+            <ion-input class="field" type="number" label="Area (Hectares)" label-placement="stacked" :value="form.area_ha" @ionInput="onAreaHaInput"></ion-input>
             <ion-select
               class="field"
               label="Current Growth Stage"
@@ -117,7 +117,7 @@
           <ul v-if="entries.length" class="entry-actions">
             <li v-for="(e, i) in entries" :key="e.id">
               <span>{{ i + 1 }}. {{ e.surname }}, {{ e.first_name }} — {{ e.crop_type }}</span>
-              <ion-button size="small" fill="clear" color="danger" @click="entries.splice(i, 1)">Remove</ion-button>
+              <ion-button size="small" fill="clear" color="danger" @click="removeEntry(i)">Remove</ion-button>
             </li>
           </ul>
         </div>
@@ -152,6 +152,7 @@ import {
 } from '@/composables/useBarangayFarmerSearch';
 import apiClient from '@/utils/axios';
 import { toast } from '@/utils/toast';
+import { capInputToPlot, plotSizeHa } from '@/utils/plotArea';
 
 const StandingCropPrint = defineAsyncComponent(() => import('@/components/StandingCropPrint.vue'));
 
@@ -223,6 +224,13 @@ const form = reactive({
   growth_stage: 'Vegetative',
   est_harvest_date: '',
 });
+
+const selectedPlotSize = computed(() =>
+  plotSizeHa(farmerSearch.selected.value?.plots?.find((x) => x.id === form.plot_id))
+);
+const onAreaHaInput = (e: any) => {
+  form.area_ha = capInputToPlot(e.detail.value, selectedPlotSize.value);
+};
 
 const canAdd = computed(() =>
   canEncode.value && !!form.farmer_id && !!form.area_ha && !!form.variety && !!form.est_harvest_date && !saving.value
@@ -364,6 +372,21 @@ const addEntry = async () => {
     await toast.error(e?.response?.data?.message || 'Failed to save standing crop entry.');
   } finally {
     saving.value = false;
+  }
+};
+
+const removeEntry = async (i: number) => {
+  const row = entries.value[i];
+  if (!row?.id) {
+    entries.value.splice(i, 1);
+    return;
+  }
+  try {
+    await apiClient.delete(`/standing-crop-logs/${row.id}`);
+    entries.value.splice(i, 1);
+    await toast.success('Standing crop record removed.');
+  } catch (e: any) {
+    await toast.error(e?.response?.data?.message || 'Could not remove this standing crop record.');
   }
 };
 

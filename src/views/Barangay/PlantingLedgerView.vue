@@ -103,7 +103,7 @@
                 {{ p.location_brgy || 'Plot' }} · {{ p.commodity }} · {{ p.size_ha }} ha
               </ion-select-option>
             </ion-select>
-            <ion-input class="field" type="number" label="Area Planted (ha)" label-placement="stacked" :value="form.area_planted" @ionInput="(e: any) => form.area_planted = e.detail.value"></ion-input>
+            <ion-input class="field" type="number" label="Area Planted (ha)" label-placement="stacked" :value="form.area_planted" @ionInput="onAreaPlantedInput"></ion-input>
             <VarietyField v-model="form.variety" :crop="crop" select-class="field" />
             <ion-input class="field" type="date" label="Date of Planting" label-placement="stacked" :value="form.date_of_planting" @ionInput="(e: any) => form.date_of_planting = e.detail.value"></ion-input>
             <ion-select class="field" label="Planting Status" label-placement="stacked" interface="popover" :value="form.planting_status" @ionChange="(e: any) => form.planting_status = e.detail.value">
@@ -134,7 +134,7 @@
           <ul v-if="entries.length" class="entry-actions">
             <li v-for="(e, i) in entries" :key="e.id">
               <span>{{ i + 1 }}. {{ e.surname }}, {{ e.first_name }} — {{ Number(e.area_planted).toFixed(2) }} ha</span>
-              <ion-button size="small" fill="clear" color="danger" @click="entries.splice(i, 1)">Remove</ion-button>
+              <ion-button size="small" fill="clear" color="danger" @click="removeEntry(i)">Remove</ion-button>
             </li>
           </ul>
         </div>
@@ -171,6 +171,7 @@ import {
 import type { PlantingPrintMode } from '@/components/PlantingLedgerPrint.vue';
 import apiClient from '@/utils/axios';
 import { toast } from '@/utils/toast';
+import { capInputToPlot, plotSizeHa } from '@/utils/plotArea';
 const PlantingLedgerPrint = defineAsyncComponent(() => import('@/components/PlantingLedgerPrint.vue'));
 
 withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
@@ -238,6 +239,12 @@ const form = reactive({
 });
 
 const matchingPlots = computed(() => farmerSearch.plotsForCommodity(crop.value));
+const selectedPlotSize = computed(() =>
+  plotSizeHa(matchingPlots.value.find((p) => p.id === form.plot_id))
+);
+const onAreaPlantedInput = (e: any) => {
+  form.area_planted = capInputToPlot(e.detail.value, selectedPlotSize.value);
+};
 
 const canAdd = computed(() =>
   canEncode.value
@@ -422,6 +429,21 @@ const addEntry = async () => {
     await toast.error(e?.response?.data?.message || 'Failed to save planting entry.');
   } finally {
     saving.value = false;
+  }
+};
+
+const removeEntry = async (i: number) => {
+  const row = entries.value[i];
+  if (!row?.id) {
+    entries.value.splice(i, 1);
+    return;
+  }
+  try {
+    await apiClient.delete(`/planting-logs/${row.id}`);
+    entries.value.splice(i, 1);
+    await toast.success('Planting log removed.');
+  } catch (e: any) {
+    await toast.error(e?.response?.data?.message || 'Could not remove this planting log.');
   }
 };
 

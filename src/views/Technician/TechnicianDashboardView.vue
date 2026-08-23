@@ -98,6 +98,17 @@
                 </ion-card-content>
               </ion-card>
             </ion-col>
+            <ion-col size="6">
+              <ion-card button class="tool-card" @click="go('/tech/standing-crop')">
+                <ion-ripple-effect type="bounded"></ion-ripple-effect>
+                <ion-card-content class="tool-content">
+                  <div class="tool-icon standing">
+                    <ion-icon :icon="nutritionOutline"></ion-icon>
+                  </div>
+                  <h3>Standing Crop</h3>
+                </ion-card-content>
+              </ion-card>
+            </ion-col>
           </ion-row>
         </ion-grid>
       </div>
@@ -114,7 +125,7 @@ import {
 } from '@ionic/vue';
 import {
   bugOutline, thunderstormOutline, qrCodeOutline, locationOutline,
-  leafOutline, basketOutline,
+  leafOutline, basketOutline, nutritionOutline,
 } from 'ionicons/icons';
 import { useAuthStore } from '@/stores/authStore';
 import { useSyncStore } from '@/stores/syncStore';
@@ -376,6 +387,11 @@ const go = (path: string) => router.push(path);
 .tool-icon.harvest {
   background: #ffedd5;
   color: #c2410c;
+}
+
+.tool-icon.standing {
+  background: #e0f2fe;
+  color: #0369a1;
 }
 
 .tool-content h3 {

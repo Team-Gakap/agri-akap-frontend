@@ -1,6 +1,6 @@
 <template>
   <ion-page>
-    <ion-header>
+    <ion-header class="gis-header">
       <ion-toolbar color="primary">
         <ion-buttons slot="start">
           <ion-back-button default-href="/tech/dashboard"></ion-back-button>
@@ -9,13 +9,12 @@
       </ion-toolbar>
     </ion-header>
 
+    <!-- Not fullscreen: absolute workspace must stay below the toolbar (not under it) -->
     <ion-content :scroll-y="false" class="gis-content">
       <div class="workspace">
-        <!-- Map = 70% -->
         <div class="map-shell">
           <div ref="mapEl" class="map-canvas"></div>
 
-          <!-- Map overlays: stacked so farmer card never collides with Action Hub -->
           <div class="map-overlays">
             <div class="top-float" :class="{ interactive: hasAssignedFarmer }">
               <div class="float-main">
@@ -44,7 +43,6 @@
           </div>
         </div>
 
-        <!-- Dual-mode tool palette = ~30% -->
         <div class="tool-palette">
           <!-- Assignment gate: QR + search before any drawing -->
           <div v-if="!hasAssignedFarmer" class="assign-panel">
@@ -383,7 +381,7 @@ import { useRoute } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonBackButton,
   IonButton, IonIcon, IonModal, IonList, IonItem, IonInput, IonSelect, IonSelectOption,
-  IonTextarea, IonCheckbox, IonLabel, toastController, alertController,
+  IonTextarea, IonCheckbox, IonLabel, toastController, alertController, onIonViewDidEnter,
 } from '@ionic/vue';
 import { cameraOutline, qrCodeOutline } from 'ionicons/icons';
 import { Capacitor } from '@capacitor/core';
@@ -574,8 +572,9 @@ const fetchFarmerByQr = async (raw: string) => {
   }
 };
 
-const setScannerBackground = (active: boolean) => {
-  document.body.classList.toggle('scanner-active', active);
+/** ML Kit `scan()` uses a native camera UI — do not clear the WebView background. */
+const clearScannerBackground = () => {
+  document.body.classList.remove('scanner-active', 'barcode-scanner-active');
 };
 
 const stopScan = async () => {
@@ -584,7 +583,7 @@ const stopScan = async () => {
   } catch {
     // ignore
   }
-  setScannerBackground(false);
+  clearScannerBackground();
   isScanning.value = false;
 };
 
@@ -604,7 +603,7 @@ const startScan = async () => {
     }
 
     isScanning.value = true;
-    setScannerBackground(true);
+    clearScannerBackground();
 
     const { barcodes } = await BarcodeScanner.scan();
     const raw = barcodes[0]?.rawValue?.trim();
@@ -874,6 +873,13 @@ const updateGpsVisual = (lat: number, lng: number, accuracy: number) => {
   }
 };
 
+const refreshMapSize = () => {
+  if (!map) return;
+  requestAnimationFrame(() => {
+    map?.invalidateSize({ animate: false });
+  });
+};
+
 const initMap = async () => {
   await nextTick();
   if (!mapEl.value || map) return;
@@ -888,7 +894,9 @@ const initMap = async () => {
   }).addTo(map);
   // Smooth mobile pans / prevent Ionic scroll steal
   map.getContainer().addEventListener('touchstart', (e) => e.stopPropagation(), { passive: true });
-  setTimeout(() => map?.invalidateSize(), 250);
+  refreshMapSize();
+  setTimeout(refreshMapSize, 100);
+  setTimeout(refreshMapSize, 350);
 };
 
 const applyPosition = (
@@ -1247,11 +1255,19 @@ watch(
 );
 
 onMounted(async () => {
+  clearScannerBackground();
   await initMap();
   await startLiveTracking();
   if (farmerId.value) {
     void loadFarmerBudget(farmerId.value);
   }
+});
+
+/** Ionic keeps pages cached — resize when this tab becomes visible again. */
+onIonViewDidEnter(() => {
+  clearScannerBackground();
+  refreshMapSize();
+  setTimeout(refreshMapSize, 200);
 });
 
 watch(farmerId, (id) => {
@@ -1261,6 +1277,7 @@ watch(farmerId, (id) => {
 onBeforeUnmount(async () => {
   if (searchTimer) clearTimeout(searchTimer);
   await stopScan();
+  clearScannerBackground();
   await stopLiveTracking();
   clearDraftLayers();
   committedLayers.forEach((l) => map?.removeLayer(l));
@@ -1273,23 +1290,43 @@ onBeforeUnmount(async () => {
 </script>
 
 <style scoped>
-.gis-content {
-  --background: #0f2419;
+.gis-header {
+  position: relative;
+  z-index: 100;
 }
 
+.gis-header ion-toolbar {
+  --background: #1a4731;
+  --color: #ffffff;
+  --border-width: 0;
+}
+
+.gis-content {
+  --background: #e8f0eb;
+  --padding-top: 0;
+  --padding-bottom: 0;
+  --padding-start: 0;
+  --padding-end: 0;
+  position: relative;
+  z-index: 1;
+}
+
+/* Fill the content box only (header + tab bar already reserved by Ionic) */
 .workspace {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .map-shell {
   position: relative;
-  flex: 0 0 70%;
-  height: 70%;
-  min-height: 0;
+  flex: 1 1 auto;
+  min-height: 140px;
   overflow: hidden;
+  background: #dce8df;
 }
 
 .map-canvas {
@@ -1301,9 +1338,9 @@ onBeforeUnmount(async () => {
 
 .map-overlays {
   position: absolute;
-  top: 12px;
-  left: 12px;
-  right: 12px;
+  top: 10px;
+  left: 10px;
+  right: 10px;
   z-index: 500;
   display: flex;
   flex-direction: column;
@@ -1318,7 +1355,7 @@ onBeforeUnmount(async () => {
   gap: 0.75rem;
   padding: 0.65rem 0.85rem;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.94);
+  background: #ffffff;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
   pointer-events: none;
 }
@@ -1522,15 +1559,15 @@ onBeforeUnmount(async () => {
 }
 
 .tool-palette {
-  flex: 0 0 30%;
-  height: 30%;
+  flex: 0 0 auto;
+  max-height: min(38%, 280px);
   min-height: 0;
   display: flex;
   flex-direction: column;
   background: #f4f8f5;
   border-radius: 16px 16px 0 0;
   box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.12);
-  padding: 0.65rem 0.85rem calc(0.85rem + env(safe-area-inset-bottom, 0px));
+  padding: 0.65rem 0.85rem 0.85rem;
   overflow: auto;
   z-index: 10;
 }

@@ -135,6 +135,10 @@
             ></ion-range>
             <ion-note slot="end" class="range-note">{{ state.incidencePct }}%</ion-note>
           </ion-item>
+          <p class="affected-ha">
+            Area affected: <strong>{{ affectedAreaHa }} ha</strong>
+            <span v-if="state.areaPlantedHa"> ({{ state.areaPlantedHa }} ha planted × {{ state.incidencePct }}%)</span>
+          </p>
 
           <ion-item class="field-item" lines="none">
             <ion-select
@@ -259,7 +263,6 @@ import { formatFarmerName } from '@/data/technicianDispatchQueues';
 import {
   fetchRealLocation,
   ensureCameraPermission,
-  hideScannerBackground,
   showScannerBackground,
 } from '@/composables/useNativeHardware';
 import { db, newUuid } from '@/database/db';
@@ -287,6 +290,7 @@ interface PestResponseState {
   longitude: number | null;
   confirmedPest: string;
   incidencePct: number;
+  areaPlantedHa: number;
   severity: string;
   advisories: string[];
   escalateOutbreak: boolean;
@@ -340,12 +344,19 @@ const state = reactive<PestResponseState>({
   longitude: null,
   confirmedPest: '',
   incidencePct: 15,
+  areaPlantedHa: 0,
   severity: 'Moderate',
   advisories: [],
   escalateOutbreak: false,
   itemDistributed: '',
   quantity: '',
   qrScanResult: null,
+});
+
+const affectedAreaHa = computed(() => {
+  const planted = Number(state.areaPlantedHa) || 0;
+  const pct = Number(state.incidencePct) || 0;
+  return planted > 0 ? (planted * (pct / 100)).toFixed(4) : '0.0000';
 });
 
 const canSubmit = computed(() =>
@@ -397,6 +408,7 @@ onMounted(async () => {
     };
     state.confirmedPest = state.target.reportedPest;
     if (r.incidence != null) state.incidencePct = Number(r.incidence) || state.incidencePct;
+    state.areaPlantedHa = Number(r.area_planted ?? r.farm_plot?.size_ha) || 0;
     if (r.severity) state.severity = r.severity;
   } catch (err) {
     console.warn('[AGRI-AKAP] Failed to load pest report:', err);
@@ -504,7 +516,8 @@ const scanFarmerQr = async () => {
       return;
     }
 
-    hideScannerBackground();
+    // ML Kit `scan()` opens its own native UI — keep WebView opaque
+    showScannerBackground();
     try {
       const { barcodes } = await BarcodeScanner.scan();
       const raw = barcodes[0]?.rawValue?.trim();
@@ -754,6 +767,12 @@ ion-card-subtitle {
   padding-bottom: 0.5rem;
 }
 
+.affected-ha {
+  margin: 0.15rem 0 0.65rem;
+  font-size: 0.85rem;
+  color: #334155;
+}
+.affected-ha span { color: #64748b; }
 .range-note {
   font-size: 1.1rem;
   font-weight: 800;

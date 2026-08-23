@@ -52,6 +52,14 @@
               <option v-for="b in barangays" :key="b" :value="b">{{ b }}</option>
             </select>
           </div>
+          <div class="filter-group">
+            <label class="filter-label">Crop</label>
+            <select class="filter-select" v-model="filters.cropType" @change="fetchRows">
+              <option value="">All</option>
+              <option value="Rice">Rice</option>
+              <option value="Corn">Corn</option>
+            </select>
+          </div>
           <button class="clear-btn" @click="clearFilters">Clear</button>
         </div>
 
@@ -103,6 +111,10 @@
                   <td>{{ row.item_received }}</td>
                   <td class="mono">{{ fmtDate(row.date_claimed) }}</td>
                 </tr>
+                <tr v-if="filteredRows.length" class="totals-row">
+                  <td colspan="5" class="totals-label">TOTALS</td>
+                  <td colspan="2">{{ subsidyTotalsLabel }}</td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -150,6 +162,8 @@ interface SubsidyRow {
   barangay: string;
   program_name: string;
   item_received: string;
+  quantity?: number;
+  unit?: string;
   date_claimed: string;
 }
 
@@ -169,9 +183,21 @@ const filters = reactive({
   dateFrom: '',
   dateTo: '',
   barangay: '',
+  cropType: '',
 });
 
 const filteredRows = computed(() => rows.value);
+const subsidyTotalsLabel = computed(() => {
+  const byUnit = new Map<string, number>();
+  filteredRows.value.forEach((r) => {
+    const unit = r.unit || (String(r.item_received || '').split(' ').slice(1).join(' ') || 'Bags');
+    const qty = Number(r.quantity ?? String(r.item_received || '').split(' ')[0] || 0);
+    byUnit.set(unit, (byUnit.get(unit) || 0) + qty);
+  });
+  return Array.from(byUnit.entries())
+    .map(([unit, qty]) => `${qty.toLocaleString('en-PH')} ${unit}`)
+    .join(' · ') || '0';
+});
 const encodeOpen = ref(false);
 
 const selectedProgramName = computed(() =>
@@ -194,6 +220,7 @@ async function fetchRows() {
         date_from:  filters.dateFrom  || undefined,
         date_to:    filters.dateTo    || undefined,
         barangay:   filters.barangay  || undefined,
+        crop_type:  filters.cropType  || undefined,
       },
     });
     rows.value = res.data?.data?.rows ?? [];
@@ -227,6 +254,7 @@ function clearFilters() {
   filters.dateFrom  = '';
   filters.dateTo    = '';
   filters.barangay  = '';
+  filters.cropType  = '';
   fetchRows();
 }
 
@@ -428,6 +456,9 @@ onMounted(async () => {
 }
 .excel-table tbody tr:nth-child(even) { background: #f8fafc; }
 .excel-table tbody tr:hover { background: #eef5ee; }
+.totals-row { background: #1a4731 !important; }
+.totals-row td { color: #fff !important; font-weight: 800; font-size: 12px; border-color: #0f3021; }
+.totals-label { text-align: right; letter-spacing: 0.05em; }
 .col-no { text-align: right; width: 40px; }
 .mono { font-family: 'Courier New', monospace; }
 .empty-row { text-align: center; color: #94a3b8; padding: 2rem 0; font-style: italic; }

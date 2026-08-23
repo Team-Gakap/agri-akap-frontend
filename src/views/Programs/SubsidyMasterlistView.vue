@@ -21,7 +21,8 @@
           <div class="top-bar-info">
             <p class="program-name">{{ program.program_name || 'Subsidy Program' }}</p>
             <p class="program-sub">
-              {{ program.target_crop || '—' }} &middot; {{ program.items_per_hectare || 0 }} items/ha &middot;
+              {{ program.target_crop || '—' }} &middot; {{ program.items_per_hectare || 0 }} {{ program.unit_of_measurement || 'items' }}/ha &middot;
+              min {{ program.min_hectares_limit || 0 }} ha &middot;
               cap {{ program.max_hectares_limit || 0 }} ha
               <span v-if="isMockData" class="mock-flag">PREVIEW DATA</span>
             </p>

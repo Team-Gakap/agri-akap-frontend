@@ -254,7 +254,7 @@
 import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
-  IonButton, IonIcon, IonSpinner,
+  IonButton, IonIcon, IonSpinner, onIonViewDidEnter,
 } from '@ionic/vue';
 import {
   refreshOutline, chevronBackOutline, chevronForwardOutline, chevronUpOutline, chevronDownOutline,
@@ -736,6 +736,10 @@ onMounted(async () => {
   await fetchSiteData(BARANGAY_SITES[2].name);
 });
 
+onIonViewDidEnter(() => {
+  setTimeout(() => map?.invalidateSize(), 200);
+});
+
 onBeforeUnmount(() => {
   if (map) {
     map.remove();
@@ -750,11 +754,14 @@ onBeforeUnmount(() => {
   --padding-bottom: 0;
   --padding-start: 0;
   --padding-end: 0;
+  --background: #eef2f0;
 }
 
 .gis-shell {
+  position: absolute;
+  inset: 0;
   display: flex;
-  height: 100%;
+  height: auto;
   width: 100%;
   background: #0f172a;
 }

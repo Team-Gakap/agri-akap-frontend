@@ -143,8 +143,15 @@
           </div>
           <ul v-if="entries.length" class="entry-actions">
             <li v-for="(e, i) in entries" :key="e.id">
+              <img
+                v-if="e.photo_url"
+                :src="e.photo_url"
+                class="ledger-thumb"
+                alt="Evidence"
+                @click="viewingPhoto = e.photo_url!"
+              />
               <span>{{ i + 1 }}. {{ e.surname }}, {{ e.first_name }} — {{ e.calamity_event }}</span>
-              <ion-button size="small" fill="clear" color="danger" @click="entries.splice(i, 1)">Remove</ion-button>
+              <ion-button size="small" fill="clear" color="danger" @click="removeEntry(i)">Remove</ion-button>
             </li>
           </ul>
         </div>
@@ -157,6 +164,12 @@
           :event-name="previewEventName"
           :event-date="previewEventDate"
         />
+      </div>
+      <div v-if="viewingPhoto" class="photo-overlay no-print" @click.self="viewingPhoto = null">
+        <div class="photo-modal">
+          <button class="photo-close" @click="viewingPhoto = null">✕</button>
+          <img :src="viewingPhoto" class="photo-full" alt="Evidence" />
+        </div>
       </div>
     </component>
   </component>
@@ -179,6 +192,7 @@ import {
 } from '@/composables/useBarangayFarmerSearch';
 import apiClient from '@/utils/axios';
 import { toast } from '@/utils/toast';
+import { storageUrl } from '@/utils/storageUrl';
 
 const CalamityAssessmentPrint = defineAsyncComponent(() => import('@/components/CalamityAssessmentPrint.vue'));
 
@@ -201,6 +215,7 @@ interface CalamityEntry {
   area_planted: number;
   area_damaged: number;
   est_yield_loss_pct: number;
+  photo_url?: string | null;
 }
 
 const {
@@ -217,6 +232,7 @@ const farmerSearch = useBarangayFarmerSearch(() => effectiveBarangay.value, {
 });
 
 const entries = ref<CalamityEntry[]>([]);
+const viewingPhoto = ref<string | null>(null);
 const saving = ref(false);
 
 const previewRows = computed(() =>
@@ -305,7 +321,7 @@ const loadLedger = async () => {
   }
   try {
     const res = await apiClient.get('/damage-assessments', {
-      params: { per_page: 200, barangay: effectiveBarangay.value },
+      params: { per_page: 200, barangay: effectiveBarangay.value, status: 'Pending' },
     });
     const rows = res.data?.data?.data ?? [];
     entries.value = rows.map((r: any) => {
@@ -326,6 +342,7 @@ const loadLedger = async () => {
         area_planted: Number(r.area_planted_ha ?? r.farm_plot?.size_ha) || 0,
         area_damaged: Number(r.area_destroyed_ha) || 0,
         est_yield_loss_pct: Number(r.damage_percentage) || 0,
+        photo_url: r.photo_url || storageUrl(r.photo_evidence_path || r.photo_path),
       } as CalamityEntry;
     });
   } catch {
@@ -488,6 +505,21 @@ const addEntry = async () => {
   }
 };
 
+const removeEntry = async (i: number) => {
+  const row = entries.value[i];
+  if (!row?.id) {
+    entries.value.splice(i, 1);
+    return;
+  }
+  try {
+    await apiClient.delete(`/damage-assessments/${row.id}`);
+    entries.value.splice(i, 1);
+    await toast.success('Calamity assessment removed.');
+  } catch (e: any) {
+    await toast.error(e?.response?.data?.message || 'Could not remove this assessment.');
+  }
+};
+
 const printForm = () => {
   window.print();
 };
@@ -545,6 +577,39 @@ onMounted(() => {
   gap: 0.5rem; padding: 0.35rem 0.65rem; border-bottom: 1px solid #f1f5f9; font-size: 0.88rem;
 }
 .entry-actions li:last-child { border-bottom: none; }
+.ledger-thumb {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+.photo-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.72);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+.photo-modal { position: relative; max-width: min(90vw, 720px); }
+.photo-full { width: 100%; border-radius: 10px; }
+.photo-close {
+  position: absolute;
+  top: -12px;
+  right: -12px;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 999px;
+  background: #fff;
+  cursor: pointer;
+  font-weight: 800;
+}
 .search-box { position: relative; margin-bottom: 0.75rem; }
 .hint { font-size: 0.8rem; color: #94a3b8; margin-top: 4px; }
 .calc-hint {

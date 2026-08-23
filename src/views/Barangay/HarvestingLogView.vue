@@ -84,7 +84,7 @@
               <ion-select-option value="High-Value">High-Value</ion-select-option>
             </ion-select>
             <VarietyField v-model="form.variety" :crop="form.crop_type" select-class="field" />
-            <ion-input class="field" type="number" label="Area Harvested (ha)" label-placement="stacked" :value="form.area_harvested" @ionInput="(e: any) => form.area_harvested = e.detail.value"></ion-input>
+            <ion-input class="field" type="number" label="Area Harvested (ha)" label-placement="stacked" :value="form.area_harvested" @ionInput="onAreaHarvestedInput"></ion-input>
             <ion-input class="field" type="number" label="Total Yield Produced (MT)" label-placement="stacked" :value="form.yield_amount" @ionInput="(e: any) => form.yield_amount = e.detail.value"></ion-input>
             <ion-input class="field" type="date" label="Date of Harvest" label-placement="stacked" :value="form.date_of_harvest" @ionInput="(e: any) => form.date_of_harvest = e.detail.value"></ion-input>
           </div>
@@ -105,7 +105,7 @@
           <ul v-if="entries.length" class="entry-actions">
             <li v-for="(e, i) in entries" :key="e.id">
               <span>{{ i + 1 }}. {{ e.surname }}, {{ e.first_name }} — {{ e.crop_type }}</span>
-              <ion-button size="small" fill="clear" color="danger" @click="entries.splice(i, 1)">Remove</ion-button>
+              <ion-button size="small" fill="clear" color="danger" @click="removeEntry(i)">Remove</ion-button>
             </li>
           </ul>
         </div>
@@ -140,6 +140,7 @@ import {
 } from '@/composables/useBarangayFarmerSearch';
 import apiClient from '@/utils/axios';
 import { toast } from '@/utils/toast';
+import { capInputToPlot, plotSizeHa } from '@/utils/plotArea';
 
 withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
 const emit = defineEmits<{ saved: [] }>();
@@ -215,6 +216,13 @@ const form = reactive({
   yield_unit: 'Metric Tons',
   date_of_harvest: '',
 });
+
+const selectedPlotSize = computed(() =>
+  plotSizeHa(farmerSearch.selected.value?.plots?.find((x) => x.id === form.plot_id))
+);
+const onAreaHarvestedInput = (e: any) => {
+  form.area_harvested = capInputToPlot(e.detail.value, selectedPlotSize.value);
+};
 
 const canAdd = computed(() =>
   canEncode.value && !!form.farmer_id && !!form.area_harvested && !!form.yield_amount && !!form.date_of_harvest && !!form.variety && !saving.value
@@ -367,6 +375,21 @@ const addEntry = async () => {
     await toast.error(e?.response?.data?.message || 'Failed to save harvest record.');
   } finally {
     saving.value = false;
+  }
+};
+
+const removeEntry = async (i: number) => {
+  const row = entries.value[i];
+  if (!row?.id) {
+    entries.value.splice(i, 1);
+    return;
+  }
+  try {
+    await apiClient.delete(`/harvest-logs/${row.id}`);
+    entries.value.splice(i, 1);
+    await toast.success('Harvest record removed.');
+  } catch (e: any) {
+    await toast.error(e?.response?.data?.message || 'Could not remove this harvest record.');
   }
 };
 

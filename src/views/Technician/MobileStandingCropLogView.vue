@@ -5,12 +5,12 @@
         <ion-buttons slot="start">
           <ion-back-button default-href="/tech/dashboard"></ion-back-button>
         </ion-buttons>
-        <ion-title>Planting Log</ion-title>
+        <ion-title>Standing Crop</ion-title>
       </ion-toolbar>
     </ion-header>
 
     <ion-content class="page-bg ion-padding">
-      <p class="lede">Record a farmer planting in the field. Variety is required.</p>
+      <p class="lede">Record standing crop stage and estimated harvest date.</p>
 
       <ion-card class="section-card">
         <ion-card-header>
@@ -39,12 +39,13 @@
 
       <ion-card class="section-card">
         <ion-card-header>
-          <ion-card-title>Planting details</ion-card-title>
+          <ion-card-title>Standing crop details</ion-card-title>
         </ion-card-header>
         <ion-card-content>
           <ion-select label="Crop" label-placement="stacked" interface="action-sheet" :value="form.cropType" @ionChange="onCropChange">
             <ion-select-option value="Rice">Rice</ion-select-option>
             <ion-select-option value="Corn">Corn</ion-select-option>
+            <ion-select-option value="High-Value">High-Value</ion-select-option>
           </ion-select>
           <ion-select label="Farm plot" label-placement="stacked" interface="action-sheet" :value="form.plotId" :disabled="!plots.length" @ionChange="onPlotChange">
             <ion-select-option value="">Select plot</ion-select-option>
@@ -53,22 +54,19 @@
             </ion-select-option>
           </ion-select>
           <VarietyField v-model="form.variety" :crop="form.cropType" interface-name="action-sheet" />
-          <ion-input type="number" label="Area planted (ha)" label-placement="stacked" :value="form.areaPlanted" @ionInput="onAreaPlantedInput"></ion-input>
-          <ion-input type="date" label="Date planted" label-placement="stacked" :value="form.datePlanted" @ionInput="(e: CustomEvent) => form.datePlanted = e.detail.value ?? ''"></ion-input>
-          <ion-select label="Status" label-placement="stacked" interface="action-sheet" :value="form.status" @ionChange="(e: CustomEvent) => form.status = e.detail.value">
-            <ion-select-option value="Active">Active</ion-select-option>
-            <ion-select-option value="Not Continued">Not Continued</ion-select-option>
+          <ion-input type="number" label="Area (ha)" label-placement="stacked" :value="form.areaHa" @ionInput="onAreaHaInput"></ion-input>
+          <ion-select label="Growth stage" label-placement="stacked" interface="action-sheet" :value="form.growthStage" @ionChange="(e: CustomEvent) => form.growthStage = e.detail.value">
+            <ion-select-option value="Seedling">Seedling</ion-select-option>
+            <ion-select-option value="Vegetative">Vegetative</ion-select-option>
+            <ion-select-option value="Reproductive">Reproductive</ion-select-option>
+            <ion-select-option value="Maturity">Maturity</ion-select-option>
           </ion-select>
-          <ion-select label="Water source" label-placement="stacked" interface="action-sheet" :value="form.waterSource" @ionChange="(e: CustomEvent) => form.waterSource = e.detail.value">
-            <ion-select-option value="Deepwell">Deepwell</ion-select-option>
-            <ion-select-option value="Irrigated">Irrigated</ion-select-option>
-            <ion-select-option value="Rainfed/None">Rainfed/None</ion-select-option>
-          </ion-select>
+          <ion-input type="date" label="Est. harvest date" label-placement="stacked" :value="form.estHarvestDate" @ionInput="(e: CustomEvent) => form.estHarvestDate = e.detail.value ?? ''"></ion-input>
         </ion-card-content>
       </ion-card>
 
       <ion-button expand="block" class="submit-btn" :disabled="!canSubmit || submitting" @click="submit">
-        {{ submitting ? 'Saving…' : 'Save planting' }}
+        {{ submitting ? 'Saving…' : 'Save standing crop' }}
       </ion-button>
     </ion-content>
   </ion-page>
@@ -84,39 +82,35 @@ import VarietyField from '@/components/VarietyField.vue';
 import { useBarangayFarmerSearch, type FarmerOption } from '@/composables/useBarangayFarmerSearch';
 import { presentToast } from '@/utils/toast';
 import { capInputToPlot, plotSizeHa } from '@/utils/plotArea';
-import { queuePlantingLog, syncAllPendingData } from '@/services/syncService';
-import { useSyncStore } from '@/stores/syncStore';
+import apiClient from '@/utils/axios';
 
 const farmerSearch = useBarangayFarmerSearch(() => null, {
   requireBarangay: false,
   commodity: () => form.cropType,
 });
-const syncStore = useSyncStore();
 const submitting = ref(false);
 
 const form = reactive({
   farmerId: '',
   farmerName: '',
-  rsbsaNo: '',
   plotId: '',
   farmLocation: '',
   cropType: 'Rice',
   variety: '',
-  areaPlanted: '',
-  datePlanted: new Date().toISOString().slice(0, 10),
-  status: 'Active',
-  waterSource: 'Irrigated',
+  areaHa: '',
+  growthStage: 'Vegetative',
+  estHarvestDate: new Date().toISOString().slice(0, 10),
 });
 
 const plots = computed(() => farmerSearch.plotsForCommodity(form.cropType));
 const selectedPlotSize = computed(() =>
   plotSizeHa(plots.value.find((p) => p.id === form.plotId))
 );
-const onAreaPlantedInput = (e: CustomEvent) => {
-  form.areaPlanted = capInputToPlot(e.detail.value, selectedPlotSize.value);
+const onAreaHaInput = (e: CustomEvent) => {
+  form.areaHa = capInputToPlot(e.detail.value, selectedPlotSize.value);
 };
 const canSubmit = computed(() =>
-  !!form.farmerId && !!form.plotId && !!form.variety.trim() && !!form.areaPlanted && !!form.datePlanted && !submitting.value
+  !!form.farmerId && !!form.plotId && !!form.variety.trim() && !!form.areaHa && !!form.estHarvestDate && !submitting.value
 );
 
 const onSelectFarmer = async (f: FarmerOption) => {
@@ -125,14 +119,13 @@ const onSelectFarmer = async (f: FarmerOption) => {
   if (!sel) return;
   form.farmerId = sel.id;
   form.farmerName = `${sel.surname}, ${sel.first_name}`;
-  form.rsbsaNo = sel.rsbsa_no;
   farmerSearch.query.value = form.farmerName;
   farmerSearch.results.value = [];
   const match = plots.value[0];
   if (match) {
     form.plotId = match.id;
     form.farmLocation = match.location_brgy || sel.barangay;
-    form.areaPlanted = String(match.size_ha || '');
+    form.areaHa = String(match.size_ha || '');
   } else {
     form.plotId = '';
     form.farmLocation = sel.barangay;
@@ -145,7 +138,7 @@ const onCropChange = (e: CustomEvent) => {
   form.plotId = match?.id || '';
   if (match) {
     form.farmLocation = match.location_brgy || form.farmLocation;
-    form.areaPlanted = String(match.size_ha || form.areaPlanted);
+    form.areaHa = String(match.size_ha || form.areaHa);
   }
 };
 
@@ -154,7 +147,7 @@ const onPlotChange = (e: CustomEvent) => {
   const p = plots.value.find((x) => x.id === form.plotId);
   if (p) {
     form.farmLocation = p.location_brgy || form.farmLocation;
-    form.areaPlanted = String(p.size_ha || form.areaPlanted);
+    form.areaHa = String(p.size_ha || form.areaHa);
   }
 };
 
@@ -162,25 +155,20 @@ const submit = async () => {
   if (!canSubmit.value) return;
   submitting.value = true;
   try {
-    await queuePlantingLog({
+    await apiClient.post('/standing-crop-logs', {
+      id: crypto.randomUUID(),
       farmer_id: form.farmerId,
-      farm_plot_id: form.plotId || undefined,
-      rsbsa_no: form.rsbsaNo,
-      farmer_name: form.farmerName,
+      farm_plot_id: form.plotId,
       crop_type: form.cropType,
       variety: form.variety.trim(),
-      area_planted: Number(form.areaPlanted),
-      date_planted: form.datePlanted,
-      status: form.status,
-      water_source: form.waterSource,
+      area_ha: Number(form.areaHa),
+      growth_stage: form.growthStage,
+      est_harvest_date: form.estHarvestDate,
+      farm_location: form.farmLocation,
     });
-    await syncStore.refreshCount();
-    if (navigator.onLine) {
-      void syncAllPendingData().then(() => syncStore.refreshCount());
-    }
-    await presentToast(navigator.onLine ? 'Planting saved.' : 'Saved locally. Will sync when online.');
+    await presentToast('Standing crop saved.');
   } catch (e: any) {
-    await presentToast(e?.response?.data?.message || 'Could not save planting log.', 'danger');
+    await presentToast(e?.response?.data?.message || 'Could not save standing crop.', 'danger');
   } finally {
     submitting.value = false;
   }

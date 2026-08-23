@@ -96,6 +96,18 @@ const onCustom = (e: CustomEvent) => {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  min-width: 0;
+  min-width: 16rem;
+  width: 100%;
+}
+.variety-field ion-select {
+  min-width: 16rem;
+  max-width: 100%;
+}
+.variety-field ion-select::part(text),
+.variety-field ion-select::part(placeholder) {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  line-height: 1.25;
 }
 </style>

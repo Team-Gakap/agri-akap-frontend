@@ -54,7 +54,7 @@
             </ion-select-option>
           </ion-select>
           <VarietyField v-model="form.variety" :crop="form.cropType" interface-name="action-sheet" />
-          <ion-input type="number" label="Area harvested (ha)" label-placement="stacked" :value="form.areaHarvested" @ionInput="(e: CustomEvent) => form.areaHarvested = e.detail.value ?? ''"></ion-input>
+          <ion-input type="number" label="Area harvested (ha)" label-placement="stacked" :value="form.areaHarvested" @ionInput="onAreaHarvestedInput"></ion-input>
           <ion-input type="number" label="Total yield (MT)" label-placement="stacked" :value="form.totalYield" @ionInput="(e: CustomEvent) => form.totalYield = e.detail.value ?? ''"></ion-input>
           <ion-input type="date" label="Date harvested" label-placement="stacked" :value="form.dateHarvested" @ionInput="(e: CustomEvent) => form.dateHarvested = e.detail.value ?? ''"></ion-input>
         </ion-card-content>
@@ -76,6 +76,7 @@ import {
 import VarietyField from '@/components/VarietyField.vue';
 import { useBarangayFarmerSearch, type FarmerOption } from '@/composables/useBarangayFarmerSearch';
 import { presentToast } from '@/utils/toast';
+import { capInputToPlot, plotSizeHa } from '@/utils/plotArea';
 import apiClient from '@/utils/axios';
 
 const farmerSearch = useBarangayFarmerSearch(() => null, {
@@ -97,6 +98,12 @@ const form = reactive({
 });
 
 const plots = computed(() => farmerSearch.plotsForCommodity(form.cropType));
+const selectedPlotSize = computed(() =>
+  plotSizeHa(plots.value.find((p) => p.id === form.plotId))
+);
+const onAreaHarvestedInput = (e: CustomEvent) => {
+  form.areaHarvested = capInputToPlot(e.detail.value, selectedPlotSize.value);
+};
 const canSubmit = computed(() =>
   !!form.farmerId && !!form.plotId && !!form.variety.trim() && !!form.areaHarvested && form.totalYield !== '' && !!form.dateHarvested && !submitting.value
 );

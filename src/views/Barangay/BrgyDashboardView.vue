@@ -33,7 +33,7 @@
 
       <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 p-4">
         <!-- ── KPI strip ─────────────────────────────────────────────── -->
-        <ion-card class="dense-card kpi-card lg:col-span-3" button @click="go('/brgy/farmers')">
+        <ion-card class="dense-card kpi-card lg:col-span-2" button @click="go('/brgy/farmers')">
           <ion-card-content class="kpi-body">
             <span class="kpi-label">Registered Farmers</span>
             <span class="kpi-value">{{ fmt(dashboardData.total_farmers) }}</span>
@@ -41,15 +41,23 @@
           </ion-card-content>
         </ion-card>
 
-        <ion-card class="dense-card kpi-card lg:col-span-3" button @click="go('/brgy/planting-ledger')">
+        <ion-card class="dense-card kpi-card lg:col-span-2" button @click="go('/brgy/planting-ledger')">
           <ion-card-content class="kpi-body">
-            <span class="kpi-label">Active Farm Area</span>
-            <span class="kpi-value">{{ fmtHa(dashboardData.total_hectares) }}<small>ha</small></span>
-            <span class="kpi-sub">Total Hectares</span>
+            <span class="kpi-label">Rice Hectares</span>
+            <span class="kpi-value">{{ fmtHa(dashboardData.rice_hectares) }}<small>ha</small></span>
+            <span class="kpi-sub">Registered rice parcels</span>
           </ion-card-content>
         </ion-card>
 
-        <ion-card class="dense-card kpi-card lg:col-span-3" button @click="go('/brgy/farmers')">
+        <ion-card class="dense-card kpi-card lg:col-span-2" button @click="go('/brgy/planting-ledger')">
+          <ion-card-content class="kpi-body">
+            <span class="kpi-label">Corn Hectares</span>
+            <span class="kpi-value">{{ fmtHa(dashboardData.corn_hectares) }}<small>ha</small></span>
+            <span class="kpi-sub">Registered corn parcels</span>
+          </ion-card-content>
+        </ion-card>
+
+        <ion-card class="dense-card kpi-card lg:col-span-2" button @click="go('/brgy/farmers')">
           <ion-card-content class="kpi-body">
             <span class="kpi-label">Subsidy Logistics</span>
             <span class="kpi-value gold">{{ fmt(dashboardData.claimed_subsidies + dashboardData.unclaimed_subsidies) }}</span>
@@ -57,11 +65,19 @@
           </ion-card-content>
         </ion-card>
 
-        <ion-card class="dense-card kpi-card lg:col-span-3" button @click="go('/brgy/pest-monitoring')">
+        <ion-card class="dense-card kpi-card lg:col-span-2" button @click="go('/brgy/calamity-assessment')">
           <ion-card-content class="kpi-body">
-            <span class="kpi-label">Active Threats</span>
-            <span class="kpi-value">{{ fmt(dashboardData.active_threats) }}</span>
-            <span class="kpi-sub">Unresolved Pest &amp; Damage Reports</span>
+            <span class="kpi-label">Active Calamities</span>
+            <span class="kpi-value">{{ fmt(dashboardData.active_calamities) }}</span>
+            <span class="kpi-sub">Pending damage reports</span>
+          </ion-card-content>
+        </ion-card>
+
+        <ion-card class="dense-card kpi-card lg:col-span-2" button @click="go('/brgy/pest-monitoring')">
+          <ion-card-content class="kpi-body">
+            <span class="kpi-label">Active Pests</span>
+            <span class="kpi-value">{{ fmt(dashboardData.active_pests) }}</span>
+            <span class="kpi-sub">Unverified pest reports</span>
           </ion-card-content>
         </ion-card>
 
@@ -79,7 +95,7 @@
               <p v-else class="empty-inline">No standing crop recorded yet.</p>
             </div>
             <div class="chart-pane">
-              <p class="chart-caption">Harvest Yields vs Crop Damage</p>
+              <p class="chart-caption">Harvest Yields vs Calamity Damage</p>
               <div v-if="hasMonthlyData(dashboardData.monthly_yield_damage)" class="chart-box">
                 <Bar :data="yieldDamageChartData" :options="barOptions" />
               </div>
@@ -253,9 +269,13 @@ interface DashboardData {
   verified_farmers: number;
   pending_farmers: number;
   total_hectares: number;
+  rice_hectares: number;
+  corn_hectares: number;
   claimed_subsidies: number;
   unclaimed_subsidies: number;
   active_threats: number;
+  active_calamities: number;
+  active_pests: number;
   crop_stages: CropStages;
   monthly_yield_damage: MonthlyYieldDamage[];
 }
@@ -300,9 +320,13 @@ const dashboardData = reactive<DashboardData>({
   verified_farmers: 0,
   pending_farmers: 0,
   total_hectares: 0,
+  rice_hectares: 0,
+  corn_hectares: 0,
   claimed_subsidies: 0,
   unclaimed_subsidies: 0,
   active_threats: 0,
+  active_calamities: 0,
+  active_pests: 0,
   crop_stages: { ...EMPTY_CROP_STAGES },
   monthly_yield_damage: lastSixMonthKeys(),
 });
@@ -379,7 +403,7 @@ const yieldDamageChartData = computed(() => ({
       maxBarThickness: 28,
     },
     {
-      label: 'Crop damage (ha)',
+      label: 'Calamity damage (ha)',
       data: dashboardData.monthly_yield_damage.map(r => r.damage),
       backgroundColor: LGU_GOLD,
       borderRadius: 4,
@@ -506,9 +530,13 @@ const fetchDashboard = async () => {
       verified_farmers: Number(desc.verified_farmers ?? 0),
       pending_farmers: Number(desc.pending_farmers ?? 0),
       total_hectares: Number(desc.total_hectares ?? desc.active_hectares ?? 0),
+      rice_hectares: Number(desc.rice_hectares ?? 0),
+      corn_hectares: Number(desc.corn_hectares ?? 0),
       claimed_subsidies: Number(desc.claimed_subsidies ?? 0),
       unclaimed_subsidies: Number(desc.unclaimed_subsidies ?? desc.pending_subsidies ?? 0),
       active_threats: Number(desc.active_threats ?? 0),
+      active_calamities: Number(desc.active_calamities ?? 0),
+      active_pests: Number(desc.active_pests ?? 0),
       crop_stages: stages,
       monthly_yield_damage: monthly.length ? monthly : lastSixMonthKeys(),
     });
@@ -603,8 +631,11 @@ onIonViewWillEnter(() => {
   overflow: hidden;
 }
 .kpi-card { border-top: 4px solid #1a4731; }
+.kpi-card:nth-child(2),
 .kpi-card:nth-child(3) { border-top-color: #d4af37; }
-.kpi-card:nth-child(4) { border-top-color: #b91c1c; }
+.kpi-card:nth-child(4) { border-top-color: #64748b; }
+.kpi-card:nth-child(5),
+.kpi-card:nth-child(6) { border-top-color: #b91c1c; }
 
 .dense-head { padding: 14px 16px 6px; }
 .dense-card ion-card-title {

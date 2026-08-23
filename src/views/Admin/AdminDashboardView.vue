@@ -33,7 +33,7 @@
 
         <div v-else class="grid-shell">
           <!-- ── Row 1: Descriptive KPIs ─────────────────────────────────── -->
-          <ion-card class="kpi-card span-3">
+          <ion-card class="kpi-card span-2" button @click="go('/admin/farmers')">
             <ion-card-content>
               <div class="kpi-icon-wrap kpi-tone-green">
                 <ion-icon :icon="peopleOutline"></ion-icon>
@@ -43,27 +43,47 @@
             </ion-card-content>
           </ion-card>
 
-          <ion-card class="kpi-card span-3">
+          <ion-card class="kpi-card span-2" button @click="go('/admin/encoding/planting-ledger')">
             <ion-card-content>
               <div class="kpi-icon-wrap kpi-tone-gold">
                 <ion-icon :icon="leafOutline"></ion-icon>
               </div>
-              <p class="kpi-value">{{ fmt(descriptive.total_hectares) }} <small>ha</small></p>
-              <p class="kpi-label">Active Hectares</p>
+              <p class="kpi-value">{{ fmtHa(descriptive.rice_hectares) }} <small>ha</small></p>
+              <p class="kpi-label">Rice Hectares</p>
             </ion-card-content>
           </ion-card>
 
-          <ion-card class="kpi-card span-3">
+          <ion-card class="kpi-card span-2" button @click="go('/admin/encoding/planting-ledger')">
+            <ion-card-content>
+              <div class="kpi-icon-wrap kpi-tone-gold">
+                <ion-icon :icon="leafOutline"></ion-icon>
+              </div>
+              <p class="kpi-value">{{ fmtHa(descriptive.corn_hectares) }} <small>ha</small></p>
+              <p class="kpi-label">Corn Hectares</p>
+            </ion-card-content>
+          </ion-card>
+
+          <ion-card class="kpi-card span-2" button @click="go('/admin/encoding/calamity-assessment')">
             <ion-card-content>
               <div class="kpi-icon-wrap kpi-tone-danger">
                 <ion-icon :icon="warningOutline"></ion-icon>
               </div>
-              <p class="kpi-value">{{ fmt(descriptive.active_calamities_pests) }}</p>
-              <p class="kpi-label">Active Calamities / Pests</p>
+              <p class="kpi-value">{{ fmt(descriptive.active_calamities) }}</p>
+              <p class="kpi-label">Active Calamities</p>
             </ion-card-content>
           </ion-card>
 
-          <ion-card class="kpi-card span-3">
+          <ion-card class="kpi-card span-2" button @click="go('/admin/encoding/pest-monitoring')">
+            <ion-card-content>
+              <div class="kpi-icon-wrap kpi-tone-danger">
+                <ion-icon :icon="bugOutline"></ion-icon>
+              </div>
+              <p class="kpi-value">{{ fmt(descriptive.active_pests) }}</p>
+              <p class="kpi-label">Active Pests</p>
+            </ion-card-content>
+          </ion-card>
+
+          <ion-card class="kpi-card span-2" button @click="go('/admin/subsidies')">
             <ion-card-content>
               <div class="kpi-icon-wrap kpi-tone-slate">
                 <ion-icon :icon="cubeOutline"></ion-icon>
@@ -96,13 +116,13 @@
             <ion-card class="panel-card">
               <ion-card-header>
                 <ion-card-title>Crop Distribution</ion-card-title>
-                <ion-card-subtitle>Rice vs Corn (planting logs / farm plots)</ion-card-subtitle>
+                <ion-card-subtitle>Rice vs Corn (registered parcels)</ion-card-subtitle>
               </ion-card-header>
               <ion-card-content>
                 <div class="chart-box small">
                   <Doughnut :data="cropChartData" :options="doughnutOptions" />
                 </div>
-                <p v-if="!cropRows.length" class="empty-note">No planting or farm plot data yet.</p>
+                <p v-if="!cropRows.length" class="empty-note">No registered farm plots yet.</p>
               </ion-card-content>
             </ion-card>
 
@@ -205,7 +225,7 @@ import {
   IonButton, IonIcon, IonSpinner, IonCard, IonCardHeader, IonCardTitle, IonCardSubtitle,
   IonCardContent, IonList, IonItem, IonLabel, IonBadge, IonModal, IonInput, IonTextarea,
 } from '@ionic/vue';
-import { refreshOutline, peopleOutline, leafOutline, warningOutline, cubeOutline } from 'ionicons/icons';
+import { refreshOutline, peopleOutline, leafOutline, warningOutline, cubeOutline, bugOutline } from 'ionicons/icons';
 import { Doughnut, Bar } from 'vue-chartjs';
 import {
   Chart as ChartJS,
@@ -252,6 +272,8 @@ const smsForm = reactive({
 });
 
 const fmt = (v: any) => Number(v ?? 0).toLocaleString('en-PH');
+const fmtHa = (v: any) => Number(v ?? 0).toLocaleString('en-PH', { maximumFractionDigits: 2 });
+const go = (path: string) => router.push(path);
 
 const cropRows = computed(() => diagnostic.crop_distribution ?? []);
 const distributionRows = computed(() => diagnostic.distributions_by_barangay ?? []);
@@ -516,6 +538,7 @@ onBeforeUnmount(() => {
   gap: 1.1rem;
   align-items: start;
 }
+.span-2 { grid-column: span 2; }
 .span-3 { grid-column: span 3; }
 .span-4 { grid-column: span 4; }
 .span-8 { grid-column: span 8; }
@@ -528,6 +551,7 @@ onBeforeUnmount(() => {
   border: 1px solid #e2e8f0;
   background: #fff;
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+  cursor: pointer;
 }
 .kpi-icon-wrap {
   width: 42px;
@@ -670,7 +694,7 @@ ion-card-subtitle {
 /* ── Mobile: collapse to single column ──────────────────────────────── */
 @media (max-width: 960px) {
   .grid-shell { grid-template-columns: 1fr; }
-  .span-3, .span-4, .span-8, .span-12 { grid-column: span 1; }
+  .span-2, .span-3, .span-4, .span-8, .span-12 { grid-column: span 1; }
   .alert-item {
     flex-direction: column;
     align-items: flex-start;

@@ -127,6 +127,11 @@
                   <td class="col-num">{{ fmtNum(row.area_planted) }}</td>
                   <td class="mono">{{ fmtDate(row.date_planted) }}</td>
                 </tr>
+                <tr v-if="filteredRows.length" class="totals-row">
+                  <td colspan="6" class="totals-label">TOTALS</td>
+                  <td class="col-num">{{ totalPlantedHa }}</td>
+                  <td></td>
+                </tr>
               </tbody>
             </table>
 
@@ -159,6 +164,11 @@
                   <td class="col-num">{{ fmtNum(row.area_harvested) }}</td>
                   <td class="col-num">{{ fmtNum(row.total_yield) }}</td>
                   <td class="mono">{{ fmtDate(row.date_harvested) }}</td>
+                </tr>
+                <tr v-if="filteredRows.length" class="totals-row">
+                  <td colspan="7" class="totals-label">TOTALS</td>
+                  <td class="col-num">{{ totalYieldMt }}</td>
+                  <td></td>
                 </tr>
               </tbody>
             </table>
@@ -244,6 +254,12 @@ const filters = reactive({
 });
 
 const filteredRows = computed(() => rows.value);
+const totalPlantedHa = computed(() =>
+  filteredRows.value.reduce((s, r) => s + Number(r.area_planted || 0), 0).toFixed(2)
+);
+const totalYieldMt = computed(() =>
+  filteredRows.value.reduce((s, r) => s + Number(r.total_yield || 0), 0).toFixed(2)
+);
 const encodeOpen = ref(false);
 const encodeKind = computed((): 'harvest' | 'planting' =>
   activeMode.value === 'harvest' ? 'harvest' : 'planting'
@@ -522,6 +538,9 @@ onMounted(async () => {
 }
 .excel-table tbody tr:nth-child(even) { background: #f8fafc; }
 .excel-table tbody tr:hover { background: #eef5ee; }
+.totals-row { background: #1a4731 !important; }
+.totals-row td { color: #fff !important; font-weight: 800; font-size: 12px; border-color: #0f3021; }
+.totals-label { text-align: right; letter-spacing: 0.05em; }
 .col-no  { text-align: right; width: 40px; }
 .col-num { text-align: right; }
 .mono { font-family: 'Courier New', monospace; }

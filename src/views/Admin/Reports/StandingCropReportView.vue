@@ -43,6 +43,16 @@
               <option value="High-Value">High-Value</option>
             </select>
           </div>
+          <div class="filter-group">
+            <label class="filter-label">Growth Stage</label>
+            <select class="filter-select" v-model="filters.growthStage" @change="fetchRows">
+              <option value="">All Stages</option>
+              <option value="Seedling">Seedling</option>
+              <option value="Vegetative">Vegetative</option>
+              <option value="Reproductive">Reproductive</option>
+              <option value="Maturity">Maturity</option>
+            </select>
+          </div>
           <button class="clear-btn" @click="clearFilters">Clear</button>
         </div>
 
@@ -97,6 +107,11 @@
                   <td>{{ row.growth_stage }}</td>
                   <td class="mono">{{ fmtDate(row.est_harvest_date) }}</td>
                 </tr>
+                <tr v-if="rows.length" class="totals-row">
+                  <td colspan="6" class="totals-label">TOTALS</td>
+                  <td class="col-num">{{ totalAreaHa }}</td>
+                  <td colspan="2"></td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -115,7 +130,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, defineAsyncComponent } from 'vue';
+import { ref, reactive, computed, onMounted, defineAsyncComponent } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent,
   IonButtons, IonButton, IonMenuButton, IonIcon, IonSpinner,
@@ -146,7 +161,10 @@ const loadError = ref('');
 const rows = ref<StandingRow[]>([]);
 const barangays = ref<string[]>([]);
 const encodeOpen = ref(false);
-const filters = reactive({ barangay: '', cropType: '' });
+const filters = reactive({ barangay: '', cropType: '', growthStage: '' });
+const totalAreaHa = computed(() =>
+  rows.value.reduce((s, r) => s + Number(r.area_ha || 0), 0).toFixed(2)
+);
 
 const fmtNum = (v: number | string) => Number(v ?? 0).toFixed(2);
 const fmtDate = (d: string) => {
@@ -164,6 +182,7 @@ async function fetchRows() {
         per_page: 500,
         barangay: filters.barangay || undefined,
         crop_type: filters.cropType || undefined,
+        growth_stage: filters.growthStage || undefined,
       },
     });
     const data = res.data?.data?.data ?? [];
@@ -196,6 +215,7 @@ function trim(s: string) {
 function clearFilters() {
   filters.barangay = '';
   filters.cropType = '';
+  filters.growthStage = '';
   fetchRows();
 }
 
@@ -275,6 +295,9 @@ onMounted(async () => {
 .excel-table th { background: #f1f5f9; font-size: 0.72rem; text-transform: uppercase; color: #475569; }
 .col-no { width: 48px; }
 .col-num { text-align: right; }
+.totals-row { background: #1a4731 !important; }
+.totals-row td { color: #fff !important; font-weight: 800; font-size: 12px; border-color: #0f3021; }
+.totals-label { text-align: right; letter-spacing: 0.05em; }
 .mono { font-variant-numeric: tabular-nums; }
 .empty-row { text-align: center; color: #94a3b8; padding: 1.5rem !important; }
 .lh-meta { margin: 0; font-size: 0.85rem; }

@@ -39,6 +39,14 @@
             </select>
           </div>
           <div class="filter-group">
+            <label class="filter-label">Crop</label>
+            <select class="filter-select" v-model="filters.cropType" @change="fetchRows">
+              <option value="">All</option>
+              <option value="Rice">Rice</option>
+              <option value="Corn">Corn</option>
+            </select>
+          </div>
+          <div class="filter-group">
             <label class="filter-label">Calamity Type</label>
             <select class="filter-select" v-model="filters.calamityType" @change="fetchRows">
               <option value="">All Types</option>
@@ -253,6 +261,7 @@ const viewingPhoto = ref<string | null>(null);
 
 const filters = reactive({
   barangay: '',
+  cropType: '',
   calamityType: '',
   status: '',
   dateFrom: '',
@@ -303,6 +312,7 @@ async function fetchRows() {
     const res = await apiClient.get('/reports/damage-calamity', {
       params: {
         barangay:      filters.barangay     || undefined,
+        crop_type:     filters.cropType     || undefined,
         calamity_type: filters.calamityType || undefined,
         status:        filters.status       || undefined,
         date_from:     filters.dateFrom     || undefined,
@@ -320,6 +330,7 @@ async function fetchRows() {
 
 function clearFilters() {
   filters.barangay     = '';
+  filters.cropType     = '';
   filters.calamityType = '';
   filters.status       = '';
   filters.dateFrom     = '';

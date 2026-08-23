@@ -87,6 +87,7 @@ const routes: Array<RouteRecordRaw> = [
       { path: "geo-tag", name: "MobileGeoTag", component: () => import("@/views/Technician/MobileGeoTagView.vue") },
       { path: "planting", name: "MobilePlantingLog", component: () => import("@/views/Technician/MobilePlantingLogView.vue") },
       { path: "harvest", name: "MobileHarvestLog", component: () => import("@/views/Technician/MobileHarvestLogView.vue") },
+      { path: "standing-crop", name: "MobileStandingCropLog", component: () => import("@/views/Technician/MobileStandingCropLogView.vue") },
       { path: "farmers/register", name: "TechFarmersRegister", component: () => import("@/views/Farmers/Registration_Form.vue") },
       { path: "map", name: "TechMap", component: () => import("@/views/Map/MapPage.vue") },
       { path: "profile", name: "TechProfile", component: () => import("@/views/Technician/ProfilePage.vue") },

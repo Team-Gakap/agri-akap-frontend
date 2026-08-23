@@ -266,8 +266,9 @@ const fetchFarmerByQr = async (raw: string) => {
   }
 };
 
-const setScannerBackground = (active: boolean) => {
-  document.body.classList.toggle('scanner-active', active);
+/** ML Kit `scan()` uses a native camera UI — do not clear the WebView background. */
+const clearScannerBackground = () => {
+  document.body.classList.remove('scanner-active', 'barcode-scanner-active');
 };
 
 const stopScan = async () => {
@@ -276,7 +277,7 @@ const stopScan = async () => {
   } catch {
     // ignore
   }
-  setScannerBackground(false);
+  clearScannerBackground();
   isScanning.value = false;
 };
 
@@ -296,7 +297,7 @@ const startScan = async () => {
     }
 
     isScanning.value = true;
-    setScannerBackground(true);
+    clearScannerBackground();
 
     const { barcodes } = await BarcodeScanner.scan();
     const raw = barcodes[0]?.rawValue?.trim();
@@ -389,6 +390,7 @@ const continueToRelease = async () => {
 };
 
 onMounted(async () => {
+  clearScannerBackground();
   programs.value = await getPrograms();
   if (programs.value.length === 1) selectedProgramId.value = programs.value[0].id;
 
@@ -416,6 +418,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   if (searchTimer) clearTimeout(searchTimer);
+  clearScannerBackground();
   void stopScan();
 });
 </script>

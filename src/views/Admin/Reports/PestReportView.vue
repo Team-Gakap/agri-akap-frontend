@@ -38,6 +38,14 @@
             </select>
           </div>
           <div class="filter-group">
+            <label class="filter-label">Crop</label>
+            <select class="filter-select" v-model="filters.cropType" @change="fetchRows">
+              <option value="">All</option>
+              <option value="Rice">Rice</option>
+              <option value="Corn">Corn</option>
+            </select>
+          </div>
+          <div class="filter-group">
             <label class="filter-label">Status</label>
             <select class="filter-select" v-model="filters.status" @change="fetchRows">
               <option value="">All Statuses</option>
@@ -91,13 +99,14 @@
                   <th>Crop</th>
                   <th>Pest / Disease</th>
                   <th>Severity</th>
+                  <th class="col-num">Area Affected (ha)</th>
                   <th>Status</th>
                   <th class="col-evidence no-print">Evidence</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="!filteredRows.length">
-                  <td colspan="10" class="empty-row">No pest surveillance records match the current filters.</td>
+                  <td colspan="11" class="empty-row">No pest surveillance records match the current filters.</td>
                 </tr>
                 <tr v-for="(row, i) in filteredRows" :key="i">
                   <td class="col-no">{{ i + 1 }}</td>
@@ -110,6 +119,7 @@
                   <td>
                     <span class="severity-pill" :class="severityClass(row.severity)">{{ row.severity }}</span>
                   </td>
+                  <td class="col-num">{{ fmtNum(row.area_affected) }}</td>
                   <td>
                     <span class="status-pill" :class="statusClass(row.status)">{{ row.status }}</span>
                   </td>
@@ -124,6 +134,11 @@
                     />
                     <span v-else class="no-photo">—</span>
                   </td>
+                </tr>
+                <tr v-if="filteredRows.length" class="totals-row">
+                  <td colspan="8" class="totals-label">TOTALS</td>
+                  <td class="col-num">{{ totalAreaAffected }}</td>
+                  <td colspan="2"></td>
                 </tr>
               </tbody>
             </table>
@@ -199,6 +214,7 @@ interface PestRow {
   crop: string;
   pest_disease: string;
   severity: string;
+  area_affected?: number;
   status: string;
   photo_base64?: string;
   photo_url?: string;
@@ -212,12 +228,17 @@ const viewingPhoto = ref<string | null>(null);
 
 const filters = reactive({
   barangay: '',
+  cropType: '',
   status: '',
   dateFrom: '',
   dateTo: '',
 });
 
 const filteredRows = computed(() => rows.value);
+const totalAreaAffected = computed(() =>
+  filteredRows.value.reduce((s, r) => s + Number(r.area_affected || 0), 0).toFixed(2)
+);
+const fmtNum = (v: number | string | undefined) => Number(v ?? 0).toFixed(2);
 const encodeOpen = ref(false);
 const rowsWithPhotos = computed(() => filteredRows.value.filter(r => photoSrc(r)));
 
@@ -259,6 +280,7 @@ async function fetchRows() {
     const res = await apiClient.get('/reports/pest-surveillance', {
       params: {
         barangay:  filters.barangay  || undefined,
+        crop_type: filters.cropType  || undefined,
         status:    filters.status    || undefined,
         date_from: filters.dateFrom  || undefined,
         date_to:   filters.dateTo    || undefined,
@@ -275,6 +297,7 @@ async function fetchRows() {
 
 function clearFilters() {
   filters.barangay = '';
+  filters.cropType = '';
   filters.status   = '';
   filters.dateFrom = '';
   filters.dateTo   = '';
@@ -308,12 +331,14 @@ async function downloadExcel() {
       { key: 'crop', label: 'Crop' },
       { key: 'pest_disease', label: 'Pest / Disease' },
       { key: 'severity', label: 'Severity' },
+      { key: 'area_affected', label: 'Area Affected (ha)' },
       { key: 'status', label: 'Status' },
     ],
     rows: filteredRows.value as Record<string, unknown>[],
     getCellValue(row, key, index) {
       if (key === 'no') return index + 1;
       if (key === 'date_reported') return fmtDate(String(row.date_reported ?? ''));
+      if (key === 'area_affected') return fmtNum(row.area_affected as number);
       return String(row[key] ?? '');
     },
   });
@@ -465,6 +490,9 @@ onMounted(async () => {
 }
 .excel-table tbody tr:nth-child(even) { background: #f8fafc; }
 .excel-table tbody tr:hover { background: #eef5ee; }
+.totals-row { background: #1a4731 !important; }
+.totals-row td { color: #fff !important; font-weight: 800; font-size: 12px; border-color: #0f3021; }
+.totals-label { text-align: right; letter-spacing: 0.05em; }
 .col-no { text-align: right; width: 40px; }
 .col-evidence { width: 70px; text-align: center; }
 .mono { font-family: 'Courier New', monospace; }

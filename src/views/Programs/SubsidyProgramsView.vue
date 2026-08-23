@@ -55,7 +55,8 @@
               </div>
               <p class="meta">
                 {{ p.target_crop }} &middot;
-                {{ p.items_per_hectare }} items/ha &middot;
+                {{ p.items_per_hectare }} {{ p.unit_of_measurement }}/ha &middot;
+                min {{ Number(p.min_hectares_limit ?? 0).toFixed(2) }} ha &middot;
                 cap {{ Number(p.max_hectares_limit).toFixed(2) }} ha
               </p>
 
@@ -145,7 +146,19 @@
               >
                 <ion-select-option value="Rice">Rice</ion-select-option>
                 <ion-select-option value="Corn">Corn</ion-select-option>
+                <ion-select-option value="Both">Both</ion-select-option>
               </ion-select>
+            </ion-item>
+            <ion-item>
+              <ion-input
+                type="number"
+                label="Min Hectares (0 = no floor)"
+                label-placement="stacked"
+                :value="form.min_hectares_limit"
+                @ionInput="(e: any) => form.min_hectares_limit = Number(e.detail.value)"
+                min="0"
+                step="0.01"
+              ></ion-input>
             </ion-item>
             <ion-item>
               <ion-input
@@ -185,13 +198,18 @@
             <h3 class="section-label">Warehouse Stock</h3>
 
             <ion-item>
-              <ion-input
+              <ion-select
                 label="Unit of Measurement"
                 label-placement="stacked"
+                interface="popover"
                 :value="form.unit_of_measurement"
-                @ionInput="(e: any) => form.unit_of_measurement = e.detail.value"
-                placeholder="e.g. Bags, Sacks, Kg"
-              ></ion-input>
+                @ionChange="(e: any) => form.unit_of_measurement = e.detail.value"
+              >
+                <ion-select-option value="Bags">Bags</ion-select-option>
+                <ion-select-option value="Sacks">Sacks</ion-select-option>
+                <ion-select-option value="Kg">Kg</ion-select-option>
+                <ion-select-option value="Cash (PHP)">Cash (PHP)</ion-select-option>
+              </ion-select>
             </ion-item>
             <ion-item>
               <ion-input
@@ -280,12 +298,18 @@
             <p class="modal-program">{{ activeProgram.program_name }}</p>
 
             <ion-item class="modal-input">
-              <ion-input
+              <ion-select
                 :value="settingsUnit"
-                @ionInput="(e: any) => settingsUnit = e.detail.value"
+                interface="popover"
                 label="Unit of Measurement"
                 label-placement="floating"
-              ></ion-input>
+                @ionChange="(e: any) => settingsUnit = e.detail.value"
+              >
+                <ion-select-option value="Bags">Bags</ion-select-option>
+                <ion-select-option value="Sacks">Sacks</ion-select-option>
+                <ion-select-option value="Kg">Kg</ion-select-option>
+                <ion-select-option value="Cash (PHP)">Cash (PHP)</ion-select-option>
+              </ion-select>
             </ion-item>
 
             <ion-item class="modal-input">
@@ -329,6 +353,7 @@ interface SubsidyProgramRow {
   program_name: string;
   target_crop: string;
   max_hectares_limit: number;
+  min_hectares_limit: number;
   items_per_hectare: number;
   status: string;
   unit_of_measurement: string;
@@ -365,6 +390,7 @@ const form = reactive({
   program_name: '',
   target_crop: 'Rice',
   max_hectares_limit: 2,
+  min_hectares_limit: 0,
   items_per_hectare: 2,
   status: 'Draft',
   unit_of_measurement: 'Bags',
@@ -408,6 +434,7 @@ const openCreate = () => {
   form.program_name = '';
   form.target_crop = 'Rice';
   form.max_hectares_limit = 2;
+  form.min_hectares_limit = 0;
   form.items_per_hectare = 2;
   form.status = 'Draft';
   form.unit_of_measurement = 'Bags';
@@ -427,6 +454,14 @@ const createProgram = async () => {
     formError.value = 'Max hectares must be greater than 0.';
     return;
   }
+  if (form.min_hectares_limit < 0) {
+    formError.value = 'Min hectares cannot be negative.';
+    return;
+  }
+  if (form.min_hectares_limit > form.max_hectares_limit) {
+    formError.value = 'Min hectares cannot exceed the max hectares cap.';
+    return;
+  }
   if (!form.items_per_hectare || form.items_per_hectare < 1) {
     formError.value = 'Items per hectare must be at least 1.';
     return;
@@ -438,6 +473,7 @@ const createProgram = async () => {
       program_name: form.program_name.trim(),
       target_crop: form.target_crop,
       max_hectares_limit: form.max_hectares_limit,
+      min_hectares_limit: form.min_hectares_limit || 0,
       items_per_hectare: form.items_per_hectare,
       status: form.status,
       unit_of_measurement: form.unit_of_measurement.trim() || 'Bags',
