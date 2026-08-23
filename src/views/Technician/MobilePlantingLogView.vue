@@ -52,7 +52,7 @@
               {{ p.location_brgy || 'Plot' }} · {{ p.commodity }} · {{ p.size_ha }} ha
             </ion-select-option>
           </ion-select>
-          <ion-input label="Variety" label-placement="stacked" :value="form.variety" @ionInput="(e: CustomEvent) => form.variety = e.detail.value ?? ''"></ion-input>
+          <VarietyField v-model="form.variety" :crop="form.cropType" interface-name="action-sheet" />
           <ion-input type="number" label="Area planted (ha)" label-placement="stacked" :value="form.areaPlanted" @ionInput="(e: CustomEvent) => form.areaPlanted = e.detail.value ?? ''"></ion-input>
           <ion-input type="date" label="Date planted" label-placement="stacked" :value="form.datePlanted" @ionInput="(e: CustomEvent) => form.datePlanted = e.detail.value ?? ''"></ion-input>
           <ion-select label="Status" label-placement="stacked" interface="action-sheet" :value="form.status" @ionChange="(e: CustomEvent) => form.status = e.detail.value">
@@ -79,13 +79,17 @@ import { reactive, ref, computed } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonBackButton,
   IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonInput, IonSelect, IonSelectOption,
-  toastController,
 } from '@ionic/vue';
+import VarietyField from '@/components/VarietyField.vue';
 import { useBarangayFarmerSearch, type FarmerOption } from '@/composables/useBarangayFarmerSearch';
+import { presentToast } from '@/utils/toast';
 import { queuePlantingLog, syncAllPendingData } from '@/services/syncService';
 import { useSyncStore } from '@/stores/syncStore';
 
-const farmerSearch = useBarangayFarmerSearch(() => null, { requireBarangay: false });
+const farmerSearch = useBarangayFarmerSearch(() => null, {
+  requireBarangay: false,
+  commodity: () => form.cropType,
+});
 const syncStore = useSyncStore();
 const submitting = ref(false);
 
@@ -167,21 +171,9 @@ const submit = async () => {
     if (navigator.onLine) {
       void syncAllPendingData().then(() => syncStore.refreshCount());
     }
-    const t = await toastController.create({
-      message: navigator.onLine ? 'Planting saved.' : 'Saved locally. Will sync when online.',
-      duration: 2400,
-      color: 'success',
-      position: 'top',
-    });
-    await t.present();
+    await presentToast(navigator.onLine ? 'Planting saved.' : 'Saved locally. Will sync when online.');
   } catch (e: any) {
-    const t = await toastController.create({
-      message: e?.response?.data?.message || 'Could not save planting log.',
-      duration: 2600,
-      color: 'danger',
-      position: 'top',
-    });
-    await t.present();
+    await presentToast(e?.response?.data?.message || 'Could not save planting log.', 'danger');
   } finally {
     submitting.value = false;
   }

@@ -85,7 +85,7 @@
               </ion-select-option>
             </ion-select>
             <ion-input class="field" type="number" label="Area Planted (ha)" label-placement="stacked" :value="form.area_planted" @ionInput="(e: any) => form.area_planted = e.detail.value"></ion-input>
-            <ion-input class="field" label="Variety" label-placement="stacked" :value="form.variety" @ionInput="(e: any) => form.variety = e.detail.value"></ion-input>
+            <VarietyField v-model="form.variety" :crop="crop" select-class="field" />
             <ion-input class="field" type="number" label="Days After Planting" label-placement="stacked" :value="form.days_after_planting" @ionInput="(e: any) => form.days_after_planting = e.detail.value"></ion-input>
             <ion-input class="field" type="number" label="Area Damaged (%)" label-placement="stacked" :value="form.area_damage_pct" @ionInput="(e: any) => form.area_damage_pct = e.detail.value"></ion-input>
             <ion-input class="field grow" label="Damage by Pest/Disease" label-placement="stacked" :value="form.damage_by" @ionInput="(e: any) => form.damage_by = e.detail.value"></ion-input>
@@ -129,18 +129,20 @@
 import { ref, reactive, computed, defineAsyncComponent, onMounted } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
-  IonButton, IonIcon, IonInput, IonSelect, IonSelectOption, toastController,
+  IonButton, IonIcon, IonInput, IonSelect, IonSelectOption,
 } from '@ionic/vue';
 import FormExportActions from '@/components/FormExportActions.vue';
 import { exportPestMonitoringExcel } from '@/utils/statutoryFormExcel';
 import { useEncodingBarangay } from '@/composables/useEncodingBarangay';
 import EncodingBarangaySelector from '@/components/EncodingBarangaySelector.vue';
+import VarietyField from '@/components/VarietyField.vue';
 import {
   useBarangayFarmerSearch,
   formatBirthday,
   type FarmerOption,
 } from '@/composables/useBarangayFarmerSearch';
 import apiClient from '@/utils/axios';
+import { toast } from '@/utils/toast';
 const PestMonitoringPrint = defineAsyncComponent(() => import('@/components/PestMonitoringPrint.vue'));
 
 withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
@@ -300,13 +302,7 @@ const onSelectFarmer = async (f: FarmerOption) => {
   const plots = farmerSearch.plotsForCommodity(crop.value);
   if (!plots.length) {
     farmerSearch.clearSelection();
-    const t = await toastController.create({
-      message: `This farmer has no ${crop.value} plot. Switch Crop Type or choose another farmer.`,
-      color: 'warning',
-      duration: 2800,
-      position: 'top',
-    });
-    await t.present();
+    await toast.warning(`This farmer has no ${crop.value} plot. Switch Crop Type or choose another farmer.`);
     return;
   }
 
@@ -363,13 +359,7 @@ const addEntry = async () => {
   if (!canAdd.value) return;
   const plotOk = matchingPlots.value.some((p) => p.id === form.plot_id);
   if (!plotOk) {
-    const t = await toastController.create({
-      message: `Select a ${crop.value} farm plot before encoding.`,
-      color: 'warning',
-      duration: 2400,
-      position: 'top',
-    });
-    await t.present();
+    await toast.warning(`Select a ${crop.value} farm plot before encoding.`);
     return;
   }
   saving.value = true;
@@ -410,17 +400,10 @@ const addEntry = async () => {
       date_of_inspection: form.date_of_inspection,
     });
     resetForm();
-    const t = await toastController.create({ message: 'Pest inspection saved.', color: 'success', duration: 1800, position: 'top' });
-    await t.present();
+    await toast.success('Pest inspection saved.', 1800);
     emit('saved');
   } catch (e: any) {
-    const t = await toastController.create({
-      message: e?.response?.data?.message || 'Failed to save pest inspection.',
-      color: 'danger',
-      duration: 2800,
-      position: 'top',
-    });
-    await t.present();
+    await toast.error(e?.response?.data?.message || 'Failed to save pest inspection.');
   } finally {
     saving.value = false;
   }

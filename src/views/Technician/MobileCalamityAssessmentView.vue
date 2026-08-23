@@ -91,13 +91,7 @@
           </ion-item>
 
           <ion-item class="field-item" lines="none">
-            <ion-input
-              label="Variety"
-              label-placement="stacked"
-              placeholder="e.g. NSIC Rc 222"
-              :value="state.variety"
-              @ionInput="(e: CustomEvent) => state.variety = e.detail.value ?? ''"
-            ></ion-input>
+            <VarietyField v-model="state.variety" :crop="state.cropType" interface-name="action-sheet" />
           </ion-item>
 
           <ion-item class="field-item" lines="none">
@@ -142,10 +136,11 @@
               :value="state.yieldLossPct"
               pin
               color="warning"
-              @ionChange="(e: CustomEvent) => state.yieldLossPct = e.detail.value"
+              @ionChange="(e: CustomEvent) => onYieldLossChange(e.detail.value)"
             ></ion-range>
             <ion-note slot="end" class="range-note">{{ state.yieldLossPct }}%</ion-note>
           </ion-item>
+          <p class="severity-line">Severity: <strong>{{ derivedSeverity }}</strong></p>
 
           <ion-item class="field-item" lines="none">
             <ion-input
@@ -231,7 +226,6 @@ import {
   IonCard, IonCardHeader, IonCardTitle, IonCardSubtitle, IonCardContent,
   IonButton, IonIcon, IonInput, IonItem, IonSelect, IonSelectOption,
   IonLabel, IonRange, IonNote, IonChip,
-  toastController,
 } from '@ionic/vue';
 import {
   locateOutline, cameraOutline, checkmarkCircleOutline, alertCircleOutline,
@@ -242,6 +236,9 @@ import {
   useBarangayFarmerSearch,
   type FarmerOption,
 } from '@/composables/useBarangayFarmerSearch';
+import VarietyField from '@/components/VarietyField.vue';
+import { damageSeverityFromPct } from '@/constants/cropVarieties';
+import { presentToast } from '@/utils/toast';
 import apiClient from '@/utils/axios';
 import { formatFarmerName } from '@/data/technicianDispatchQueues';
 
@@ -275,7 +272,10 @@ const activeCalamities = [
 ];
 
 const route = useRoute();
-const farmerSearch = useBarangayFarmerSearch(() => null, { requireBarangay: false });
+const farmerSearch = useBarangayFarmerSearch(() => null, {
+  requireBarangay: false,
+  commodity: () => state.cropType,
+});
 const lockingGps = ref(false);
 const capturingPhoto = ref(false);
 const submitting = ref(false);
@@ -300,6 +300,25 @@ const state = reactive<CalamityAssessmentState>({
   longitude: null,
   photoDataUrl: null,
 });
+
+const derivedSeverity = computed(() => damageSeverityFromPct(state.yieldLossPct));
+
+const applyAreaFromYieldLoss = (pct: number) => {
+  const base = Number(state.areaPlanted) || state.plotSizeHa || 0;
+  if (base <= 0) return;
+  const ha = Math.round((base * pct / 100) * 10000) / 10000;
+  const cap = Math.min(
+    state.plotSizeHa > 0 ? state.plotSizeHa : Number.POSITIVE_INFINITY,
+    Number(state.areaPlanted) > 0 ? Number(state.areaPlanted) : Number.POSITIVE_INFINITY,
+  );
+  state.areaDamaged = String(Number.isFinite(cap) ? Math.min(ha, cap) : ha);
+};
+
+const onYieldLossChange = (value: number | number[]) => {
+  const pct = Array.isArray(value) ? Number(value[0]) : Number(value);
+  state.yieldLossPct = Number.isFinite(pct) ? pct : 0;
+  applyAreaFromYieldLoss(state.yieldLossPct);
+};
 
 const rsbsaEligible = computed(() => !!state.rsbsaNo && state.rsbsaNo.trim().length > 0);
 
@@ -340,12 +359,14 @@ const applyAssessment = (r: any) => {
   state.rsbsaNo = farmer.rsbsa_no || '';
   state.barangay = farmer.permanent_brgy || plot.location_brgy || '';
   state.cropType = plot.commodity || state.cropType;
+  state.variety = r.variety || state.variety;
   state.cropStage = r.crop_stage || state.cropStage;
   state.areaPlanted = String(r.area_planted_ha ?? plot.size_ha ?? '');
   state.plotSizeHa = Number(plot.size_ha ?? r.area_planted_ha ?? 0);
   state.areaDamaged = String(r.area_destroyed_ha ?? '');
   state.valueLost = r.estimated_value_lost != null ? String(r.estimated_value_lost) : '';
   state.yieldLossPct = Number(r.damage_percentage) || 0;
+  if (!state.areaDamaged) applyAreaFromYieldLoss(state.yieldLossPct);
 };
 
 onMounted(async () => {
@@ -411,6 +432,7 @@ const onSelectFarmer = async (f: FarmerOption) => {
     state.areaPlanted = String(match.size_ha || state.areaPlanted);
     state.plotSizeHa = Number(match.size_ha) || 0;
   }
+  applyAreaFromYieldLoss(state.yieldLossPct);
 };
 
 const onAreaPlantedInput = (e: CustomEvent) => {
@@ -438,21 +460,9 @@ const lockGps = async () => {
     const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 12000 });
     state.latitude = pos.coords.latitude;
     state.longitude = pos.coords.longitude;
-    const t = await toastController.create({
-      message: 'GPS coordinates locked.',
-      duration: 2000,
-      color: 'success',
-      position: 'top',
-    });
-    await t.present();
+    await presentToast('GPS coordinates locked.', 'success', 2000);
   } catch {
-    const t = await toastController.create({
-      message: 'Unable to lock GPS. Enable location services.',
-      duration: 2500,
-      color: 'warning',
-      position: 'top',
-    });
-    await t.present();
+    await presentToast('Unable to lock GPS. Enable location services.', 'warning');
   } finally {
     lockingGps.value = false;
   }
@@ -468,21 +478,9 @@ const capturePhoto = async () => {
       source: CameraSource.Camera,
     });
     state.photoDataUrl = photo.dataUrl || null;
-    const t = await toastController.create({
-      message: 'Disaster photo captured.',
-      duration: 2000,
-      color: 'success',
-      position: 'top',
-    });
-    await t.present();
+    await presentToast('Disaster photo captured.', 'success', 2000);
   } catch {
-    const t = await toastController.create({
-      message: 'Camera unavailable. Check permissions.',
-      duration: 2500,
-      color: 'warning',
-      position: 'top',
-    });
-    await t.present();
+    await presentToast('Camera unavailable. Check permissions.', 'warning');
   } finally {
     capturingPhoto.value = false;
   }
@@ -501,17 +499,12 @@ const submitAssessment = async () => {
         area_destroyed_ha: Number(state.areaDamaged) || 0,
         damage_percentage: state.yieldLossPct,
         crop_stage: state.cropStage || undefined,
+        variety: state.variety || undefined,
         estimated_value_lost: Number(state.valueLost) || 0,
       });
     } else {
       if (!state.farmPlotId) {
-        const t = await toastController.create({
-          message: 'This farmer needs a farm plot before calamity assessment can be saved.',
-          duration: 2800,
-          color: 'warning',
-          position: 'top',
-        });
-        await t.present();
+        await presentToast('This farmer needs a farm plot before calamity assessment can be saved.', 'warning', 2800);
         return;
       }
       await apiClient.post('/damage-assessments', {
@@ -521,6 +514,7 @@ const submitAssessment = async () => {
         calamity_type: inferCalamityType(state.calamityEvent),
         calamity_name: state.calamityEvent,
         crop_stage: state.cropStage || undefined,
+        variety: state.variety || undefined,
         area_destroyed_ha: Number(state.areaDamaged) || 0,
         area_planted_ha: Number(state.areaPlanted) || 0,
         date_of_calamity: new Date().toISOString().slice(0, 10),
@@ -531,21 +525,9 @@ const submitAssessment = async () => {
         photo_base64: photo,
       });
     }
-    const t = await toastController.create({
-      message: 'Assessment saved. Added to the MAO rehabilitation masterlist.',
-      duration: 3200,
-      color: 'success',
-      position: 'top',
-    });
-    await t.present();
+    await presentToast('Assessment saved. Added to the MAO rehabilitation masterlist.', 'success', 3200);
   } catch (e: any) {
-    const t = await toastController.create({
-      message: e?.response?.data?.message || 'Could not save assessment.',
-      duration: 2800,
-      color: 'danger',
-      position: 'top',
-    });
-    await t.present();
+    await presentToast(e?.response?.data?.message || 'Could not save assessment.', 'danger', 2800);
   } finally {
     submitting.value = false;
   }
@@ -571,6 +553,14 @@ function inferCalamityType(name: string): string {
   color: #475569;
   line-height: 1.45;
 }
+
+.severity-line {
+  margin: 0.35rem 0 0.6rem;
+  font-size: 0.88rem;
+  color: #475569;
+}
+
+.severity-line strong { color: #1a4731; }
 
 .section-card {
   margin: 0 0 1rem;

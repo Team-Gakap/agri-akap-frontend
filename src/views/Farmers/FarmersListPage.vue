@@ -103,7 +103,7 @@
       <div v-else-if="farmerStore.error" class="center-state error">
         <ion-icon :icon="alertCircleOutline" size="large"></ion-icon>
         <p>{{ farmerStore.error }}</p>
-        <ion-button @click="farmerStore.fetchFarmers()">Retry</ion-button>
+        <ion-button @click="applyFarmerFetch()">Retry</ion-button>
       </div>
 
       <!-- Empty state -->
@@ -450,6 +450,13 @@ const totalPlotHa = (farmer: any) => {
 const barangays = ref<string[]>([]);
 const filterBarangay = ref('');
 const filterCommodity = ref('');
+const searchQuery = ref('');
+
+const applyFarmerFetch = (page = 1) =>
+  farmerStore.fetchFarmers(page, searchQuery.value, {
+    barangay: filterBarangay.value,
+    commodity: filterCommodity.value,
+  });
 const pwdOnly = ref(false);
 const showCols = reactive({ rsbsa: true, address: true, plots: true });
 
@@ -467,7 +474,7 @@ const setStatusFilter = (status: StatusFilter) => {
   activeStatus.value = status;
   // Re-fetch from API — backend can filter by status if supported,
   // otherwise client-side filter is applied in displayedFarmers
-  farmerStore.fetchFarmers(1, '');
+  applyFarmerFetch(1);
 };
 
 // ── Computed displayed farmers (client-side layers) ───────────────
@@ -567,7 +574,7 @@ const bulkMarkVerified = async () => {
             await apiClient.post('/farmers/bulk-verify', { ids: Array.from(selectedIds) });
             await toast(`${count} farmer(s) marked as verified.`, 'success');
             clearSelection();
-            farmerStore.fetchFarmers();
+            applyFarmerFetch();
           } catch {
             await toast('Verification failed. Please try again.', 'danger');
           }
@@ -641,7 +648,7 @@ const suspendRecord = async (farmer: Farmer) => {
           try {
             await apiClient.post(`/farmers/${farmer.id}/suspend`);
             await toast(`Record for ${farmer.surname} suspended.`, 'warning');
-            farmerStore.fetchFarmers();
+            applyFarmerFetch();
           } catch {
             await toast('Failed to suspend record.', 'danger');
           }
@@ -677,14 +684,12 @@ const loadBarangays = async () => {
 
 const onBarangayChange = (e: CustomEvent) => {
   filterBarangay.value = (e.detail as any).value ?? '';
-  farmerStore.fetchFarmers(1, filterBarangay.value);
+  applyFarmerFetch(1);
 };
 
 const onCommodityChange = (e: CustomEvent) => {
   filterCommodity.value = (e.detail as any).value ?? '';
-  // If the backend supports commodity filtering, pass as a query param
-  // For now, we trigger a fetch — extend the backend API as needed
-  farmerStore.fetchFarmers(1, '');
+  applyFarmerFetch(1);
 };
 
 const exportFarmers = async () => {
@@ -707,21 +712,21 @@ const exportFarmers = async () => {
 };
 
 onMounted(() => {
-  farmerStore.fetchFarmers();
+  applyFarmerFetch();
   loadBarangays();
 });
 
 const handleSearch = (event: CustomEvent) => {
-  const query = (event.detail as any).value ?? '';
-  farmerStore.fetchFarmers(1, query);
+  searchQuery.value = (event.detail as any).value ?? '';
+  applyFarmerFetch(1);
 };
 
 const handleRefresh = async (event: CustomEvent) => {
-  await farmerStore.fetchFarmers();
+  await applyFarmerFetch();
   (event.target as any).complete();
 };
 
-const changePage = (page: number) => farmerStore.fetchFarmers(page, '');
+const changePage = (page: number) => applyFarmerFetch(page);
 
 const goToRegistration = () => {
   const inTech = router.currentRoute.value.path.startsWith('/tech');

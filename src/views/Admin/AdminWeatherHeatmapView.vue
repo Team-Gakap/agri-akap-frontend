@@ -127,10 +127,10 @@ import { computed, onMounted, ref } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
   IonButton, IonIcon, IonSegment, IonSegmentButton, IonLabel, IonSpinner,
-  toastController,
 } from '@ionic/vue';
 import { refreshOutline } from 'ionicons/icons';
 import apiClient from '@/utils/axios';
+import { toast } from '@/utils/toast';
 
 type MetricKey =
   | 'precipitation_probability'
@@ -341,21 +341,9 @@ async function triggerTargetedSms(row: BarangayWeather) {
       target_barangay: row.barangay_name,
       target_commodity: 'All',
     });
-    const t = await toastController.create({
-      message: res.data?.message ?? `Advisory queued for ${row.barangay_name}.`,
-      duration: 2800,
-      color: 'success',
-      position: 'top',
-    });
-    await t.present();
+    await toast.success(res.data?.message ?? `Advisory queued for ${row.barangay_name}.`);
   } catch (err: any) {
-    const t = await toastController.create({
-      message: err.response?.data?.message ?? `Failed to SMS ${row.barangay_name}.`,
-      duration: 2800,
-      color: 'danger',
-      position: 'top',
-    });
-    await t.present();
+    await toast.error(err.response?.data?.message ?? `Failed to SMS ${row.barangay_name}.`);
   } finally {
     sendingBarangay.value = null;
   }

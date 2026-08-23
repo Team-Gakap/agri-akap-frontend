@@ -43,6 +43,18 @@
               <ion-icon v-else slot="start" :icon="cloudUploadOutline"></ion-icon>
               {{ importing ? 'Importing…' : 'Import RSBSA Excel' }}
             </ion-button>
+            <ion-select
+              class="crop-filter"
+              label="Crop"
+              label-placement="stacked"
+              interface="popover"
+              :value="commodity"
+              @ionChange="onCommodityChange"
+            >
+              <ion-select-option value="">All crops</ion-select-option>
+              <ion-select-option value="Rice">Rice</ion-select-option>
+              <ion-select-option value="Corn">Corn</ion-select-option>
+            </ion-select>
             <ion-button fill="outline" class="refresh-btn" :disabled="loading" @click="fetchFarmers()">
               <ion-icon slot="start" :icon="refreshOutline"></ion-icon>
               Refresh
@@ -222,10 +234,11 @@ import { ref, onMounted } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
-  IonButton, IonIcon, IonSearchbar, IonSpinner, IonModal, toastController, alertController,
+  IonButton, IonIcon, IonSearchbar, IonSpinner, IonModal, IonSelect, IonSelectOption, alertController,
 } from '@ionic/vue';
 import { addOutline, cloudUploadOutline, refreshOutline, warningOutline } from 'ionicons/icons';
 import apiClient from '@/utils/axios';
+import { toast } from '@/utils/toast';
 
 const router = useRouter();
 const route = useRoute();
@@ -236,6 +249,7 @@ const loading = ref(false);
 const importing = ref(false);
 const error = ref('');
 const search = ref('');
+const commodity = ref('');
 const meta = ref({ current_page: 1, last_page: 1, total: 0 });
 const verificationModalOpen = ref(false);
 const selectedFarmer = ref<any | null>(null);
@@ -260,10 +274,6 @@ const fmtDate = (d: string) => {
   }
 };
 
-const toast = async (message: string, color: 'success' | 'warning' | 'danger' | 'primary' = 'success') => {
-  const t = await toastController.create({ message, duration: 3200, color, position: 'top' });
-  await t.present();
-};
 
 const fetchFarmers = async (page = 1) => {
   loading.value = true;
@@ -273,6 +283,7 @@ const fetchFarmers = async (page = 1) => {
       params: {
         page,
         search: search.value || undefined,
+        commodity: commodity.value || undefined,
       },
     });
     const payload = res.data?.data;
@@ -294,6 +305,11 @@ const onSearch = (e: CustomEvent) => {
   void fetchFarmers(1);
 };
 
+const onCommodityChange = (e: CustomEvent) => {
+  commodity.value = String(e.detail.value ?? '');
+  void fetchFarmers(1);
+};
+
 const triggerImport = () => fileInput.value?.click();
 
 const onFileSelected = async (e: Event) => {
@@ -304,7 +320,7 @@ const onFileSelected = async (e: Event) => {
 
   const okType = /\.(xlsx|xls|csv)$/i.test(file.name);
   if (!okType) {
-    await toast('Please select an .xlsx, .xls, or .csv file.', 'warning');
+    await toast.warning('Please select an .xlsx, .xls, or .csv file.');
     return;
   }
 
@@ -316,13 +332,12 @@ const onFileSelected = async (e: Event) => {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     const stats = res.data?.data ?? {};
-    await toast(
+    await toast.success(
       `Import complete — ${stats.created ?? 0} created, ${stats.updated ?? 0} updated, ${stats.skipped ?? 0} skipped.`,
-      'success',
     );
     await fetchFarmers(1);
   } catch (err: any) {
-    await toast(err?.response?.data?.message || 'Import failed. Check the file and try again.', 'danger');
+    await toast.error(err?.response?.data?.message || 'Import failed. Check the file and try again.');
   } finally {
     importing.value = false;
   }
@@ -370,7 +385,7 @@ const loadFarmerPlots = async () => {
     reviewPlots.value = res.data?.data ?? [];
     plotsLoaded.value = true;
   } catch (err: any) {
-    await toast(err?.response?.data?.message || 'Could not load farm plots.', 'danger');
+    await toast.error(err?.response?.data?.message || 'Could not load farm plots.');
   } finally {
     loadingPlots.value = false;
   }
@@ -399,7 +414,7 @@ const deletePlot = async (plotId: string) => {
   try {
     await apiClient.delete(`/farm-plots/${plotId}`);
     reviewPlots.value = reviewPlots.value.filter((p) => p.id !== plotId);
-    await toast('Farm plot removed.', 'success');
+    await toast.success('Farm plot removed.');
     if (selectedFarmer.value?.id) {
       const res = await apiClient.get(`/farmers/${selectedFarmer.value.id}`);
       if (res.data?.data) {
@@ -416,7 +431,7 @@ const deletePlot = async (plotId: string) => {
       }
     }
   } catch (err: any) {
-    await toast(err?.response?.data?.message || 'Failed to remove plot.', 'danger');
+    await toast.error(err?.response?.data?.message || 'Failed to remove plot.');
   } finally {
     deletingPlotId.value = null;
   }
@@ -457,7 +472,7 @@ const returnForCorrection = async (reason: string) => {
   processingRts.value = true;
   try {
     await apiClient.post(`/farmers/${selectedFarmer.value.id}/return-for-correction`, { reason });
-    await toast('Farmer marked for correction. SMS notification sent.', 'success');
+    await toast.success('Farmer marked for correction. SMS notification sent.');
     
     // Update local state
     selectedFarmer.value.verification_status = 'rts';
@@ -471,7 +486,7 @@ const returnForCorrection = async (reason: string) => {
     
     closeVerificationModal();
   } catch (err: any) {
-    await toast(err?.response?.data?.message || 'Failed to process RTS. Please try again.', 'danger');
+    await toast.error(err?.response?.data?.message || 'Failed to process RTS. Please try again.');
   } finally {
     processingRts.value = false;
   }
@@ -501,6 +516,13 @@ const returnForCorrection = async (reason: string) => {
   font-size: 0.9rem;
 }
 .actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.crop-filter {
+  --background: #fff;
+  min-width: 140px;
+  border: 1px solid #d1e0d6;
+  border-radius: 8px;
+  padding: 0 0.4rem;
+}
 .hidden-file { display: none; }
 
 .import-btn {

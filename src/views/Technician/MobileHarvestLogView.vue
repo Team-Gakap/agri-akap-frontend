@@ -53,7 +53,7 @@
               {{ p.location_brgy || 'Plot' }} · {{ p.commodity }} · {{ p.size_ha }} ha
             </ion-select-option>
           </ion-select>
-          <ion-input label="Variety" label-placement="stacked" :value="form.variety" @ionInput="(e: CustomEvent) => form.variety = e.detail.value ?? ''"></ion-input>
+          <VarietyField v-model="form.variety" :crop="form.cropType" interface-name="action-sheet" />
           <ion-input type="number" label="Area harvested (ha)" label-placement="stacked" :value="form.areaHarvested" @ionInput="(e: CustomEvent) => form.areaHarvested = e.detail.value ?? ''"></ion-input>
           <ion-input type="number" label="Total yield (MT)" label-placement="stacked" :value="form.totalYield" @ionInput="(e: CustomEvent) => form.totalYield = e.detail.value ?? ''"></ion-input>
           <ion-input type="date" label="Date harvested" label-placement="stacked" :value="form.dateHarvested" @ionInput="(e: CustomEvent) => form.dateHarvested = e.detail.value ?? ''"></ion-input>
@@ -72,12 +72,16 @@ import { reactive, ref, computed } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonBackButton,
   IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonInput, IonSelect, IonSelectOption,
-  toastController,
 } from '@ionic/vue';
+import VarietyField from '@/components/VarietyField.vue';
 import { useBarangayFarmerSearch, type FarmerOption } from '@/composables/useBarangayFarmerSearch';
+import { presentToast } from '@/utils/toast';
 import apiClient from '@/utils/axios';
 
-const farmerSearch = useBarangayFarmerSearch(() => null, { requireBarangay: false });
+const farmerSearch = useBarangayFarmerSearch(() => null, {
+  requireBarangay: false,
+  commodity: () => form.cropType,
+});
 const submitting = ref(false);
 
 const form = reactive({
@@ -151,21 +155,9 @@ const submit = async () => {
       date_harvested: form.dateHarvested,
       farm_location: form.farmLocation,
     });
-    const t = await toastController.create({
-      message: 'Harvest saved.',
-      duration: 2400,
-      color: 'success',
-      position: 'top',
-    });
-    await t.present();
+    await presentToast('Harvest saved.');
   } catch (e: any) {
-    const t = await toastController.create({
-      message: e?.response?.data?.message || 'Could not save harvest log.',
-      duration: 2600,
-      color: 'danger',
-      position: 'top',
-    });
-    await t.present();
+    await presentToast(e?.response?.data?.message || 'Could not save harvest log.', 'danger');
   } finally {
     submitting.value = false;
   }

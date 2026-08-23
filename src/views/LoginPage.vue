@@ -77,10 +77,10 @@ import {
   IonButton,
   IonItem,
   IonInput,
-  toastController,
 } from "@ionic/vue";
 import { person, lockClosed, eye, eyeOff } from "ionicons/icons";
 import { useAuthStore } from "@/stores/authStore";
+import { presentToast } from "@/utils/toast";
 
 const authStore = useAuthStore();
 
@@ -96,14 +96,9 @@ const togglePassword = () => {
   showPassword.value = !showPassword.value;
 };
 
-const showToast = async (message: string, color = "danger") => {
-  const toast = await toastController.create({ message, duration: 2500, color, position: "top" });
-  await toast.present();
-};
-
 const login = async () => {
   if (!credentials.email || !credentials.password) {
-    await showToast("Email and password are required.");
+    await presentToast("Email and password are required.", "warning");
     return;
   }
 
@@ -122,7 +117,7 @@ const login = async () => {
     credentials.email = "";
     credentials.password = "";
   } else {
-    await showToast(result.message || "Invalid email or password.");
+    await presentToast(result.message || "Invalid email or password.", "danger");
   }
 
   isSubmitting.value = false;

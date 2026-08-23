@@ -67,7 +67,11 @@ export const useFarmerStore = defineStore('farmer', () => {
    * Fetch paginated list of farmers. 
    * Supports optional search queries.
    */
-  const fetchFarmers = async (page: number = 1, searchQuery: string = '') => {
+  const fetchFarmers = async (
+    page: number = 1,
+    searchQuery: string = '',
+    extras: { barangay?: string; commodity?: string } = {},
+  ) => {
     isLoading.value = true;
     error.value = null;
 
@@ -75,7 +79,9 @@ export const useFarmerStore = defineStore('farmer', () => {
       const response = await apiClient.get('/farmers', {
         params: { 
           page: page,
-          search: searchQuery 
+          search: searchQuery || undefined,
+          barangay: extras.barangay || undefined,
+          commodity: extras.commodity || undefined,
         }
       });
 

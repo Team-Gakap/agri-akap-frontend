@@ -39,6 +39,10 @@
               <span class="ro-label">Crop</span>
               <span class="ro-value">{{ state.target.crop }}</span>
             </div>
+            <div class="ro-item">
+              <span class="ro-label">Variety</span>
+              <span class="ro-value">{{ state.target.variety || '—' }}</span>
+            </div>
             <div class="ro-item full">
               <span class="ro-label">Reported Pest / Disease</span>
               <span class="ro-value pest-alert">{{ state.target.reportedPest }}</span>
@@ -193,6 +197,9 @@
             <ion-icon slot="start" :icon="qrCodeOutline"></ion-icon>
             Scan Farmer ID to Give Item
           </ion-button>
+          <ion-button expand="block" fill="outline" class="action-btn" @click="useLoadedFarmerIdentity()">
+            Continue without scan
+          </ion-button>
 
           <ion-item class="field-item" lines="none">
             <ion-select
@@ -239,7 +246,7 @@ import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonBackButton,
   IonCard, IonCardHeader, IonCardTitle, IonCardSubtitle, IonCardContent,
   IonButton, IonIcon, IonItem, IonLabel, IonSelect, IonSelectOption,
-  IonRange, IonNote, IonToggle, IonInput, toastController,
+  IonRange, IonNote, IonToggle, IonInput,
 } from '@ionic/vue';
 import {
   cameraOutline, locateOutline, qrCodeOutline, checkmarkCircleOutline,
@@ -256,8 +263,9 @@ import {
   showScannerBackground,
 } from '@/composables/useNativeHardware';
 import { db, newUuid } from '@/database/db';
-import { syncAllPendingData } from '@/services/syncService';
+import { lookupFarmer, syncAllPendingData } from '@/services/syncService';
 import { useSyncStore } from '@/stores/syncStore';
+import { presentToast } from '@/utils/toast';
 
 interface PestResponseState {
   target: {
@@ -266,6 +274,7 @@ interface PestResponseState {
     rsbsaNo: string;
     barangay: string;
     crop: string;
+    variety: string;
     reportedPest: string;
     reportId: string;
   };
@@ -317,6 +326,7 @@ const emptyTarget = {
   rsbsaNo: '',
   barangay: '',
   crop: '',
+  variety: '',
   reportedPest: '',
   reportId: '',
 };
@@ -362,6 +372,7 @@ const applyQueryTarget = () => {
   }
   if (q.reportId) state.target.reportId = String(q.reportId);
   if (q.rsbsa) state.target.rsbsaNo = String(q.rsbsa);
+  if (q.variety) state.target.variety = String(q.variety);
 };
 
 onMounted(async () => {
@@ -380,6 +391,7 @@ onMounted(async () => {
       rsbsaNo: farmer.rsbsa_no || state.target.rsbsaNo,
       barangay: farmer.permanent_brgy || r.farm_location || r.farm_plot?.location_brgy || state.target.barangay,
       crop: r.crop || r.farm_plot?.commodity || state.target.crop,
+      variety: r.variety || state.target.variety,
       reportedPest: r.pest_name || state.target.reportedPest,
       reportId: r.report_ref || `PEST-${String(r.id).slice(0, 8).toUpperCase()}`,
     };
@@ -421,22 +433,10 @@ const capturePhotoEvidence = async () => {
       }
     }
 
-    const t = await toastController.create({
-      message: 'Photo evidence captured. Review preview before submitting.',
-      duration: 2200,
-      color: 'success',
-      position: 'top',
-    });
-    await t.present();
+    await presentToast('Photo evidence captured. Review preview before submitting.');
   } catch (err) {
     console.warn('[AGRI-AKAP] Camera unavailable (web/native):', err);
-    const t = await toastController.create({
-      message: 'Camera unavailable. Check device permissions or try on a native build.',
-      duration: 2500,
-      color: 'warning',
-      position: 'top',
-    });
-    await t.present();
+    await presentToast('Camera unavailable. Check device permissions or try on a native build.', 'warning');
   } finally {
     capturingPhoto.value = false;
   }
@@ -448,51 +448,59 @@ const lockGpsCoordinates = async () => {
     const pos = await fetchRealLocation({ timeout: 12000 });
     state.latitude = pos.coords.latitude;
     state.longitude = pos.coords.longitude;
-    const t = await toastController.create({
-      message: 'GPS coordinates locked.',
-      duration: 2000,
-      color: 'success',
-      position: 'top',
-    });
-    await t.present();
+    await presentToast('GPS coordinates locked.', 'success', 2000);
   } catch (err) {
     console.warn('[AGRI-AKAP] GPS lock failed:', err);
-    const t = await toastController.create({
-      message: 'Unable to lock GPS. Enable location services.',
-      duration: 2500,
-      color: 'warning',
-      position: 'top',
-    });
-    await t.present();
+    await presentToast('Unable to lock GPS. Enable location services.', 'warning');
   } finally {
     lockingGps.value = false;
   }
 };
 
+const normalizeId = (value: string) => value.trim().toLowerCase();
+
+const scannedMatchesTicket = (farmer: { id?: string; rsbsa_no?: string } | null) => {
+  if (!farmer) return false;
+  const ticketId = normalizeId(state.target.farmerId);
+  const ticketRsbsa = normalizeId(state.target.rsbsaNo);
+  const scannedId = normalizeId(String(farmer.id || ''));
+  const scannedRsbsa = normalizeId(String(farmer.rsbsa_no || ''));
+  if (ticketId && scannedId && ticketId === scannedId) return true;
+  if (ticketRsbsa && scannedRsbsa && ticketRsbsa === scannedRsbsa) return true;
+  return false;
+};
+
+const useLoadedFarmerIdentity = async (reason?: string) => {
+  const id = state.target.rsbsaNo || state.target.farmerName || state.target.farmerId;
+  if (!id) {
+    await presentToast('No farmer is loaded on this ticket.', 'warning');
+    return;
+  }
+  state.qrScanResult = String(id);
+  await presentToast(reason || 'Using the farmer already loaded on this report.', 'warning');
+};
+
+const verifyScannedQr = async (raw: string) => {
+  const farmer = await lookupFarmer(raw);
+  if (!scannedMatchesTicket(farmer)) {
+    await presentToast('Mismatch: Scanned ID does not belong to the farmer on this report.', 'danger');
+    return;
+  }
+  state.qrScanResult = state.target.rsbsaNo || state.target.farmerId || raw;
+  await presentToast('Farmer QR verified for dispense.');
+};
+
 const scanFarmerQr = async () => {
   try {
     if (!Capacitor.isNativePlatform()) {
-      console.warn('[AGRI-AKAP] QR scan native-only; using target RSBSA fallback on web.');
-      state.qrScanResult = state.target.rsbsaNo;
-      const t = await toastController.create({
-        message: 'Web fallback: using target farm RSBSA as verified ID.',
-        duration: 2200,
-        color: 'warning',
-        position: 'top',
-      });
-      await t.present();
+      console.warn('[AGRI-AKAP] QR scan native-only; using loaded farmer fallback.');
+      await useLoadedFarmerIdentity('Scan unavailable here. Using the farmer already loaded on this report.');
       return;
     }
 
     const allowed = await ensureCameraPermission();
     if (!allowed) {
-      const t = await toastController.create({
-        message: 'Camera permission required to scan farmer QR.',
-        duration: 2400,
-        color: 'warning',
-        position: 'top',
-      });
-      await t.present();
+      await useLoadedFarmerIdentity('Camera permission missing. Using the farmer already loaded on this report.');
       return;
     }
 
@@ -501,36 +509,17 @@ const scanFarmerQr = async () => {
       const { barcodes } = await BarcodeScanner.scan();
       const raw = barcodes[0]?.rawValue?.trim();
       if (!raw) {
-        const t = await toastController.create({
-          message: 'No QR detected. Try again.',
-          duration: 2200,
-          color: 'warning',
-          position: 'top',
-        });
-        await t.present();
+        await useLoadedFarmerIdentity('No QR detected. Using the farmer already loaded on this report.');
         return;
       }
-      state.qrScanResult = raw;
-      const t = await toastController.create({
-        message: 'Farmer QR verified for dispense.',
-        duration: 2200,
-        color: 'success',
-        position: 'top',
-      });
-      await t.present();
+      await verifyScannedQr(raw);
     } finally {
       showScannerBackground();
     }
   } catch (err) {
     console.warn('[AGRI-AKAP] Pest QR scan failed:', err);
     showScannerBackground();
-    const t = await toastController.create({
-      message: 'Scanner failed. Check camera permissions.',
-      duration: 2500,
-      color: 'danger',
-      position: 'top',
-    });
-    await t.present();
+    await useLoadedFarmerIdentity('Scanner failed. Using the farmer already loaded on this report.');
   }
 };
 
@@ -584,24 +573,16 @@ const submitReport = async () => {
       }
     }
 
-    const t = await toastController.create({
-      message: state.serverRecordId && navigator.onLine
+    await presentToast(
+      state.serverRecordId && navigator.onLine
         ? 'Field validation saved. Status updated on the pest report.'
         : 'Saved locally. Will sync when online.',
-      duration: 2800,
-      color: state.escalateOutbreak ? 'danger' : 'success',
-      position: 'top',
-    });
-    await t.present();
+      state.escalateOutbreak ? 'warning' : 'success',
+      2800,
+    );
   } catch (err: any) {
     console.warn('[AGRI-AKAP] Failed to save pest report:', err);
-    const t = await toastController.create({
-      message: err?.response?.data?.message || 'Could not save pest validation. Please try again.',
-      duration: 2500,
-      color: 'danger',
-      position: 'top',
-    });
-    await t.present();
+    await presentToast(err?.response?.data?.message || 'Could not save pest validation. Please try again.', 'danger');
   } finally {
     submitting.value = false;
   }

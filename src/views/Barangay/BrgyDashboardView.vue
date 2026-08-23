@@ -184,7 +184,7 @@ import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
   IonButton, IonIcon, IonSpinner, IonCard, IonCardHeader, IonCardTitle, IonCardSubtitle,
   IonCardContent, IonBadge, IonModal, IonTextarea,
-  onIonViewWillEnter, toastController,
+  onIonViewWillEnter,
 } from '@ionic/vue';
 import {
   refreshOutline, sunnyOutline, cloudyOutline, rainyOutline, snowOutline,
@@ -202,6 +202,7 @@ import {
   LinearScale,
 } from 'chart.js';
 import apiClient from '@/utils/axios';
+import { toast } from '@/utils/toast';
 import { useAuthStore } from '@/stores/authStore';
 
 ChartJS.register(Title, Tooltip, Legend, ArcElement, BarElement, CategoryScale, LinearScale);
@@ -540,21 +541,9 @@ const handleAlert = (alert: ActionAlert) => {
 const copySmsDraft = async () => {
   try {
     await navigator.clipboard.writeText(smsDraft.value.trim());
-    const toast = await toastController.create({
-      message: 'Advisory copied.',
-      duration: 2000,
-      color: 'success',
-      position: 'top',
-    });
-    await toast.present();
+    await toast.success('Advisory copied.', 2000);
   } catch {
-    const toast = await toastController.create({
-      message: 'Copy failed — select text manually.',
-      duration: 2000,
-      color: 'danger',
-      position: 'top',
-    });
-    await toast.present();
+    await toast.error('Copy failed — select text manually.', 2000);
   }
 };
 

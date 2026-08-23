@@ -104,7 +104,7 @@
               </ion-select-option>
             </ion-select>
             <ion-input class="field" type="number" label="Area Planted (ha)" label-placement="stacked" :value="form.area_planted" @ionInput="(e: any) => form.area_planted = e.detail.value"></ion-input>
-            <ion-input class="field" label="Variety" label-placement="stacked" :value="form.variety" @ionInput="(e: any) => form.variety = e.detail.value"></ion-input>
+            <VarietyField v-model="form.variety" :crop="crop" select-class="field" />
             <ion-input class="field" type="date" label="Date of Planting" label-placement="stacked" :value="form.date_of_planting" @ionInput="(e: any) => form.date_of_planting = e.detail.value"></ion-input>
             <ion-select class="field" label="Planting Status" label-placement="stacked" interface="popover" :value="form.planting_status" @ionChange="(e: any) => form.planting_status = e.detail.value">
               <ion-select-option value="Active">Active</ion-select-option>
@@ -156,12 +156,13 @@
 import { ref, reactive, computed, defineAsyncComponent, onMounted } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
-  IonButton, IonIcon, IonInput, IonSelect, IonSelectOption, toastController,
+  IonButton, IonIcon, IonInput, IonSelect, IonSelectOption,
 } from '@ionic/vue';
 import FormExportActions from '@/components/FormExportActions.vue';
 import { exportPlantingLedgerExcel } from '@/utils/statutoryFormExcel';
 import { useEncodingBarangay } from '@/composables/useEncodingBarangay';
 import EncodingBarangaySelector from '@/components/EncodingBarangaySelector.vue';
+import VarietyField from '@/components/VarietyField.vue';
 import {
   useBarangayFarmerSearch,
   formatBirthday,
@@ -169,6 +170,7 @@ import {
 } from '@/composables/useBarangayFarmerSearch';
 import type { PlantingPrintMode } from '@/components/PlantingLedgerPrint.vue';
 import apiClient from '@/utils/axios';
+import { toast } from '@/utils/toast';
 const PlantingLedgerPrint = defineAsyncComponent(() => import('@/components/PlantingLedgerPrint.vue'));
 
 withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
@@ -335,13 +337,7 @@ const onSelectFarmer = async (f: FarmerOption) => {
   const plots = farmerSearch.plotsForCommodity(crop.value);
   if (!plots.length) {
     farmerSearch.clearSelection();
-    const t = await toastController.create({
-      message: `This farmer has no ${crop.value} plot. Switch Crop Type or choose another farmer.`,
-      color: 'warning',
-      duration: 2800,
-      position: 'top',
-    });
-    await t.present();
+    await toast.warning(`This farmer has no ${crop.value} plot. Switch Crop Type or choose another farmer.`);
     return;
   }
 
@@ -377,13 +373,7 @@ const addEntry = async () => {
   if (!canAdd.value) return;
   const plotOk = matchingPlots.value.some((p) => p.id === form.plot_id);
   if (!plotOk) {
-    const t = await toastController.create({
-      message: `Select a ${crop.value} farm plot before encoding.`,
-      color: 'warning',
-      duration: 2400,
-      position: 'top',
-    });
-    await t.present();
+    await toast.warning(`Select a ${crop.value} farm plot before encoding.`);
     return;
   }
   saving.value = true;
@@ -426,17 +416,10 @@ const addEntry = async () => {
       remarks: form.remarks,
     });
     resetEncodeForm();
-    const t = await toastController.create({ message: 'Planting entry saved.', color: 'success', duration: 1800, position: 'top' });
-    await t.present();
+    await toast.success('Planting entry saved.', 1800);
     emit('saved');
   } catch (e: any) {
-    const t = await toastController.create({
-      message: e?.response?.data?.message || 'Failed to save planting entry.',
-      color: 'danger',
-      duration: 2800,
-      position: 'top',
-    });
-    await t.present();
+    await toast.error(e?.response?.data?.message || 'Failed to save planting entry.');
   } finally {
     saving.value = false;
   }

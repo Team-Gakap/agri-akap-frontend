@@ -83,7 +83,7 @@
               <ion-select-option value="Corn">Corn</ion-select-option>
               <ion-select-option value="High-Value">High-Value</ion-select-option>
             </ion-select>
-            <ion-input class="field" label="Variety" label-placement="stacked" :value="form.variety" @ionInput="(e: any) => form.variety = e.detail.value"></ion-input>
+            <VarietyField v-model="form.variety" :crop="form.crop_type" select-class="field" />
             <ion-input class="field" type="number" label="Area Harvested (ha)" label-placement="stacked" :value="form.area_harvested" @ionInput="(e: any) => form.area_harvested = e.detail.value"></ion-input>
             <ion-input class="field" type="number" label="Total Yield Produced (MT)" label-placement="stacked" :value="form.yield_amount" @ionInput="(e: any) => form.yield_amount = e.detail.value"></ion-input>
             <ion-input class="field" type="date" label="Date of Harvest" label-placement="stacked" :value="form.date_of_harvest" @ionInput="(e: any) => form.date_of_harvest = e.detail.value"></ion-input>
@@ -126,18 +126,20 @@
 import { ref, reactive, computed, defineAsyncComponent, onMounted } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
-  IonButton, IonIcon, IonInput, IonSelect, IonSelectOption, toastController,
+  IonButton, IonIcon, IonInput, IonSelect, IonSelectOption,
 } from '@ionic/vue';
 import FormExportActions from '@/components/FormExportActions.vue';
 import { exportHarvestingExcel } from '@/utils/statutoryFormExcel';
 import { useEncodingBarangay } from '@/composables/useEncodingBarangay';
 import EncodingBarangaySelector from '@/components/EncodingBarangaySelector.vue';
+import VarietyField from '@/components/VarietyField.vue';
 import {
   useBarangayFarmerSearch,
   formatBirthday,
   type FarmerOption,
 } from '@/composables/useBarangayFarmerSearch';
 import apiClient from '@/utils/axios';
+import { toast } from '@/utils/toast';
 
 withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
 const emit = defineEmits<{ saved: [] }>();
@@ -170,7 +172,9 @@ const {
   canEncode,
   payloadBarangayName,
 } = useEncodingBarangay();
-const farmerSearch = useBarangayFarmerSearch(() => effectiveBarangay.value);
+const farmerSearch = useBarangayFarmerSearch(() => effectiveBarangay.value, {
+  commodity: () => form.crop_type,
+});
 
 const entries = ref<HarvestEntry[]>([]);
 const saving = ref(false);
@@ -357,17 +361,10 @@ const addEntry = async () => {
     });
 
     resetForm();
-    const t = await toastController.create({ message: 'Harvest record saved.', color: 'success', duration: 1800, position: 'top' });
-    await t.present();
+    await toast.success('Harvest record saved.', 1800);
     emit('saved');
   } catch (e: any) {
-    const t = await toastController.create({
-      message: e?.response?.data?.message || 'Failed to save harvest record.',
-      color: 'danger',
-      duration: 2800,
-      position: 'top',
-    });
-    await t.present();
+    await toast.error(e?.response?.data?.message || 'Failed to save harvest record.');
   } finally {
     saving.value = false;
   }

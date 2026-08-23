@@ -211,13 +211,11 @@
               ></ion-input>
             </ion-item>
             <ion-item>
-              <ion-input
+              <VarietyField
+                v-model="meta.crop_variety"
+                :crop="meta.crop_planted"
                 label="Crop Variety"
-                label-placement="stacked"
-                :value="meta.crop_variety"
-                placeholder="e.g. NSIC Rc222"
-                @ionInput="(e: any) => meta.crop_variety = e.detail.value"
-              ></ion-input>
+              />
             </ion-item>
             <div class="schedule-row">
               <ion-item class="schedule-item">
@@ -399,7 +397,9 @@ import { db, newUuid, type GeoTagIncidentType, type GeoTagGeometryType, type Geo
 import { useSyncStore } from '@/stores/syncStore';
 import { queueGeoTagRefusal, lookupFarmer, searchFarmers } from '@/services/syncService';
 import SignaturePad from '@/components/SignaturePad.vue';
+import VarietyField from '@/components/VarietyField.vue';
 import apiClient from '@/utils/axios';
+import { presentToast } from '@/utils/toast';
 
 type ToolMode = 'boundary' | 'incident';
 
@@ -770,10 +770,8 @@ const canSave = computed(() =>
   && (!polygonExceedsQuota.value || !!meta.has_discrepancy)
 );
 
-const toast = async (message: string, color = 'primary') => {
-  const t = await toastController.create({ message, duration: 2400, color, position: 'top' });
-  await t.present();
-};
+const toast = (message: string, color: 'success' | 'warning' | 'danger' | 'primary' = 'primary') =>
+  presentToast(message, color);
 
 const resetMetaForm = () => {
   meta.crop_planted = 'Rice';

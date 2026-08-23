@@ -101,6 +101,7 @@
               <ion-select-option value="Corn">Corn</ion-select-option>
               <ion-select-option value="High-Value">High-Value</ion-select-option>
             </ion-select>
+            <VarietyField v-model="form.variety" :crop="form.crop_type" select-class="field" />
             <ion-select
               class="field"
               label="Stage of Crop at Calamity"
@@ -165,17 +166,19 @@
 import { ref, reactive, computed, defineAsyncComponent, onMounted } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
-  IonButton, IonIcon, IonInput, IonSelect, IonSelectOption, toastController,
+  IonButton, IonIcon, IonInput, IonSelect, IonSelectOption,
 } from '@ionic/vue';
 import FormExportActions from '@/components/FormExportActions.vue';
 import { exportCalamityAssessmentExcel } from '@/utils/statutoryFormExcel';
 import { useEncodingBarangay } from '@/composables/useEncodingBarangay';
 import EncodingBarangaySelector from '@/components/EncodingBarangaySelector.vue';
+import VarietyField from '@/components/VarietyField.vue';
 import {
   useBarangayFarmerSearch,
   type FarmerOption,
 } from '@/composables/useBarangayFarmerSearch';
 import apiClient from '@/utils/axios';
+import { toast } from '@/utils/toast';
 
 const CalamityAssessmentPrint = defineAsyncComponent(() => import('@/components/CalamityAssessmentPrint.vue'));
 
@@ -193,6 +196,7 @@ interface CalamityEntry {
   ext_name: string;
   farm_location: string;
   crop_type: string;
+  variety: string;
   crop_stage: string;
   area_planted: number;
   area_damaged: number;
@@ -208,7 +212,9 @@ const {
   canEncode,
   payloadBarangayName,
 } = useEncodingBarangay();
-const farmerSearch = useBarangayFarmerSearch(() => effectiveBarangay.value);
+const farmerSearch = useBarangayFarmerSearch(() => effectiveBarangay.value, {
+  commodity: () => form.crop_type,
+});
 
 const entries = ref<CalamityEntry[]>([]);
 const saving = ref(false);
@@ -244,6 +250,7 @@ const form = reactive({
   plot_id: '',
   farm_location: '',
   crop_type: 'Rice',
+  variety: '',
   crop_stage: 'Vegetative',
   area_planted: '',
   area_damaged: '',
@@ -274,6 +281,7 @@ const canAdd = computed(() =>
   && !!form.calamity_date
   && !!form.farmer_id
   && !!form.plot_id
+  && !!form.variety.trim()
   && !!form.area_planted
   && !!form.area_damaged
   && form.est_yield_loss_pct !== ''
@@ -313,6 +321,7 @@ const loadLedger = async () => {
         ext_name: farmer.ext_name || '',
         farm_location: r.farm_plot?.location_brgy || farmer.permanent_brgy || '',
         crop_type: r.farm_plot?.commodity || '',
+        variety: r.variety || '',
         crop_stage: r.crop_stage || '',
         area_planted: Number(r.area_planted_ha ?? r.farm_plot?.size_ha) || 0,
         area_damaged: Number(r.area_destroyed_ha) || 0,
@@ -360,6 +369,15 @@ const onAreaDamagedInput = (e: CustomEvent) => {
 const onYieldLossInput = (e: CustomEvent) => {
   form.est_yield_loss_pct = e.detail.value ?? '';
   yieldLossManual.value = true;
+  const planted = Number(form.area_planted);
+  const pct = Number(form.est_yield_loss_pct);
+  if (planted > 0 && !Number.isNaN(pct)) {
+    const plot = farmerSearch.selected.value?.plots.find((x) => x.id === form.plot_id);
+    const plotHa = Number(plot?.size_ha) || 0;
+    const ha = Math.round((planted * pct / 100) * 10000) / 10000;
+    const cap = plotHa > 0 ? Math.min(planted, plotHa) : planted;
+    form.area_damaged = String(Math.min(ha, cap));
+  }
 };
 
 const onSelectFarmer = async (f: FarmerOption) => {
@@ -411,6 +429,7 @@ const resetFarmerForm = () => {
   form.farmer_address = '';
   form.plot_id = '';
   form.farm_location = '';
+  form.variety = '';
   form.area_planted = '';
   form.area_damaged = '';
   form.est_yield_loss_pct = '';
@@ -434,6 +453,7 @@ const addEntry = async () => {
       calamity_type: inferCalamityType(form.calamity_event),
       calamity_name: form.calamity_event,
       crop_stage: form.crop_stage,
+      variety: form.variety.trim(),
       area_destroyed_ha: Number(form.area_damaged),
       area_planted_ha: Number(form.area_planted),
       date_of_calamity: form.calamity_date,
@@ -452,23 +472,17 @@ const addEntry = async () => {
       ext_name: form.ext_name,
       farm_location: form.farm_location,
       crop_type: form.crop_type,
+      variety: form.variety.trim(),
       crop_stage: form.crop_stage,
       area_planted: Number(form.area_planted),
       area_damaged: Number(form.area_damaged),
       est_yield_loss_pct: Number(form.est_yield_loss_pct),
     });
     resetFarmerForm();
-    const t = await toastController.create({ message: 'Calamity assessment saved.', color: 'success', duration: 1800, position: 'top' });
-    await t.present();
+    await toast.success('Calamity assessment saved.', 1800);
     emit('saved');
   } catch (e: any) {
-    const t = await toastController.create({
-      message: e?.response?.data?.message || 'Failed to save calamity assessment. Select a farm plot.',
-      color: 'danger',
-      duration: 2800,
-      position: 'top',
-    });
-    await t.present();
+    await toast.error(e?.response?.data?.message || 'Failed to save calamity assessment. Select a farm plot.');
   } finally {
     saving.value = false;
   }

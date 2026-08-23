@@ -8,6 +8,7 @@ export interface PendingPestReport {
   farmerId?: string;
   rsbsaNo: string;
   crop: string;
+  variety?: string;
   reportedPest: string;
   encodedAt: string;
   status: QueueStatus;

@@ -142,7 +142,7 @@ import { useRoute, useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonBackButton,
   IonButton, IonIcon, IonInput, IonCard, IonCardHeader, IonCardTitle, IonCardSubtitle,
-  IonCardContent, IonItem, IonSelect, IonSelectOption, toastController,
+  IonCardContent, IonItem, IonSelect, IonSelectOption,
 } from '@ionic/vue';
 import { qrCodeOutline, alertCircleOutline } from 'ionicons/icons';
 import { Capacitor } from '@capacitor/core';
@@ -151,6 +151,7 @@ import { getPrograms, lookupFarmer, searchFarmers } from '@/services/syncService
 import { useDistributionStore } from '@/stores/distributionStore';
 import { useAuthStore } from '@/stores/authStore';
 import apiClient from '@/utils/axios';
+import { presentToast } from '@/utils/toast';
 
 const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
 const emit = defineEmits<{ verified: []; saved: [] }>();
@@ -196,10 +197,8 @@ const formatName = (f: any) => {
 
 const farmerDisplayName = computed(() => formatName(farmer.value));
 
-const toast = async (message: string, color: 'primary' | 'success' | 'warning' | 'danger' = 'primary') => {
-  const t = await toastController.create({ message, duration: 2400, color, position: 'top' });
-  await t.present();
-};
+const toast = (message: string, color: 'primary' | 'success' | 'warning' | 'danger' = 'primary') =>
+  presentToast(message, color);
 
 const onSearchInput = (e: CustomEvent) => {
   const value = String(e.detail.value ?? '');

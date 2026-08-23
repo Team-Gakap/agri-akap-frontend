@@ -112,7 +112,7 @@ const mapReport = (r: any): PendingCalamityReport => {
     farmerId: r.farmer_id || farmer.id || '',
     farmPlotId: r.farm_plot_id || plot.id || '',
     cropType: plot.commodity || '—',
-    variety: '',
+    variety: r.variety || '',
     cropStage: r.crop_stage || '',
     areaPlanted: Number(r.area_planted_ha ?? plot.size_ha) || 0,
     areaDamagedReported: Number(r.area_destroyed_ha) || 0,

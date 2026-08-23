@@ -287,6 +287,88 @@ export async function pendingCount(): Promise<number> {
   return pendingQueueCount();
 }
 
+export interface PendingQueueItem {
+  key: string;
+  type: string;
+  title: string;
+  detail: string;
+  createdAt?: string;
+}
+
+export async function listPendingQueueItems(): Promise<PendingQueueItem[]> {
+  const [assessments, planting, pests, farms, fieldDist, geoTags, geoRefusals, distributions] = await Promise.all([
+    db.pendingAssessments.toArray(),
+    db.offline_planting_logs.where('sync_status').equals('pending').toArray(),
+    db.offline_pest_reports.where('sync_status').equals('pending').toArray(),
+    db.offline_farm_profiles.where('sync_status').equals('pending').toArray(),
+    db.offline_distributions.where('sync_status').equals('pending').toArray(),
+    db.offline_geo_tags.where('sync_status').equals('pending').toArray(),
+    db.offline_geo_refusals.where('sync_status').equals('pending').toArray(),
+    db.pendingDistributions.toArray(),
+  ]);
+
+  const items: PendingQueueItem[] = [
+    ...assessments.map((r) => ({
+      key: `assessment-${r.client_id}`,
+      type: 'Calamity',
+      title: r.farmer_name || r.calamity_name || r.calamity_type,
+      detail: `${r.calamity_type} · ${r.damage_percentage}%`,
+      createdAt: r.created_at,
+    })),
+    ...planting.map((r) => ({
+      key: `planting-${r.id}`,
+      type: 'Planting',
+      title: r.farmer_name || r.crop_type,
+      detail: `${r.crop_type} · ${r.variety}`,
+      createdAt: r.created_at,
+    })),
+    ...pests.map((r) => ({
+      key: `pest-${r.id}`,
+      type: 'Pest',
+      title: r.pest_name || r.crop || 'Pest report',
+      detail: `${r.crop || 'Crop'} · ${r.severity}`,
+      createdAt: r.created_at,
+    })),
+    ...farms.map((r) => ({
+      key: `farm-${r.id}`,
+      type: 'Farm profile',
+      title: 'Farm perimeter',
+      detail: `${r.total_area} ha`,
+      createdAt: r.created_at,
+    })),
+    ...fieldDist.map((r) => ({
+      key: `dist-${r.id}`,
+      type: 'Subsidy',
+      title: r.item_dispensed,
+      detail: `${r.rsbsa_id} · ${r.quantity}`,
+      createdAt: r.timestamp,
+    })),
+    ...geoTags.map((r) => ({
+      key: `geo-${r.id}`,
+      type: 'Geo-tag',
+      title: r.farmer_name || r.parcel_name || r.crop_planted,
+      detail: `${r.crop_planted}${r.crop_variety ? ` · ${r.crop_variety}` : ''}`,
+      createdAt: r.created_at,
+    })),
+    ...geoRefusals.map((r) => ({
+      key: `refusal-${r.id}`,
+      type: 'Geo refusal',
+      title: r.farmer_name || 'Refusal',
+      detail: `Attempt ${r.attempt_number ?? 1}`,
+      createdAt: r.created_at,
+    })),
+    ...distributions.map((r) => ({
+      key: `claim-${r.client_id}`,
+      type: 'Claim',
+      title: r.farmer_name || r.program_name || 'Distribution',
+      detail: r.program_name || r.farmer_id,
+      createdAt: r.created_at,
+    })),
+  ];
+
+  return items.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+}
+
 /* ------------------------------- Flushing ------------------------------- */
 
 let syncingAll = false;

@@ -204,7 +204,6 @@ import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
   IonButton, IonIcon, IonSpinner, IonCard, IonCardHeader, IonCardTitle, IonCardSubtitle,
   IonCardContent, IonList, IonItem, IonLabel, IonBadge, IonModal, IonInput, IonTextarea,
-  toastController,
 } from '@ionic/vue';
 import { refreshOutline, peopleOutline, leafOutline, warningOutline, cubeOutline } from 'ionicons/icons';
 import { Doughnut, Bar } from 'vue-chartjs';
@@ -221,6 +220,7 @@ import {
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import apiClient from '@/utils/axios';
+import { toast } from '@/utils/toast';
 
 ChartJS.register(Title, Tooltip, Legend, ArcElement, BarElement, CategoryScale, LinearScale);
 
@@ -450,22 +450,10 @@ const sendSmsDraft = async () => {
       target_barangay: smsForm.barangay || null,
       target_commodity: null,
     });
-    const t = await toastController.create({
-      message: 'SMS advisory broadcast queued/sent.',
-      duration: 2600,
-      color: 'success',
-      position: 'top',
-    });
-    await t.present();
+    await toast.success('SMS advisory broadcast queued/sent.');
     smsOpen.value = false;
   } catch (e: any) {
-    const t = await toastController.create({
-      message: e?.response?.data?.message || 'Broadcast failed.',
-      duration: 2800,
-      color: 'danger',
-      position: 'top',
-    });
-    await t.present();
+    await toast.error(e?.response?.data?.message || 'Broadcast failed.');
   } finally {
     sendingSms.value = false;
   }

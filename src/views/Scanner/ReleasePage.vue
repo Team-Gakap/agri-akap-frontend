@@ -83,7 +83,7 @@
               <template v-if="!ctx.offline">
                 <div class="alloc-grid">
                   <div class="ag-cell">
-                    <span class="ag-label">Farm Size</span>
+                    <span class="ag-label">Program Crop Area</span>
                     <span class="ag-value">{{ ctx.total_farm_size }} ha</span>
                   </div>
                   <div class="ag-cell">
