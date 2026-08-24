@@ -34,7 +34,7 @@
 
         <div class="form-card">
           <h3>Add Report — {{ crop }}</h3>
-          <p class="crop-hint">Only farmers with a {{ crop }} farm plot can be added on this form.</p>
+          <p class="crop-hint">Only farmers with a {{ crop }} farm plot can be added on this form. Choose pest, disease, or both.</p>
 
           <div class="search-box">
             <ion-input
@@ -89,8 +89,35 @@
             <ion-input class="field" type="number" label="Days After Planting" label-placement="stacked" :value="form.days_after_planting" @ionInput="(e: any) => form.days_after_planting = e.detail.value"></ion-input>
             <ion-input class="field" type="number" label="Area Damaged (%)" label-placement="stacked" :value="form.area_damage_pct" @ionInput="onDamagePctInput"></ion-input>
             <ion-input class="field" type="number" label="Area Affected (ha)" label-placement="stacked" :value="form.area_affected_ha" readonly></ion-input>
-            <ion-input class="field grow" label="Damage by Pest/Disease" label-placement="stacked" :value="form.damage_by" @ionInput="(e: any) => form.damage_by = e.detail.value"></ion-input>
+            <ion-select
+              class="field"
+              label="Pest"
+              label-placement="stacked"
+              interface="action-sheet"
+              :value="form.pest"
+              @ionChange="(e: any) => onPestChange(e.detail.value)"
+            >
+              <ion-select-option value="">Select pest</ion-select-option>
+              <ion-select-option v-for="p in pestOptions" :key="'p-'+p" :value="p">{{ p }}</ion-select-option>
+            </ion-select>
+            <ion-select
+              class="field"
+              label="Disease"
+              label-placement="stacked"
+              interface="action-sheet"
+              :value="form.disease"
+              @ionChange="(e: any) => onDiseaseChange(e.detail.value)"
+            >
+              <ion-select-option value="">Select disease</ion-select-option>
+              <ion-select-option v-for="d in diseaseOptions" :key="'d-'+d" :value="d">{{ d }}</ion-select-option>
+            </ion-select>
             <ion-input class="field" type="date" label="Date of Inspection" label-placement="stacked" :value="form.date_of_inspection" @ionInput="(e: any) => form.date_of_inspection = e.detail.value"></ion-input>
+            <ion-item class="field outbreak-item" lines="none">
+              <ion-toggle
+                :checked="form.is_outbreak"
+                @ionChange="(e: CustomEvent) => form.is_outbreak = !!e.detail.checked"
+              >Flag as potential outbreak</ion-toggle>
+            </ion-item>
           </div>
 
           <ion-button expand="block" class="add-btn" :disabled="!canAdd" @click="addEntry">
@@ -143,7 +170,7 @@
 import { ref, reactive, computed, defineAsyncComponent, onMounted } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
-  IonButton, IonIcon, IonInput, IonSelect, IonSelectOption,
+  IonButton, IonIcon, IonInput, IonSelect, IonSelectOption, IonItem, IonToggle,
 } from '@ionic/vue';
 import FormExportActions from '@/components/FormExportActions.vue';
 import { exportPestMonitoringExcel } from '@/utils/statutoryFormExcel';
@@ -158,7 +185,7 @@ import {
 import apiClient from '@/utils/axios';
 import { toast } from '@/utils/toast';
 import { capInputToPlot, plotSizeHa } from '@/utils/plotArea';
-import { storageUrl } from '@/utils/storageUrl';
+import { loadPestCatalog, threatsForCrop } from '@/utils/pestCatalog';
 const PestMonitoringPrint = defineAsyncComponent(() => import('@/components/PestMonitoringPrint.vue'));
 
 withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
@@ -238,11 +265,27 @@ const form = reactive({
   days_after_planting: '',
   area_damage_pct: '',
   area_affected_ha: '',
+  pest: '',
+  disease: '',
   damage_by: '',
   date_of_inspection: '',
+  is_outbreak: false,
 });
 
 const matchingPlots = computed(() => farmerSearch.plotsForCommodity(crop.value));
+const pestOptions = computed(() => threatsForCrop(crop.value).pests);
+const diseaseOptions = computed(() => threatsForCrop(crop.value).diseases);
+const syncDamageBy = () => {
+  form.damage_by = [form.pest, form.disease].filter(Boolean).join(' / ');
+};
+const onPestChange = (value: string) => {
+  form.pest = value || '';
+  syncDamageBy();
+};
+const onDiseaseChange = (value: string) => {
+  form.disease = value || '';
+  syncDamageBy();
+};
 const selectedPlotSize = computed(() =>
   plotSizeHa(matchingPlots.value.find((p) => p.id === form.plot_id))
 );
@@ -272,7 +315,7 @@ const canAdd = computed(() =>
   && !!form.area_planted
   && !!form.days_after_planting
   && form.area_damage_pct !== ''
-  && !!form.damage_by
+  && (!!form.pest || !!form.disease)
   && !!form.date_of_inspection
   && !saving.value
 );
@@ -396,8 +439,11 @@ const resetForm = () => {
   form.days_after_planting = '';
   form.area_damage_pct = '';
   form.area_affected_ha = '';
+  form.pest = '';
+  form.disease = '';
   form.damage_by = '';
   form.date_of_inspection = '';
+  form.is_outbreak = false;
 };
 
 const addEntry = async () => {
@@ -423,6 +469,7 @@ const addEntry = async () => {
       date_of_inspection: form.date_of_inspection,
       farm_location: form.farm_location,
       barangay_name: payloadBarangayName(),
+      is_outbreak: form.is_outbreak,
     });
 
     entries.value.unshift({
@@ -481,7 +528,8 @@ const downloadExcel = async () => {
   });
 };
 
-onMounted(() => {
+onMounted(async () => {
+  await loadPestCatalog();
   void loadLedger();
 });
 </script>
@@ -501,6 +549,7 @@ onMounted(() => {
   --background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0 10px;
 }
 .field.grow { flex: 2; min-width: 200px; }
+.outbreak-item { --background: #fff7ed; border: 1px solid #fdba74; grid-column: 1 / -1; }
 .form-card {
   background: white; border: 1px solid #e2e8f0; border-radius: 12px;
   padding: 1rem; margin-bottom: 1rem;

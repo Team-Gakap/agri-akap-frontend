@@ -69,6 +69,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, computed } from 'vue';
+import { useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonBackButton,
   IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonInput, IonSelect, IonSelectOption,
@@ -83,6 +84,7 @@ const farmerSearch = useBarangayFarmerSearch(() => null, {
   requireBarangay: false,
   commodity: () => form.cropType,
 });
+const router = useRouter();
 const submitting = ref(false);
 
 const form = reactive({
@@ -163,6 +165,7 @@ const submit = async () => {
       farm_location: form.farmLocation,
     });
     await presentToast('Harvest saved.');
+    await router.replace('/tech/dashboard');
   } catch (e: any) {
     await presentToast(e?.response?.data?.message || 'Could not save harvest log.', 'danger');
   } finally {

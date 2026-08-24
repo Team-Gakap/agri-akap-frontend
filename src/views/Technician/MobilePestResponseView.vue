@@ -118,7 +118,8 @@
               placeholder="Select or confirm pest"
               @ionChange="(e: CustomEvent) => state.confirmedPest = e.detail.value"
             >
-              <ion-select-option v-for="p in pestOptions" :key="p" :value="p">{{ p }}</ion-select-option>
+              <ion-select-option v-for="p in pestOptions" :key="'p-'+p" :value="p">{{ p }} (Pest)</ion-select-option>
+              <ion-select-option v-for="d in diseaseOptions" :key="'d-'+d" :value="d">{{ d }} (Disease)</ion-select-option>
             </ion-select>
           </ion-item>
 
@@ -185,52 +186,6 @@
         </ion-card-content>
       </ion-card>
 
-      <!-- Step 4: Intervention Distribution -->
-      <ion-card class="step-card">
-        <ion-card-header>
-          <div class="step-badge">4</div>
-          <ion-card-title>Give Aid</ion-card-title>
-          <ion-card-subtitle>Give seeds or fertilizer to this farmer</ion-card-subtitle>
-        </ion-card-header>
-        <ion-card-content>
-          <p v-if="state.qrScanResult" class="status-ok">
-            <ion-icon :icon="qrCodeOutline"></ion-icon>
-            Farmer verified: {{ state.qrScanResult }}
-          </p>
-          <ion-button expand="block" class="action-btn gold" fill="solid" @click="scanFarmerQr">
-            <ion-icon slot="start" :icon="qrCodeOutline"></ion-icon>
-            Scan Farmer ID to Give Item
-          </ion-button>
-          <ion-button expand="block" fill="outline" class="action-btn" @click="useLoadedFarmerIdentity()">
-            Continue without scan
-          </ion-button>
-
-          <ion-item class="field-item" lines="none">
-            <ion-select
-              label="Item Distributed"
-              label-placement="stacked"
-              interface="action-sheet"
-              :value="state.itemDistributed"
-              placeholder="Select intervention item"
-              @ionChange="(e: CustomEvent) => state.itemDistributed = e.detail.value"
-            >
-              <ion-select-option v-for="item in interventionItems" :key="item" :value="item">{{ item }}</ion-select-option>
-            </ion-select>
-          </ion-item>
-
-          <ion-item class="field-item" lines="none">
-            <ion-input
-              type="number"
-              label="Quantity"
-              label-placement="stacked"
-              placeholder="Enter quantity dispensed"
-              :value="state.quantity"
-              @ionInput="(e: CustomEvent) => state.quantity = e.detail.value ?? ''"
-            ></ion-input>
-          </ion-item>
-        </ion-card-content>
-      </ion-card>
-
       <ion-button
         expand="block"
         class="submit-btn"
@@ -245,28 +200,23 @@
 
 <script setup lang="ts">
 import { reactive, ref, computed, onMounted } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonBackButton,
   IonCard, IonCardHeader, IonCardTitle, IonCardSubtitle, IonCardContent,
   IonButton, IonIcon, IonItem, IonLabel, IonSelect, IonSelectOption,
-  IonRange, IonNote, IonToggle, IonInput,
+  IonRange, IonNote, IonToggle,
 } from '@ionic/vue';
 import {
-  cameraOutline, locateOutline, qrCodeOutline, checkmarkCircleOutline,
+  cameraOutline, locateOutline, checkmarkCircleOutline,
 } from 'ionicons/icons';
-import { Capacitor } from '@capacitor/core';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
-import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
 import apiClient from '@/utils/axios';
 import { formatFarmerName } from '@/data/technicianDispatchQueues';
-import {
-  fetchRealLocation,
-  ensureCameraPermission,
-  showScannerBackground,
-} from '@/composables/useNativeHardware';
+import { fetchRealLocation } from '@/composables/useNativeHardware';
 import { db, newUuid } from '@/database/db';
-import { lookupFarmer, syncAllPendingData } from '@/services/syncService';
+import { syncAllPendingData } from '@/services/syncService';
+import { loadPestCatalog, threatsForCrop } from '@/utils/pestCatalog';
 import { useSyncStore } from '@/stores/syncStore';
 import { presentToast } from '@/utils/toast';
 
@@ -294,35 +244,14 @@ interface PestResponseState {
   severity: string;
   advisories: string[];
   escalateOutbreak: boolean;
-  itemDistributed: string;
-  quantity: string;
-  qrScanResult: string | null;
 }
 
 const route = useRoute();
+const router = useRouter();
 const syncStore = useSyncStore();
 const capturingPhoto = ref(false);
 const lockingGps = ref(false);
 const submitting = ref(false);
-
-const pestOptions = [
-  'Brown Planthopper',
-  'Fall Armyworm',
-  'Rice Black Bug',
-  'Stem Borer',
-  'Sheath Blight',
-  'Bacterial Leaf Blight',
-  'Other',
-];
-
-const interventionItems = [
-  'Trichogramma Cards',
-  'Pesticide (Lambda-cyhalothrin)',
-  'Pesticide (Chlorantraniliprole)',
-  'Fungicide',
-  'Biological Agent (Metarhizium)',
-  'Pheromone Traps',
-];
 
 const emptyTarget = {
   farmerId: '',
@@ -348,9 +277,6 @@ const state = reactive<PestResponseState>({
   severity: 'Moderate',
   advisories: [],
   escalateOutbreak: false,
-  itemDistributed: '',
-  quantity: '',
-  qrScanResult: null,
 });
 
 const affectedAreaHa = computed(() => {
@@ -370,6 +296,16 @@ const canSubmit = computed(() =>
 
 const fromQueue = computed(() => route.query.from === 'queue');
 const backHref = computed(() => (fromQueue.value ? '/tech/pest-queue' : '/tech/dashboard'));
+const cropThreats = computed(() => threatsForCrop(state.target.crop));
+const pestOptions = computed(() => {
+  const list = [...cropThreats.value.pests];
+  const reported = state.target.reportedPest;
+  if (reported && !list.includes(reported) && !cropThreats.value.diseases.includes(reported)) {
+    list.unshift(reported);
+  }
+  return list;
+});
+const diseaseOptions = computed(() => cropThreats.value.diseases);
 
 const applyQueryTarget = () => {
   const q = route.query;
@@ -387,6 +323,7 @@ const applyQueryTarget = () => {
 };
 
 onMounted(async () => {
+  await loadPestCatalog();
   applyQueryTarget();
   const id = String(route.query.id || '').trim();
   if (!id) return;
@@ -469,78 +406,11 @@ const lockGpsCoordinates = async () => {
   }
 };
 
-const normalizeId = (value: string) => value.trim().toLowerCase();
-
-const scannedMatchesTicket = (farmer: { id?: string; rsbsa_no?: string } | null) => {
-  if (!farmer) return false;
-  const ticketId = normalizeId(state.target.farmerId);
-  const ticketRsbsa = normalizeId(state.target.rsbsaNo);
-  const scannedId = normalizeId(String(farmer.id || ''));
-  const scannedRsbsa = normalizeId(String(farmer.rsbsa_no || ''));
-  if (ticketId && scannedId && ticketId === scannedId) return true;
-  if (ticketRsbsa && scannedRsbsa && ticketRsbsa === scannedRsbsa) return true;
-  return false;
-};
-
-const useLoadedFarmerIdentity = async (reason?: string) => {
-  const id = state.target.rsbsaNo || state.target.farmerName || state.target.farmerId;
-  if (!id) {
-    await presentToast('No farmer is loaded on this ticket.', 'warning');
-    return;
-  }
-  state.qrScanResult = String(id);
-  await presentToast(reason || 'Using the farmer already loaded on this report.', 'warning');
-};
-
-const verifyScannedQr = async (raw: string) => {
-  const farmer = await lookupFarmer(raw);
-  if (!scannedMatchesTicket(farmer)) {
-    await presentToast('Mismatch: Scanned ID does not belong to the farmer on this report.', 'danger');
-    return;
-  }
-  state.qrScanResult = state.target.rsbsaNo || state.target.farmerId || raw;
-  await presentToast('Farmer QR verified for dispense.');
-};
-
-const scanFarmerQr = async () => {
-  try {
-    if (!Capacitor.isNativePlatform()) {
-      console.warn('[AGRI-AKAP] QR scan native-only; using loaded farmer fallback.');
-      await useLoadedFarmerIdentity('Scan unavailable here. Using the farmer already loaded on this report.');
-      return;
-    }
-
-    const allowed = await ensureCameraPermission();
-    if (!allowed) {
-      await useLoadedFarmerIdentity('Camera permission missing. Using the farmer already loaded on this report.');
-      return;
-    }
-
-    // ML Kit `scan()` opens its own native UI — keep WebView opaque
-    showScannerBackground();
-    try {
-      const { barcodes } = await BarcodeScanner.scan();
-      const raw = barcodes[0]?.rawValue?.trim();
-      if (!raw) {
-        await useLoadedFarmerIdentity('No QR detected. Using the farmer already loaded on this report.');
-        return;
-      }
-      await verifyScannedQr(raw);
-    } finally {
-      showScannerBackground();
-    }
-  } catch (err) {
-    console.warn('[AGRI-AKAP] Pest QR scan failed:', err);
-    showScannerBackground();
-    await useLoadedFarmerIdentity('Scanner failed. Using the farmer already loaded on this report.');
-  }
-};
-
 const submitReport = async () => {
   if (!canSubmit.value || submitting.value) return;
   submitting.value = true;
   try {
-    const rsbsaId = state.target.rsbsaNo || state.qrScanResult || state.target.farmerId || '';
+    const rsbsaId = state.target.rsbsaNo || state.target.farmerId || '';
     const photo = state.photoBase64?.startsWith('data:')
       ? state.photoBase64
       : `data:image/jpeg;base64,${state.photoBase64}`;
@@ -554,8 +424,6 @@ const submitReport = async () => {
         incidence: state.incidencePct,
         severity: state.severity,
         advisory: state.advisories.join(', '),
-        item_distributed: state.itemDistributed || undefined,
-        quantity: state.quantity || undefined,
         is_outbreak: state.escalateOutbreak,
       });
     } else {
@@ -574,8 +442,6 @@ const submitReport = async () => {
         lng: state.longitude,
         report_id: state.target.reportId,
         server_id: state.serverRecordId || undefined,
-        item_distributed: state.itemDistributed || undefined,
-        quantity: state.quantity || undefined,
         sync_status: 'pending',
         created_at: new Date().toISOString(),
       });
@@ -593,6 +459,7 @@ const submitReport = async () => {
       state.escalateOutbreak ? 'warning' : 'success',
       2800,
     );
+    await router.replace(backHref.value);
   } catch (err: any) {
     console.warn('[AGRI-AKAP] Failed to save pest report:', err);
     await presentToast(err?.response?.data?.message || 'Could not save pest validation. Please try again.', 'danger');

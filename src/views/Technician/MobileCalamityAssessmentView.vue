@@ -220,7 +220,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, computed, onMounted } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonBackButton,
   IonCard, IonCardHeader, IonCardTitle, IonCardSubtitle, IonCardContent,
@@ -272,6 +272,7 @@ const activeCalamities = [
 ];
 
 const route = useRoute();
+const router = useRouter();
 const farmerSearch = useBarangayFarmerSearch(() => null, {
   requireBarangay: false,
   commodity: () => state.cropType,
@@ -526,6 +527,7 @@ const submitAssessment = async () => {
       });
     }
     await presentToast('Assessment saved. Added to the MAO rehabilitation masterlist.', 'success', 3200);
+    await router.replace(backHref.value);
   } catch (e: any) {
     await presentToast(e?.response?.data?.message || 'Could not save assessment.', 'danger', 2800);
   } finally {

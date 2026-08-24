@@ -22,6 +22,9 @@
               Generated: {{ new Date().toLocaleDateString('en-PH', { year:'numeric', month:'long', day:'numeric' }) }}
               <span v-if="filters.dateFrom || filters.dateTo"> &nbsp;|&nbsp; Period: {{ filters.dateFrom || '—' }} to {{ filters.dateTo || '—' }}</span>
               <span v-if="selectedProgramName"> &nbsp;|&nbsp; Program: {{ selectedProgramName }}</span>
+              <span v-if="filters.barangay"> &nbsp;|&nbsp; Barangay: {{ filters.barangay }}</span>
+              <span v-if="filters.cropType"> &nbsp;|&nbsp; Crop: {{ cropLabel(filters.cropType) }}</span>
+              <span v-if="searchQuery"> &nbsp;|&nbsp; Search: {{ searchQuery }}</span>
             </p>
           </template>
         </MaoFormHeader>
@@ -38,19 +41,31 @@
             </select>
           </div>
           <div class="filter-group">
+            <label class="filter-label">Period</label>
+            <select class="filter-select" :value="period" @change="onPeriodChange">
+              <option value="week">This week</option>
+              <option value="month">This month</option>
+              <option value="custom">Custom dates</option>
+            </select>
+          </div>
+          <div class="filter-group">
             <label class="filter-label">Date Claimed From</label>
-            <input class="filter-input" type="date" v-model="filters.dateFrom" @change="fetchRows" />
+            <input class="filter-input" type="date" v-model="filters.dateFrom" @change="onCustomDates" />
           </div>
           <div class="filter-group">
             <label class="filter-label">Date Claimed To</label>
-            <input class="filter-input" type="date" v-model="filters.dateTo" @change="fetchRows" />
+            <input class="filter-input" type="date" v-model="filters.dateTo" @change="onCustomDates" />
           </div>
           <div class="filter-group">
             <label class="filter-label">Barangay</label>
-            <select class="filter-select" v-model="filters.barangay" @change="fetchRows">
+            <select class="filter-select" v-model="filters.barangay" :disabled="!!lockedBarangay" @change="fetchRows">
               <option value="">All Barangays</option>
               <option v-for="b in barangays" :key="b" :value="b">{{ b }}</option>
             </select>
+          </div>
+          <div class="filter-group">
+            <label class="filter-label">Search</label>
+            <input class="filter-input" type="search" v-model="searchQuery" placeholder="Name or RSBSA" />
           </div>
           <div class="filter-group">
             <label class="filter-label">Crop</label>
@@ -58,6 +73,7 @@
               <option value="">All</option>
               <option value="Rice">Rice</option>
               <option value="Corn">Corn</option>
+              <option value="Both">Rice and Corn</option>
             </select>
           </div>
           <button class="clear-btn" @click="clearFilters">Clear</button>
@@ -65,14 +81,14 @@
 
         <!-- Data grid -->
         <div class="grid-shell">
-          <div class="grid-head">
+          <div class="grid-head no-print">
             <span class="grid-title">Claimed Subsidy Beneficiaries</span>
             <div class="grid-actions no-print">
-              <ion-button class="add-override-btn" @click="encodeOpen = true">
+              <ion-button v-if="!hideEncode" class="add-override-btn" @click="encodeOpen = true">
                 <ion-icon slot="start" :icon="addCircleOutline"></ion-icon>
                 Add 
               </ion-button>
-              <FormExportActions theme="admin" @print="printReport" @excel="downloadExcel" />
+              <FormExportActions theme="admin" :print-disabled="loading" @print="printReport" @excel="downloadExcel" />
               <span class="row-pill">{{ filteredRows.length }} record(s)</span>
             </div>
           </div>
@@ -85,7 +101,7 @@
             <p>{{ loadError }}</p>
             <button class="retry-btn" @click="fetchRows">Retry</button>
           </div>
-          <div v-else class="table-scroll">
+          <div v-else class="table-scroll print-surface">
             <table class="excel-table">
               <thead>
                 <tr>
@@ -94,13 +110,15 @@
                   <th>Farmer Name</th>
                   <th>Barangay</th>
                   <th>Subsidy Program</th>
+                  <th>Crop</th>
                   <th>Item / Amount Received</th>
                   <th>Date Claimed</th>
+                  <th class="col-evidence no-print">Photo</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="!filteredRows.length">
-                  <td colspan="7" class="empty-row">No claimed subsidy records found for the selected filters.</td>
+                  <td colspan="9" class="empty-row">No claimed subsidy records found for the selected filters.</td>
                 </tr>
                 <tr v-for="(row, i) in filteredRows" :key="i">
                   <td class="col-no">{{ i + 1 }}</td>
@@ -108,15 +126,33 @@
                   <td>{{ row.farmer_name }}</td>
                   <td>{{ row.barangay }}</td>
                   <td>{{ row.program_name }}</td>
+                  <td>{{ cropLabel(row.target_crop) }}</td>
                   <td>{{ row.item_received }}</td>
                   <td class="mono">{{ fmtDate(row.date_claimed) }}</td>
+                  <td class="col-evidence no-print">
+                    <img
+                      v-if="photoSrc(row)"
+                      :src="photoSrc(row)!"
+                      class="thumb"
+                      alt="Claim photo"
+                      @click="openPhoto(row)"
+                    />
+                    <span v-else class="no-photo">—</span>
+                  </td>
                 </tr>
                 <tr v-if="filteredRows.length" class="totals-row">
-                  <td colspan="5" class="totals-label">TOTALS</td>
-                  <td colspan="2">{{ subsidyTotalsLabel }}</td>
+                  <td colspan="6" class="totals-label">TOTALS</td>
+                  <td colspan="3">{{ subsidyTotalsLabel }}</td>
                 </tr>
               </tbody>
             </table>
+          </div>
+        </div>
+
+        <div v-if="viewingPhoto" class="photo-overlay no-print" @click.self="viewingPhoto = null">
+          <div class="photo-modal">
+            <button class="photo-close" @click="viewingPhoto = null">✕</button>
+            <img :src="viewingPhoto" class="photo-full" alt="Claim photo" />
           </div>
         </div>
 
@@ -142,10 +178,9 @@
     />
   </ion-page>
 </template>
-            .excel-table tbody tr:hover { background: #eef5ee; }
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, watch } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent,
   IonButtons, IonButton, IonMenuButton, IonIcon, IonSpinner,
@@ -156,16 +191,22 @@ import { exportAdminGridExcel } from '@/utils/statutoryFormExcel';
 import apiClient from '@/utils/axios';
 import ReportEncodeModal from '@/components/ReportEncodeModal.vue';
 import MaoFormHeader from '@/components/MaoFormHeader.vue';
+import { cropLabel } from '@/utils/cropLabel';
+import { storageUrl } from '@/utils/storageUrl';
+import { useReportScope, type ReportPeriod } from '@/composables/useReportScope';
 
 interface SubsidyRow {
   rsbsa_no: string;
   farmer_name: string;
   barangay: string;
   program_name: string;
+  target_crop?: string;
   item_received: string;
   quantity?: number;
   unit?: string;
   date_claimed: string;
+  photo_url?: string | null;
+  photo_path?: string | null;
 }
 
 interface Program {
@@ -186,8 +227,16 @@ const filters = reactive({
   barangay: '',
   cropType: '',
 });
+const searchQuery = ref('');
+const viewingPhoto = ref<string | null>(null);
 
-const filteredRows = computed(() => rows.value);
+const filteredRows = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase();
+  if (!q) return rows.value;
+  return rows.value.filter((r) =>
+    r.farmer_name.toLowerCase().includes(q) || String(r.rsbsa_no || '').toLowerCase().includes(q)
+  );
+});
 const subsidyTotalsLabel = computed(() => {
   const byUnit = new Map<string, number>();
   filteredRows.value.forEach((r) => {
@@ -200,6 +249,26 @@ const subsidyTotalsLabel = computed(() => {
     .join(' · ') || '0';
 });
 const encodeOpen = ref(false);
+const { lockedBarangay, hideEncode, period, applyPeriod } = useReportScope();
+
+watch(lockedBarangay, (b) => {
+  if (b) filters.barangay = b;
+}, { immediate: true });
+
+function onPeriodChange(e: Event) {
+  const next = (e.target as HTMLSelectElement).value as ReportPeriod;
+  const range = applyPeriod(next);
+  if (next !== 'custom') {
+    filters.dateFrom = range.from;
+    filters.dateTo = range.to;
+    fetchRows();
+  }
+}
+
+function onCustomDates() {
+  period.value = 'custom';
+  fetchRows();
+}
 
 const selectedProgramName = computed(() =>
   filters.programId ? programs.value.find(p => p.id == filters.programId)?.program_name ?? '' : ''
@@ -250,16 +319,28 @@ async function fetchBarangays() {
   } catch { barangays.value = []; }
 }
 
+function photoSrc(row: SubsidyRow): string | null {
+  return row.photo_url || storageUrl(row.photo_path);
+}
+
+function openPhoto(row: SubsidyRow) {
+  const src = photoSrc(row);
+  if (src) viewingPhoto.value = src;
+}
+
 function clearFilters() {
   filters.programId = '';
   filters.dateFrom  = '';
   filters.dateTo    = '';
-  filters.barangay  = '';
+  filters.barangay  = lockedBarangay.value || '';
   filters.cropType  = '';
+  searchQuery.value = '';
+  period.value = 'custom';
   fetchRows();
 }
 
 function printReport() {
+  if (loading.value) return;
   window.print();
 }
 
@@ -269,6 +350,8 @@ function reportMetaLine() {
     line += ` | Period: ${filters.dateFrom || '—'} to ${filters.dateTo || '—'}`;
   }
   if (selectedProgramName.value) line += ` | Program: ${selectedProgramName.value}`;
+  if (filters.barangay) line += ` | Barangay: ${filters.barangay}`;
+  if (filters.cropType) line += ` | Crop: ${cropLabel(filters.cropType)}`;
   return line;
 }
 
@@ -283,6 +366,7 @@ async function downloadExcel() {
       { key: 'farmer_name', label: 'Farmer Name' },
       { key: 'barangay', label: 'Barangay' },
       { key: 'program_name', label: 'Subsidy Program' },
+      { key: 'target_crop', label: 'Crop' },
       { key: 'item_received', label: 'Item / Amount Received' },
       { key: 'date_claimed', label: 'Date Claimed' },
     ],
@@ -290,6 +374,7 @@ async function downloadExcel() {
     getCellValue(row, key, index) {
       if (key === 'no') return index + 1;
       if (key === 'date_claimed') return fmtDate(String(row.date_claimed ?? ''));
+      if (key === 'target_crop') return cropLabel(String(row.target_crop ?? ''));
       return String(row[key] ?? '');
     },
   });
@@ -461,6 +546,45 @@ onMounted(async () => {
 .totals-row td { color: #fff !important; font-weight: 800; font-size: 12px; border-color: #0f3021; }
 .totals-label { text-align: right; letter-spacing: 0.05em; }
 .col-no { text-align: right; width: 40px; }
+.col-evidence { width: 70px; text-align: center; }
+.thumb {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+  cursor: zoom-in;
+  display: block;
+  margin: 0 auto;
+}
+.no-photo { color: #94a3b8; font-size: 12px; }
+.photo-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.photo-modal {
+  position: relative;
+  background: #fff;
+  border-radius: 10px;
+  padding: 1rem;
+  max-width: 90vw;
+  max-height: 90vh;
+}
+.photo-full { max-width: 80vw; max-height: 80vh; object-fit: contain; }
+.photo-close {
+  position: absolute;
+  top: 6px;
+  right: 10px;
+  border: none;
+  background: transparent;
+  font-size: 1.2rem;
+  cursor: pointer;
+}
 .mono { font-family: 'Courier New', monospace; }
 .empty-row { text-align: center; color: #94a3b8; padding: 2rem 0; font-style: italic; }
 
@@ -477,8 +601,13 @@ onMounted(async () => {
 @media print {
   .no-print { display: none !important; }
   .print-only { display: block !important; }
-  .rpt-shell { padding: 0; }
+  .rpt-shell, .rpt-content, .grid-shell, .table-scroll, .print-surface {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
   .grid-shell { border: none; }
+  .excel-table { min-width: 0 !important; }
   .excel-table thead th { position: static; background: #1a4731 !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
 
   .letterhead { text-align: center; margin-bottom: 1rem; border-bottom: 2px solid #1a4731; padding-bottom: 0.75rem; }

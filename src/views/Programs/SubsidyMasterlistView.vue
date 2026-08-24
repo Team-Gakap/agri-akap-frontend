@@ -21,9 +21,10 @@
           <div class="top-bar-info">
             <p class="program-name">{{ program.program_name || 'Subsidy Program' }}</p>
             <p class="program-sub">
-              {{ program.target_crop || '—' }} &middot; {{ program.items_per_hectare || 0 }} {{ program.unit_of_measurement || 'items' }}/ha &middot;
+              {{ cropLabel(program.target_crop) }} &middot; {{ program.items_per_hectare || 0 }} {{ program.unit_of_measurement || 'items' }}/ha &middot;
               min {{ program.min_hectares_limit || 0 }} ha &middot;
               cap {{ program.max_hectares_limit || 0 }} ha
+              <span v-if="program.status" class="mock-flag">{{ program.status }}</span>
               <span v-if="isMockData" class="mock-flag">PREVIEW DATA</span>
             </p>
           </div>
@@ -82,7 +83,7 @@
             />
           </div>
           <div class="actions">
-            <ion-button size="small" fill="solid" class="act-btn primary" :disabled="generating" @click="confirmGenerate">
+            <ion-button size="small" fill="solid" class="act-btn primary" :disabled="generating || program.status === 'Completed'" @click="confirmGenerate">
               <ion-icon slot="start" :icon="syncOutline"></ion-icon>
               Auto-Generate Masterlist
             </ion-button>
@@ -136,7 +137,7 @@
                   </td>
                   <td class="col-icon">
                     <button
-                      v-if="row.status === 'Pending'"
+                      v-if="row.status === 'Pending' && program.status === 'Active'"
                       class="icon-btn claim-btn"
                       title="Mark Claimed (deduct from stock)"
                       :disabled="claimingId === row.beneficiary_id"
@@ -168,31 +169,26 @@
           </ion-toolbar>
         </ion-header>
         <ion-content class="ion-padding">
-          <ion-list>
-            <ion-item>
-              <ion-input
-                label="Target Barangay"
-                label-placement="stacked"
-                :value="smsForm.barangay"
-                @ionInput="(e: any) => smsForm.barangay = e.detail.value"
-                placeholder="All / specific barangay"
-              ></ion-input>
-            </ion-item>
-            <ion-item>
-              <ion-textarea
-                label="Message"
-                label-placement="stacked"
-                :auto-grow="true"
-                :value="smsForm.message"
-                @ionInput="(e: any) => smsForm.message = e.detail.value"
-                :rows="6"
-              ></ion-textarea>
-            </ion-item>
-          </ion-list>
+          <p class="sms-label">Target barangays</p>
+          <BarangayMultiPicker
+            v-model="smsSelectedBarangays"
+            v-model:select-all="smsSelectAll"
+            :barangays="smsBarangayOptions"
+          />
+          <ion-item class="sms-message">
+            <ion-textarea
+              label="Message"
+              label-placement="stacked"
+              :auto-grow="true"
+              :value="smsForm.message"
+              @ionInput="(e: any) => smsForm.message = e.detail.value"
+              :rows="6"
+            ></ion-textarea>
+          </ion-item>
           <ion-button
             expand="block"
             class="send-btn"
-            :disabled="sendingSms || !smsForm.message.trim()"
+            :disabled="sendingSms || !smsForm.message.trim() || (!smsSelectAll && !smsSelectedBarangays.length)"
             @click="sendSmsSchedule"
           >
             {{ sendingSms ? 'Sending…' : 'Send Broadcast' }}
@@ -241,7 +237,7 @@ import { ref, reactive, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonBackButton,
-  IonButton, IonIcon, IonSpinner, IonModal, IonList, IonItem, IonInput, IonTextarea,
+  IonButton, IonIcon, IonSpinner, IonModal, IonItem, IonTextarea,
   toastController, alertController,
 } from '@ionic/vue';
 import {
@@ -249,6 +245,8 @@ import {
   alertCircleOutline, addCircleOutline, checkmarkCircleOutline,
 } from 'ionicons/icons';
 import apiClient from '@/utils/axios';
+import { cropLabel } from '@/utils/cropLabel';
+import BarangayMultiPicker from '@/components/BarangayMultiPicker.vue';
 
 interface MasterlistRow {
   beneficiary_id: string;
@@ -297,7 +295,10 @@ const filterBarangay = ref('');
 const filterStatus = ref('');
 const searchTerm = ref('');
 
-const smsForm = reactive({ barangay: '', message: '' });
+const smsForm = reactive({ message: '' });
+const smsSelectAll = ref(true);
+const smsSelectedBarangays = ref<string[]>([]);
+const smsBarangayOptions = ref<string[]>([]);
 
 // ── Mock dataset (20 farmers) — spreadsheet width/CSS preview when no
 // program is selected yet, or the live API is unreachable. ──────────────────
@@ -509,20 +510,33 @@ const submitRestock = async () => {
   }
 };
 
-const openSmsModal = () => {
-  smsForm.barangay = filterBarangay.value || '';
-  smsForm.message = `Your ${program.target_crop || ''} subsidy allocation under "${program.program_name || 'the program'}" is ready. Please visit the MAO office with your RSBSA ID to claim.`;
+const openSmsModal = async () => {
+  smsSelectAll.value = !filterBarangay.value;
+  smsSelectedBarangays.value = filterBarangay.value ? [filterBarangay.value] : [];
+  smsForm.message = `Your ${cropLabel(program.target_crop)} subsidy allocation under "${program.program_name || 'the program'}" is ready. Please visit the MAO office with your RSBSA ID to claim.`;
   smsOpen.value = true;
+  if (!smsBarangayOptions.value.length) {
+    try {
+      const res = await apiClient.get('/farmers/barangays');
+      smsBarangayOptions.value = res.data?.data ?? [];
+    } catch {
+      smsBarangayOptions.value = barangayOptions.value;
+    }
+  }
 };
 
 const sendSmsSchedule = async () => {
   if (!smsForm.message.trim()) return;
+  if (!smsSelectAll.value && !smsSelectedBarangays.value.length) {
+    await toast('Select all barangays, or check at least one.', 'danger');
+    return;
+  }
   sendingSms.value = true;
   try {
     await apiClient.post('/broadcasts/send', {
       message_body: smsForm.message.trim(),
-      target_barangay: smsForm.barangay || null,
-      target_commodity: program.target_crop || null,
+      target_barangays: smsSelectAll.value ? [] : smsSelectedBarangays.value,
+      target_commodity: program.target_crop === 'Both' ? 'Both' : (program.target_crop || 'All'),
     });
     await toast('SMS advisory scheduled for broadcast.', 'success');
     smsOpen.value = false;
@@ -711,6 +725,13 @@ onMounted(() => fetchMasterlist());
   font-weight: 800;
   margin-top: 1rem;
 }
+.sms-label {
+  margin: 0 0 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #1a4731;
+}
+.sms-message { margin-top: 0.85rem; }
 
 @media (max-width: 900px) {
   .top-bar { flex-direction: column; align-items: flex-start; }

@@ -274,6 +274,7 @@ const authorizeRelease = async () => {
         farmer_id: ctx.value.farmer_id,
         rsbsa_no: ctx.value.rsbsa_no,
         beneficiary_id: ctx.value.beneficiary_id,
+        photo_proof_base64: photoBase64.value,
       });
       releaseResult.value = response.data;
       isSubmitting.value = false;

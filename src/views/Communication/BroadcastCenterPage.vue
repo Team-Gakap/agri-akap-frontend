@@ -99,19 +99,15 @@
                 </ion-card-header>
                 <ion-card-content>
                   <ion-row>
-                    <ion-col size="12" size-md="6">
-                      <ion-item class="custom-input">
-                        <ion-select v-model="form.target_barangay" label="Target Barangay" label-placement="floating">
-                          <ion-select-option value="All">All Barangays</ion-select-option>
-                          <ion-select-option
-                            v-for="brgy in barangays"
-                            :key="brgy"
-                            :value="brgy"
-                          >{{ brgy }}</ion-select-option>
-                        </ion-select>
-                      </ion-item>
+                    <ion-col size="12" size-md="7">
+                      <p class="target-label">Target barangays</p>
+                      <BarangayMultiPicker
+                        v-model="selectedBarangays"
+                        v-model:select-all="selectAllBarangays"
+                        :barangays="barangays"
+                      />
                     </ion-col>
-                    <ion-col size="12" size-md="6">
+                    <ion-col size="12" size-md="5">
                       <ion-item class="custom-input">
                         <ion-select v-model="form.target_commodity" label="Target Commodity" label-placement="floating">
                           <ion-select-option value="All">All Farmers</ion-select-option>
@@ -183,7 +179,7 @@
     <ion-alert
       :is-open="showConfirm"
       header="Confirm Broadcast"
-      :message="`Send to: ${form.target_barangay} · ${form.target_commodity}<br/><br/>&quot;${form.message}&quot;`"
+      :message="`Send to: ${barangaySummary} · ${form.target_commodity}<br/><br/>&quot;${form.message}&quot;`"
       :buttons="[
         { text: 'Cancel', role: 'cancel', handler: () => { showConfirm = false; } },
         { text: 'Send Now', role: 'confirm', cssClass: 'alert-confirm-btn', handler: () => sendBroadcast() },
@@ -194,7 +190,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
   IonGrid, IonRow, IonCol, IonCard, IonCardHeader, IonCardTitle, IonCardContent,
@@ -206,6 +202,7 @@ import { sendOutline, radioOutline, warningOutline } from 'ionicons/icons';
 import axiosInstance from '@/utils/axios';
 import EmptyState from '@/components/EmptyState.vue';
 import StatusBadge from '@/components/StatusBadge.vue';
+import BarangayMultiPicker from '@/components/BarangayMultiPicker.vue';
 
 interface WeatherAdvisoryItem {
   barangay?: string | null;
@@ -226,7 +223,9 @@ interface WeatherAdvisory extends WeatherAdvisoryItem {
   reason?: string | null;
 }
 
-const form = ref({ message: '', target_barangay: 'All', target_commodity: 'All' });
+const form = ref({ message: '', target_commodity: 'All' });
+const selectAllBarangays = ref(true);
+const selectedBarangays = ref<string[]>([]);
 const isSending = ref(false);
 const isSendingWeather = ref(false);
 const logs = ref<any[]>([]);
@@ -236,6 +235,12 @@ const commodities = ref<string[]>([]);
 const showConfirm = ref(false);
 const advisory = ref<WeatherAdvisory | null>(null);
 const advisoryLoading = ref(true);
+
+const barangaySummary = computed(() => {
+  if (selectAllBarangays.value) return 'All barangays';
+  if (!selectedBarangays.value.length) return 'No barangay selected';
+  return selectedBarangays.value.join(', ');
+});
 
 const showToast = async (msg: string, color: 'success' | 'danger' = 'success') => {
   const t = await toastController.create({ message: msg, duration: 3000, color, position: 'top' });
@@ -304,7 +309,13 @@ const sendWeatherWarningNow = async () => {
   }
 };
 
-const confirmSend = () => { showConfirm.value = true; };
+const confirmSend = async () => {
+  if (!selectAllBarangays.value && !selectedBarangays.value.length) {
+    await showToast('Select all barangays, or check at least one.', 'danger');
+    return;
+  }
+  showConfirm.value = true;
+};
 
 const sendBroadcast = async () => {
   showConfirm.value = false;
@@ -312,7 +323,7 @@ const sendBroadcast = async () => {
   try {
     const res = await axiosInstance.post('/broadcasts/send', {
       message_body: form.value.message,
-      target_barangay: form.value.target_barangay,
+      target_barangays: selectAllBarangays.value ? [] : selectedBarangays.value,
       target_commodity: form.value.target_commodity,
     });
     await showToast(res.data.message ?? 'Broadcast sent successfully!', 'success');
@@ -383,6 +394,12 @@ onMounted(async () => {
 
 .custom-textarea { --background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; }
 .custom-input { --background: white; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 0; }
+.target-label {
+  margin: 0 0 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #1a4731;
+}
 
 .char-counter { font-size: 0.8rem; color: #64748b; text-align: right; margin-top: 4px; }
 .char-danger { color: #c0392b; font-weight: 700; }

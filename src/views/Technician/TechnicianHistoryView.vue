@@ -39,9 +39,16 @@
         <div class="block-head">
           <h2>Recent synced</h2>
         </div>
+        <p class="hint">Tap a planting record for date, status, and water source.</p>
         <div v-if="loadingHistory" class="empty-mini">Loading recent work…</div>
         <div v-else-if="historyItems.length" class="list">
-          <article v-for="item in historyItems" :key="item.key" class="row">
+          <article
+            v-for="item in historyItems"
+            :key="item.key"
+            class="row"
+            :class="{ tap: item.type === 'Planting' }"
+            @click="openHistoryDetail(item)"
+          >
             <div>
               <strong>{{ item.title }}</strong>
               <p>{{ item.type }} · {{ item.detail }}</p>
@@ -57,7 +64,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
-import { IonPage, IonContent, IonButton, IonBadge } from '@ionic/vue';
+import { IonPage, IonContent, IonButton, IonBadge, alertController } from '@ionic/vue';
 import { useSyncStore } from '@/stores/syncStore';
 import { listPendingQueueItems, type PendingQueueItem } from '@/services/syncService';
 import { presentToast } from '@/utils/toast';
@@ -69,6 +76,12 @@ interface HistoryItem {
   title: string;
   detail: string;
   createdAt?: string;
+  date_planted?: string;
+  status?: string;
+  water_source?: string;
+  crop?: string;
+  variety?: string;
+  area_planted?: number | string;
 }
 
 const syncStore = useSyncStore();
@@ -99,12 +112,37 @@ const loadHistory = async () => {
       title: r.title || 'Field record',
       detail: r.detail || '',
       createdAt: r.created_at,
+      date_planted: r.date_planted,
+      status: r.status,
+      water_source: r.water_source,
+      crop: r.crop,
+      variety: r.variety,
+      area_planted: r.area_planted,
     }));
   } catch {
     historyItems.value = [];
   } finally {
     loadingHistory.value = false;
   }
+};
+
+const openHistoryDetail = async (item: HistoryItem) => {
+  if (item.type !== 'Planting') return;
+  const lines = [
+    item.title,
+    item.crop ? `Crop: ${item.crop}` : '',
+    item.variety ? `Variety: ${item.variety}` : '',
+    item.date_planted ? `Date planted: ${item.date_planted}` : '',
+    item.status ? `Status: ${item.status}` : '',
+    item.water_source ? `Water source: ${item.water_source}` : '',
+    item.area_planted != null && item.area_planted !== '' ? `Area: ${item.area_planted} ha` : '',
+  ].filter(Boolean);
+  const alert = await alertController.create({
+    header: 'Planting details',
+    message: lines.join('<br/>'),
+    buttons: ['Close'],
+  });
+  await alert.present();
 };
 
 const runSync = async () => {
@@ -192,6 +230,14 @@ onMounted(async () => {
   background: #fff;
   border: 1px solid #e2e8f0;
   border-radius: 10px;
+}
+
+.row.tap {
+  cursor: pointer;
+}
+
+.row.tap:active {
+  background: #f0f7f2;
 }
 
 .row.pending {

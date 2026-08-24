@@ -6,11 +6,6 @@
           <ion-menu-button></ion-menu-button>
         </ion-buttons>
         <ion-title>Command Center</ion-title>
-        <ion-buttons slot="end">
-          <ion-button :disabled="loading" @click="fetchAll">
-            <ion-icon slot="icon-only" :icon="refreshOutline"></ion-icon>
-          </ion-button>
-        </ion-buttons>
       </ion-toolbar>
     </ion-header>
 
@@ -33,7 +28,7 @@
 
         <div v-else class="grid-shell">
           <!-- ── Row 1: Descriptive KPIs ─────────────────────────────────── -->
-          <ion-card class="kpi-card span-2" button @click="go('/admin/farmers')">
+          <ion-card class="kpi-card span-3" button @click="go('/admin/farmers')">
             <ion-card-content>
               <div class="kpi-icon-wrap kpi-tone-green">
                 <ion-icon :icon="peopleOutline"></ion-icon>
@@ -43,27 +38,7 @@
             </ion-card-content>
           </ion-card>
 
-          <ion-card class="kpi-card span-2" button @click="go('/admin/encoding/planting-ledger')">
-            <ion-card-content>
-              <div class="kpi-icon-wrap kpi-tone-gold">
-                <ion-icon :icon="leafOutline"></ion-icon>
-              </div>
-              <p class="kpi-value">{{ fmtHa(descriptive.rice_hectares) }} <small>ha</small></p>
-              <p class="kpi-label">Rice Hectares</p>
-            </ion-card-content>
-          </ion-card>
-
-          <ion-card class="kpi-card span-2" button @click="go('/admin/encoding/planting-ledger')">
-            <ion-card-content>
-              <div class="kpi-icon-wrap kpi-tone-gold">
-                <ion-icon :icon="leafOutline"></ion-icon>
-              </div>
-              <p class="kpi-value">{{ fmtHa(descriptive.corn_hectares) }} <small>ha</small></p>
-              <p class="kpi-label">Corn Hectares</p>
-            </ion-card-content>
-          </ion-card>
-
-          <ion-card class="kpi-card span-2" button @click="go('/admin/encoding/calamity-assessment')">
+          <ion-card class="kpi-card span-3" button @click="go('/admin/reports/damage-calamity')">
             <ion-card-content>
               <div class="kpi-icon-wrap kpi-tone-danger">
                 <ion-icon :icon="warningOutline"></ion-icon>
@@ -73,7 +48,7 @@
             </ion-card-content>
           </ion-card>
 
-          <ion-card class="kpi-card span-2" button @click="go('/admin/encoding/pest-monitoring')">
+          <ion-card class="kpi-card span-3" button @click="go('/admin/reports/pest-surveillance')">
             <ion-card-content>
               <div class="kpi-icon-wrap kpi-tone-danger">
                 <ion-icon :icon="bugOutline"></ion-icon>
@@ -83,7 +58,7 @@
             </ion-card-content>
           </ion-card>
 
-          <ion-card class="kpi-card span-2" button @click="go('/admin/subsidies')">
+          <ion-card class="kpi-card span-3" button @click="go('/admin/subsidies')">
             <ion-card-content>
               <div class="kpi-icon-wrap kpi-tone-slate">
                 <ion-icon :icon="cubeOutline"></ion-icon>
@@ -225,7 +200,7 @@ import {
   IonButton, IonIcon, IonSpinner, IonCard, IonCardHeader, IonCardTitle, IonCardSubtitle,
   IonCardContent, IonList, IonItem, IonLabel, IonBadge, IonModal, IonInput, IonTextarea,
 } from '@ionic/vue';
-import { refreshOutline, peopleOutline, leafOutline, warningOutline, cubeOutline, bugOutline } from 'ionicons/icons';
+import { peopleOutline, warningOutline, cubeOutline, bugOutline } from 'ionicons/icons';
 import { Doughnut, Bar } from 'vue-chartjs';
 import {
   Chart as ChartJS,
@@ -272,7 +247,6 @@ const smsForm = reactive({
 });
 
 const fmt = (v: any) => Number(v ?? 0).toLocaleString('en-PH');
-const fmtHa = (v: any) => Number(v ?? 0).toLocaleString('en-PH', { maximumFractionDigits: 2 });
 const go = (path: string) => router.push(path);
 
 const cropRows = computed(() => diagnostic.crop_distribution ?? []);

@@ -20,6 +20,7 @@
             <p class="lh-meta">
               Generated: {{ new Date().toLocaleDateString('en-PH', { year:'numeric', month:'long', day:'numeric' }) }}
               <span v-if="filters.barangay">&nbsp;|&nbsp; Barangay: {{ filters.barangay }}</span>
+              <span v-if="filters.dateFrom || filters.dateTo">&nbsp;|&nbsp; Period: {{ filters.dateFrom || '—' }} to {{ filters.dateTo || '—' }}</span>
             </p>
           </template>
         </MaoFormHeader>
@@ -29,10 +30,30 @@
         <div class="filter-bar no-print">
           <div class="filter-group">
             <label class="filter-label">Barangay</label>
-            <select class="filter-select" v-model="filters.barangay" @change="fetchRows">
+            <select class="filter-select" v-model="filters.barangay" :disabled="!!lockedBarangay" @change="fetchRows">
               <option value="">All Barangays</option>
               <option v-for="b in barangays" :key="b" :value="b">{{ b }}</option>
             </select>
+          </div>
+          <div class="filter-group">
+            <label class="filter-label">Search</label>
+            <input class="filter-input" type="search" v-model="searchQuery" placeholder="Name or RSBSA" />
+          </div>
+          <div class="filter-group">
+            <label class="filter-label">Period</label>
+            <select class="filter-select" :value="period" @change="onPeriodChange">
+              <option value="week">This week</option>
+              <option value="month">This month</option>
+              <option value="custom">Custom dates</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label class="filter-label">Date From</label>
+            <input class="filter-input" type="date" v-model="filters.dateFrom" @change="onCustomDates" />
+          </div>
+          <div class="filter-group">
+            <label class="filter-label">Date To</label>
+            <input class="filter-input" type="date" v-model="filters.dateTo" @change="onCustomDates" />
           </div>
           <div class="filter-group">
             <label class="filter-label">Crop Type</label>
@@ -57,15 +78,15 @@
         </div>
 
         <div class="grid-shell">
-          <div class="grid-head">
+          <div class="grid-head no-print">
             <span class="grid-title">Standing Crop Records</span>
             <div class="grid-actions no-print">
-              <ion-button class="add-override-btn" @click="encodeOpen = true">
+              <ion-button v-if="!hideEncode" class="add-override-btn" @click="encodeOpen = true">
                 <ion-icon slot="start" :icon="addCircleOutline"></ion-icon>
                 Add
               </ion-button>
-              <FormExportActions theme="admin" @print="printReport" @excel="downloadExcel" />
-              <span class="row-pill">{{ rows.length }} record(s)</span>
+              <FormExportActions theme="admin" :print-disabled="loading" @print="printReport" @excel="downloadExcel" />
+              <span class="row-pill">{{ filteredRows.length }} record(s)</span>
             </div>
           </div>
 
@@ -77,7 +98,7 @@
             <p>{{ loadError }}</p>
             <button class="retry-btn" @click="fetchRows">Retry</button>
           </div>
-          <div v-else class="table-scroll">
+          <div v-else class="table-scroll print-surface">
             <table class="excel-table">
               <thead>
                 <tr>
@@ -93,10 +114,10 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-if="!rows.length">
+                <tr v-if="!filteredRows.length">
                   <td colspan="9" class="empty-row">No standing crop records match the current filters.</td>
                 </tr>
-                <tr v-for="(row, i) in rows" :key="row.id || i">
+                <tr v-for="(row, i) in filteredRows" :key="row.id || i">
                   <td class="col-no">{{ i + 1 }}</td>
                   <td class="mono">{{ row.rsbsa_no }}</td>
                   <td>{{ row.name }}</td>
@@ -107,7 +128,7 @@
                   <td>{{ row.growth_stage }}</td>
                   <td class="mono">{{ fmtDate(row.est_harvest_date) }}</td>
                 </tr>
-                <tr v-if="rows.length" class="totals-row">
+                <tr v-if="filteredRows.length" class="totals-row">
                   <td colspan="6" class="totals-label">TOTALS</td>
                   <td class="col-num">{{ totalAreaHa }}</td>
                   <td colspan="2"></td>
@@ -130,7 +151,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, defineAsyncComponent } from 'vue';
+import { ref, reactive, computed, onMounted, watch, defineAsyncComponent } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent,
   IonButtons, IonButton, IonMenuButton, IonIcon, IonSpinner,
@@ -141,6 +162,7 @@ import { exportAdminGridExcel } from '@/utils/statutoryFormExcel';
 import apiClient from '@/utils/axios';
 import ReportEncodeModal from '@/components/ReportEncodeModal.vue';
 import MaoFormHeader from '@/components/MaoFormHeader.vue';
+import { useReportScope, type ReportPeriod } from '@/composables/useReportScope';
 
 const StandingForm = defineAsyncComponent(() => import('@/views/Barangay/StandingCropLogView.vue'));
 
@@ -161,9 +183,38 @@ const loadError = ref('');
 const rows = ref<StandingRow[]>([]);
 const barangays = ref<string[]>([]);
 const encodeOpen = ref(false);
-const filters = reactive({ barangay: '', cropType: '', growthStage: '' });
+const filters = reactive({ barangay: '', cropType: '', growthStage: '', dateFrom: '', dateTo: '' });
+const searchQuery = ref('');
+const { lockedBarangay, hideEncode, period, applyPeriod } = useReportScope();
+
+watch(lockedBarangay, (b) => {
+  if (b) filters.barangay = b;
+}, { immediate: true });
+
+function onPeriodChange(e: Event) {
+  const next = (e.target as HTMLSelectElement).value as ReportPeriod;
+  const range = applyPeriod(next);
+  if (next !== 'custom') {
+    filters.dateFrom = range.from;
+    filters.dateTo = range.to;
+    fetchRows();
+  }
+}
+
+function onCustomDates() {
+  period.value = 'custom';
+  fetchRows();
+}
+
+const filteredRows = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase();
+  if (!q) return rows.value;
+  return rows.value.filter((r) =>
+    r.name.toLowerCase().includes(q) || String(r.rsbsa_no || '').toLowerCase().includes(q)
+  );
+});
 const totalAreaHa = computed(() =>
-  rows.value.reduce((s, r) => s + Number(r.area_ha || 0), 0).toFixed(2)
+  filteredRows.value.reduce((s, r) => s + Number(r.area_ha || 0), 0).toFixed(2)
 );
 
 const fmtNum = (v: number | string) => Number(v ?? 0).toFixed(2);
@@ -183,6 +234,8 @@ async function fetchRows() {
         barangay: filters.barangay || undefined,
         crop_type: filters.cropType || undefined,
         growth_stage: filters.growthStage || undefined,
+        date_from: filters.dateFrom || undefined,
+        date_to: filters.dateTo || undefined,
       },
     });
     const data = res.data?.data?.data ?? [];
@@ -213,13 +266,18 @@ function trim(s: string) {
 }
 
 function clearFilters() {
-  filters.barangay = '';
+  filters.barangay = lockedBarangay.value || '';
   filters.cropType = '';
   filters.growthStage = '';
+  filters.dateFrom = '';
+  filters.dateTo = '';
+  searchQuery.value = '';
+  period.value = 'custom';
   fetchRows();
 }
 
 function printReport() {
+  if (loading.value) return;
   window.print();
 }
 
@@ -239,7 +297,7 @@ async function downloadExcel() {
       { key: 'growth_stage', label: 'Growth Stage' },
       { key: 'est_harvest_date', label: 'Est. Harvest' },
     ],
-    rows: rows.value as Record<string, unknown>[],
+    rows: filteredRows.value as Record<string, unknown>[],
     getCellValue(row, key, index) {
       if (key === 'no') return index + 1;
       if (key === 'est_harvest_date') return fmtDate(String(row[key] ?? ''));
@@ -309,6 +367,24 @@ onMounted(async () => {
 .print-only { display: none; }
 @media print {
   .no-print { display: none !important; }
-  .print-only { display: block; }
+  .print-only { display: block !important; }
+  .rpt-shell, .rpt-content, .grid-shell, .table-scroll, .print-surface {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    padding: 0;
+  }
+  .grid-shell { border: none; }
+  .excel-table { min-width: 0 !important; }
+  .excel-table thead th {
+    position: static;
+    background: #1a4731 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .totals-row { background: #1a4731 !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .letterhead { text-align: center; margin-bottom: 1rem; border-bottom: 2px solid #1a4731; padding-bottom: 0.75rem; }
+  .lh-meta { margin: 2px 0 0; font-size: 0.78rem; color: #64748b; }
+  .sig-block { display: flex !important; justify-content: space-around; margin-top: 3rem; padding-top: 1rem; }
 }
 </style>

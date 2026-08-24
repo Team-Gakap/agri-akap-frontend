@@ -1,6 +1,6 @@
 <template>
   <div class="form-export-actions" :class="theme">
-    <ion-button class="export-btn" :fill="theme === 'admin' ? 'outline' : 'solid'" @click="$emit('print')">
+    <ion-button class="export-btn" :fill="theme === 'admin' ? 'outline' : 'solid'" :disabled="printDisabled" @click="$emit('print')">
       <ion-icon slot="start" :icon="printOutline"></ion-icon>
       Print
     </ion-button>
@@ -16,8 +16,8 @@ import { IonButton, IonIcon } from '@ionic/vue';
 import { downloadOutline, printOutline } from 'ionicons/icons';
 
 withDefaults(
-  defineProps<{ theme?: 'barangay' | 'admin' }>(),
-  { theme: 'barangay' },
+  defineProps<{ theme?: 'barangay' | 'admin'; printDisabled?: boolean }>(),
+  { theme: 'barangay', printDisabled: false },
 );
 
 defineEmits<{

@@ -33,9 +33,21 @@
         <div class="filter-bar no-print">
           <div class="filter-group">
             <label class="filter-label">Barangay</label>
-            <select class="filter-select" v-model="filters.barangay" @change="fetchRows">
+            <select class="filter-select" v-model="filters.barangay" :disabled="!!lockedBarangay" @change="fetchRows">
               <option value="">All Barangays</option>
               <option v-for="b in barangays" :key="b" :value="b">{{ b }}</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label class="filter-label">Search</label>
+            <input class="filter-input" type="search" v-model="searchQuery" placeholder="Name or calamity" />
+          </div>
+          <div class="filter-group">
+            <label class="filter-label">Period</label>
+            <select class="filter-select" :value="period" @change="onPeriodChange">
+              <option value="week">This week</option>
+              <option value="month">This month</option>
+              <option value="custom">Custom dates</option>
             </select>
           </div>
           <div class="filter-group">
@@ -69,11 +81,11 @@
           </div>
           <div class="filter-group">
             <label class="filter-label">Date From</label>
-            <input class="filter-input" type="date" v-model="filters.dateFrom" @change="fetchRows" />
+            <input class="filter-input" type="date" v-model="filters.dateFrom" @change="onCustomDates" />
           </div>
           <div class="filter-group">
             <label class="filter-label">Date To</label>
-            <input class="filter-input" type="date" v-model="filters.dateTo" @change="fetchRows" />
+            <input class="filter-input" type="date" v-model="filters.dateTo" @change="onCustomDates" />
           </div>
           <button class="clear-btn" @click="clearFilters">Clear</button>
         </div>
@@ -96,14 +108,14 @@
 
         <!-- Data grid -->
         <div class="grid-shell">
-          <div class="grid-head">
+          <div class="grid-head no-print">
             <span class="grid-title">Damage &amp; Calamity Assessment Records</span>
             <div class="grid-actions no-print">
-              <ion-button class="add-override-btn" @click="encodeOpen = true">
+              <ion-button v-if="!hideEncode" class="add-override-btn" @click="encodeOpen = true">
                 <ion-icon slot="start" :icon="addCircleOutline"></ion-icon>
                 Add 
               </ion-button>
-              <FormExportActions theme="admin" @print="printReport" @excel="downloadExcel" />
+              <FormExportActions theme="admin" :print-disabled="loading" @print="printReport" @excel="downloadExcel" />
               <span class="row-pill">{{ filteredRows.length }} record(s)</span>
             </div>
           </div>
@@ -116,7 +128,7 @@
             <p>{{ loadError }}</p>
             <button class="retry-btn" @click="fetchRows">Retry</button>
           </div>
-          <div v-else class="table-scroll">
+          <div v-else class="table-scroll print-surface">
             <table class="excel-table">
               <thead>
                 <tr>
@@ -225,7 +237,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, defineAsyncComponent } from 'vue';
+import { ref, reactive, computed, onMounted, watch, defineAsyncComponent } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent,
   IonButtons, IonButton, IonMenuButton, IonIcon, IonSpinner,
@@ -236,6 +248,7 @@ import { exportAdminGridExcel } from '@/utils/statutoryFormExcel';
 import apiClient from '@/utils/axios';
 import ReportEncodeModal from '@/components/ReportEncodeModal.vue';
 import MaoFormHeader from '@/components/MaoFormHeader.vue';
+import { useReportScope, type ReportPeriod } from '@/composables/useReportScope';
 
 const DamageForm = defineAsyncComponent(() => import('@/views/Barangay/CalamityAssessmentLogView.vue'));
 
@@ -268,8 +281,38 @@ const filters = reactive({
   dateTo: '',
 });
 
-const filteredRows    = computed(() => rows.value);
 const encodeOpen = ref(false);
+const searchQuery = ref('');
+const { lockedBarangay, hideEncode, period, applyPeriod } = useReportScope();
+
+watch(lockedBarangay, (b) => {
+  if (b) filters.barangay = b;
+}, { immediate: true });
+
+function onPeriodChange(e: Event) {
+  const next = (e.target as HTMLSelectElement).value as ReportPeriod;
+  const range = applyPeriod(next);
+  if (next !== 'custom') {
+    filters.dateFrom = range.from;
+    filters.dateTo = range.to;
+    fetchRows();
+  }
+}
+
+function onCustomDates() {
+  period.value = 'custom';
+  fetchRows();
+}
+
+const filteredRows    = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase();
+  if (!q) return rows.value;
+  return rows.value.filter((r) =>
+    r.farmer_name.toLowerCase().includes(q)
+    || String(r.calamity_type || '').toLowerCase().includes(q)
+    || String(r.barangay || '').toLowerCase().includes(q)
+  );
+});
 const rowsWithPhotos  = computed(() => filteredRows.value.filter(r => photoSrc(r)));
 const totalAreaAffected = computed(() =>
   filteredRows.value.reduce((s, r) => s + Number(r.area_affected || 0), 0).toFixed(2)
@@ -329,16 +372,19 @@ async function fetchRows() {
 }
 
 function clearFilters() {
-  filters.barangay     = '';
+  filters.barangay     = lockedBarangay.value || '';
   filters.cropType     = '';
   filters.calamityType = '';
   filters.status       = '';
   filters.dateFrom     = '';
   filters.dateTo       = '';
+  searchQuery.value = '';
+  period.value = 'custom';
   fetchRows();
 }
 
 function printReport() {
+  if (loading.value) return;
   window.print();
 }
 
@@ -642,7 +688,11 @@ onMounted(async () => {
 @media print {
   .no-print { display: none !important; }
   .print-only { display: block !important; }
-  .rpt-shell { padding: 0; }
+  .rpt-shell, .rpt-content, .grid-shell, .table-scroll, .print-surface {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
   .grid-shell { border: none; }
 
   .excel-table thead th {

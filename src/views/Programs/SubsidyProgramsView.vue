@@ -39,81 +39,92 @@
 
         <div v-else-if="!programs.length" class="empty-panel">
           <h2>No subsidy programs yet</h2>
-          <p>Create a Rice or Corn campaign to start building an auto-generated beneficiary masterlist.</p>
+          <p>Create a Rice, Corn, or Rice and Corn campaign to start building an auto-generated beneficiary masterlist.</p>
           <ion-button class="create-btn" @click="openCreate">+ New Program</ion-button>
         </div>
 
-        <div v-else class="program-list">
-          <article v-for="p in programs" :key="p.id" class="program-row">
-            <div class="row-main">
-              <div class="title-line">
-                <h2>{{ p.program_name }}</h2>
-                <span class="status-pill" :class="statusClass(p.status)">{{ p.status }}</span>
-                <span v-if="p.is_low_stock" class="status-pill low-stock">
-                  <ion-icon :icon="alertCircleOutline"></ion-icon> Low Stock
-                </span>
-              </div>
-              <p class="meta">
-                {{ p.target_crop }} &middot;
-                {{ p.items_per_hectare }} {{ p.unit_of_measurement }}/ha &middot;
-                min {{ Number(p.min_hectares_limit ?? 0).toFixed(2) }} ha &middot;
-                cap {{ Number(p.max_hectares_limit).toFixed(2) }} ha
-              </p>
-
-              <div class="stock-line">
-                <span class="stock-num">{{ fmt(p.remaining_quantity) }}</span>
-                <span class="stock-of">/ {{ fmt(p.total_quantity) }} {{ p.unit_of_measurement }} in stock</span>
-              </div>
-              <div class="mini-progress">
-                <div
-                  class="mini-fill stock"
-                  :class="{ danger: p.is_low_stock }"
-                  :style="{ width: stockPct(p) + '%' }"
-                ></div>
-              </div>
-
-              <p class="counts">
-                <strong>{{ p.beneficiaries_count }}</strong> beneficiaries
-                <span class="dot">·</span>
-                <strong>{{ p.claimed_count }}</strong> claimed
-                <span class="dot">·</span>
-                {{ claimedPct(p) }}% complete
-              </p>
-              <div class="mini-progress">
-                <div class="mini-fill" :style="{ width: claimedPct(p) + '%' }"></div>
-              </div>
-            </div>
-            <div class="row-actions">
-              <ion-button size="small" fill="solid" class="open-btn" @click="openMasterlist(p.id)">
-                Open Masterlist
-              </ion-button>
-              <ion-button
-                size="small"
-                fill="outline"
-                class="gen-btn"
-                :disabled="p.status === 'Completed' || generatingId === p.id"
-                @click="confirmGenerate(p)"
-              >
-                {{ generatingId === p.id ? 'Generating…' : 'Auto-Generate' }}
-              </ion-button>
-              <ion-button size="small" fill="outline" class="gen-btn" @click="openRestock(p)">
-                <ion-icon slot="start" :icon="addCircleOutline"></ion-icon>
-                Log Delivery
-              </ion-button>
-              <ion-button size="small" fill="clear" class="settings-btn" @click="openSettings(p)">
-                <ion-icon slot="start" :icon="settingsOutline"></ion-icon>
-                Stock Settings
-              </ion-button>
-            </div>
-          </article>
+        <div v-else class="table-wrap">
+          <div class="table-tools">
+            <input
+              v-model="searchName"
+              type="search"
+              class="name-search"
+              placeholder="Search program name"
+            />
+            <select v-model="cropFilter" class="crop-filter">
+              <option value="">All crops</option>
+              <option value="Rice">Rice</option>
+              <option value="Corn">Corn</option>
+              <option value="Both">Rice and Corn</option>
+            </select>
+          </div>
+          <div class="table-scroll">
+            <table class="program-table">
+              <thead>
+                <tr>
+                  <th>Program</th>
+                  <th>Crop</th>
+                  <th>Status</th>
+                  <th>Stock</th>
+                  <th>Claimed</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="p in filteredPrograms" :key="p.id">
+                  <td>
+                    <strong>{{ p.program_name }}</strong>
+                    <div class="row-meta">
+                      {{ p.items_per_hectare }} {{ p.unit_of_measurement }}/ha
+                      · min {{ Number(p.min_hectares_limit ?? 0).toFixed(2) }} ha
+                      · cap {{ Number(p.max_hectares_limit).toFixed(2) }} ha
+                      <span v-if="p.is_low_stock" class="status-pill low-stock">Low Stock</span>
+                    </div>
+                  </td>
+                  <td>{{ cropLabel(p.target_crop) }}</td>
+                  <td>
+                    <span class="status-pill" :class="statusClass(p.status)">{{ p.status }}</span>
+                  </td>
+                  <td>{{ fmt(p.remaining_quantity) }} / {{ fmt(p.total_quantity) }} {{ p.unit_of_measurement }}</td>
+                  <td>{{ p.claimed_count }}/{{ p.beneficiaries_count }} claimed</td>
+                  <td class="row-actions">
+                    <ion-button size="small" fill="solid" class="open-btn" @click="openMasterlist(p.id)">
+                      Open Masterlist
+                    </ion-button>
+                    <ion-button
+                      size="small"
+                      fill="outline"
+                      class="gen-btn"
+                      :disabled="p.status === 'Completed' || generatingId === p.id"
+                      @click="confirmGenerate(p)"
+                    >
+                      {{ generatingId === p.id ? 'Generating…' : 'Auto-Generate' }}
+                    </ion-button>
+                    <ion-button size="small" fill="outline" class="gen-btn" @click="openRestock(p)">
+                      Log Delivery
+                    </ion-button>
+                    <ion-button size="small" fill="clear" class="settings-btn" @click="openSettings(p)">
+                      Stock Settings
+                    </ion-button>
+                    <ion-button
+                      v-if="p.status !== 'Completed'"
+                      size="small"
+                      fill="clear"
+                      class="complete-btn"
+                      :disabled="completingId === p.id"
+                      @click="confirmComplete(p)"
+                    >
+                      Mark Completed
+                    </ion-button>
+                  </td>
+                </tr>
+                <tr v-if="!filteredPrograms.length">
+                  <td colspan="6" class="empty-row">No programs match this search or crop filter.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
-
-        <p class="legacy-note">
-          Warehouse stock campaigns remain at
-          <a href="#" @click.prevent="router.push('/admin/programs')">/admin/programs</a>
-          and
-          <a href="#" @click.prevent="router.push('/admin/inventory')">Inventory</a>.
-        </p>
       </div>
 
       <ion-modal :is-open="createOpen" @didDismiss="createOpen = false">
@@ -146,7 +157,7 @@
               >
                 <ion-select-option value="Rice">Rice</ion-select-option>
                 <ion-select-option value="Corn">Corn</ion-select-option>
-                <ion-select-option value="Both">Both</ion-select-option>
+                <ion-select-option value="Both">Rice and Corn</ion-select-option>
               </ion-select>
             </ion-item>
             <ion-item>
@@ -179,9 +190,13 @@
                 :value="form.items_per_hectare"
                 @ionInput="(e: any) => form.items_per_hectare = Number(e.detail.value)"
                 min="1"
+                :max="isCashUnit(form.unit_of_measurement) ? CASH_CAP : 1000"
                 step="1"
               ></ion-input>
             </ion-item>
+            <p v-if="isCashUnit(form.unit_of_measurement)" class="cash-cap-hint">
+              Cash programs cannot exceed ₱{{ CASH_CAP.toLocaleString('en-PH') }} per hectare or per farmer.
+            </p>
             <ion-item>
               <ion-select
                 label="Initial Status"
@@ -336,7 +351,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
@@ -344,9 +359,11 @@ import {
   IonSelectOption, toastController, alertController,
 } from '@ionic/vue';
 import {
-  refreshOutline, addOutline, alertCircleOutline, addCircleOutline, settingsOutline, saveOutline,
+  refreshOutline, addOutline, addCircleOutline, settingsOutline, saveOutline,
 } from 'ionicons/icons';
 import apiClient from '@/utils/axios';
+import { cropLabel } from '@/utils/cropLabel';
+import { CASH_CAP, isCashUnit } from '@/utils/subsidyCash';
 
 interface SubsidyProgramRow {
   id: string;
@@ -371,6 +388,9 @@ const programs = ref<SubsidyProgramRow[]>([]);
 const loading = ref(true);
 const saving = ref(false);
 const generatingId = ref<string | null>(null);
+const completingId = ref<string | null>(null);
+const searchName = ref('');
+const cropFilter = ref('');
 const error = ref('');
 const formError = ref('');
 const createOpen = ref(false);
@@ -405,11 +425,14 @@ const toast = async (message: string, color: 'success' | 'warning' | 'danger' | 
 
 const fmt = (v: any) => Number(v ?? 0).toLocaleString('en-PH');
 
-const claimedPct = (p: SubsidyProgramRow) =>
-  p.beneficiaries_count ? Math.round((p.claimed_count / p.beneficiaries_count) * 100) : 0;
-
-const stockPct = (p: SubsidyProgramRow) =>
-  p.total_quantity ? Math.max(0, Math.min(100, Math.round((p.remaining_quantity / p.total_quantity) * 100))) : 0;
+const filteredPrograms = computed(() => {
+  const q = searchName.value.trim().toLowerCase();
+  return programs.value.filter((p) => {
+    if (q && !p.program_name.toLowerCase().includes(q)) return false;
+    if (cropFilter.value && p.target_crop !== cropFilter.value) return false;
+    return true;
+  });
+});
 
 const statusClass = (status: string) => {
   if (status === 'Active') return 'active';
@@ -466,6 +489,10 @@ const createProgram = async () => {
     formError.value = 'Items per hectare must be at least 1.';
     return;
   }
+  if (isCashUnit(form.unit_of_measurement) && form.items_per_hectare > CASH_CAP) {
+    formError.value = `Cash rate cannot exceed ₱${CASH_CAP.toLocaleString('en-PH')} per hectare.`;
+    return;
+  }
 
   saving.value = true;
   try {
@@ -509,10 +536,35 @@ const openMasterlist = (id: string) => {
   router.push(`/admin/subsidies/${id}/masterlist`);
 };
 
+const confirmComplete = async (p: SubsidyProgramRow) => {
+  const alert = await alertController.create({
+    header: 'Mark program completed?',
+    message: `Claims will freeze. The masterlist and subsidy report stay as history. “${p.program_name}” will not be deleted.`,
+    buttons: [
+      { text: 'Cancel', role: 'cancel' },
+      { text: 'Mark Completed', handler: () => markCompleted(p) },
+    ],
+  });
+  await alert.present();
+};
+
+const markCompleted = async (p: SubsidyProgramRow) => {
+  completingId.value = p.id;
+  try {
+    const res = await apiClient.patch(`/subsidies/${p.id}/status`, { status: 'Completed' });
+    await toast(res.data?.message || 'Program marked Completed.', 'success');
+    await fetchPrograms();
+  } catch (e: any) {
+    await toast(e?.response?.data?.message || 'Failed to update program status.', 'danger');
+  } finally {
+    completingId.value = null;
+  }
+};
+
 const confirmGenerate = async (p: SubsidyProgramRow) => {
   const alert = await alertController.create({
     header: 'Auto-Generate Masterlist',
-    message: `Scan active ${p.target_crop} planting logs and add newly eligible farmers to “${p.program_name}”?`,
+    message: `Scan active ${cropLabel(p.target_crop)} planting logs and add newly eligible farmers to “${p.program_name}”?`,
     buttons: [
       { text: 'Cancel', role: 'cancel' },
       { text: 'Generate', handler: () => generateMasterlist(p.id) },
@@ -588,7 +640,7 @@ onMounted(() => fetchPrograms());
 <style scoped>
 .page-bg { --background: #f4f5f8; }
 .shell {
-  max-width: 960px;
+  max-width: 1180px;
   margin: 0 auto;
   padding: 1rem 1rem 2rem;
 }
@@ -641,34 +693,45 @@ onMounted(() => fetchPrograms());
   color: #64748b;
   margin: 0.5rem 0 1rem;
 }
-.program-list {
+.table-tools {
   display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.7rem;
 }
-.program-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 1rem;
+.name-search, .crop-filter {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.45rem 0.7rem;
+  font-size: 0.88rem;
+  background: #fff;
+}
+.name-search { flex: 1; min-width: 180px; }
+.crop-filter { min-width: 160px; }
+.table-scroll { overflow: auto; }
+.program-table {
+  width: 100%;
+  border-collapse: collapse;
   background: #fff;
   border: 1px solid #e2e8f0;
-  border-radius: 12px;
-  padding: 0.9rem 1rem;
 }
-.row-main { min-width: 0; flex: 1; }
-.title-line {
-  display: flex;
-  align-items: center;
-  gap: 0.55rem;
-  flex-wrap: wrap;
+.program-table th, .program-table td {
+  text-align: left;
+  padding: 0.7rem 0.75rem;
+  border-bottom: 1px solid #e2e8f0;
+  vertical-align: top;
+  font-size: 0.86rem;
 }
-.title-line h2 {
-  margin: 0;
-  font-size: 1.02rem;
-  font-weight: 800;
-  color: #1a4731;
+.program-table th {
+  background: #f8fafc;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #64748b;
 }
+.program-table strong { color: #1a4731; }
+.row-meta { margin-top: 0.2rem; color: #64748b; font-size: 0.78rem; }
+.empty-row { text-align: center; color: #64748b; padding: 1.25rem !important; }
 .status-pill {
   font-size: 0.68rem;
   font-weight: 800;
@@ -683,45 +746,13 @@ onMounted(() => fetchPrograms());
 .status-pill.low-stock {
   background: #fee2e2;
   color: #b91c1c;
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
+  margin-left: 0.35rem;
 }
-.status-pill.low-stock ion-icon { font-size: 0.85rem; }
-.meta, .counts {
-  margin: 0.2rem 0 0;
-  font-size: 0.82rem;
-  color: #64748b;
-}
-.counts strong { color: #1a4731; }
-.dot { margin: 0 0.25rem; }
-.stock-line {
-  margin: 0.5rem 0 0;
-  display: flex;
-  align-items: baseline;
-  gap: 0.35rem;
-}
-.stock-num { font-size: 1rem; font-weight: 800; color: #1a4731; }
-.stock-of { font-size: 0.78rem; color: #94a3b8; font-weight: 600; }
-.mini-progress {
-  margin-top: 0.3rem;
-  height: 6px;
-  background: #e2e8f0;
-  border-radius: 4px;
-  overflow: hidden;
-  max-width: 280px;
-}
-.mini-fill {
-  height: 100%;
-  background: #1a4731;
-}
-.mini-fill.stock { background: #d4af37; }
-.mini-fill.stock.danger { background: #dc2626; }
 .row-actions {
   display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  min-width: 150px;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  min-width: 220px;
 }
 .open-btn {
   --background: #1a4731;
@@ -743,6 +774,18 @@ onMounted(() => fetchPrograms());
   font-weight: 600;
   font-size: 0.82rem;
   margin: 0;
+}
+.complete-btn {
+  --color: #b45309;
+  text-transform: none;
+  font-weight: 700;
+  font-size: 0.82rem;
+  margin: 0;
+}
+.cash-cap-hint {
+  margin: 0.35rem 0.9rem 0;
+  font-size: 0.78rem;
+  color: #b45309;
 }
 .section-label {
   margin: 1rem 0 0.35rem 0.9rem;
@@ -774,8 +817,6 @@ onMounted(() => fetchPrograms());
 }
 @media (max-width: 720px) {
   .page-head { flex-direction: column; }
-  .program-row { flex-direction: column; align-items: stretch; }
-  .row-actions { flex-direction: row; min-width: 0; }
-  .row-actions ion-button { flex: 1; }
+  .row-actions { min-width: 0; }
 }
 </style>

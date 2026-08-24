@@ -76,6 +76,7 @@
 
 <script setup lang="ts">
 import { reactive, ref, computed } from 'vue';
+import { useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonBackButton,
   IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonInput, IonSelect, IonSelectOption,
@@ -92,6 +93,7 @@ const farmerSearch = useBarangayFarmerSearch(() => null, {
   commodity: () => form.cropType,
 });
 const syncStore = useSyncStore();
+const router = useRouter();
 const submitting = ref(false);
 
 const form = reactive({
@@ -179,6 +181,7 @@ const submit = async () => {
       void syncAllPendingData().then(() => syncStore.refreshCount());
     }
     await presentToast(navigator.onLine ? 'Planting saved.' : 'Saved locally. Will sync when online.');
+    await router.replace('/tech/dashboard');
   } catch (e: any) {
     await presentToast(e?.response?.data?.message || 'Could not save planting log.', 'danger');
   } finally {

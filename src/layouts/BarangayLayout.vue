@@ -74,6 +74,35 @@
               </ion-item>
             </ion-menu-toggle>
 
+            <ion-accordion-group :value="reportsExpanded ? 'reports' : ''" @ionChange="onReportsAccordion">
+              <ion-accordion value="reports">
+                <ion-item
+                  slot="header"
+                  lines="none"
+                  class="sidebar-item accordion-header"
+                  :class="{ 'crops-active': isOnReports }"
+                >
+                  <ion-icon slot="start" :icon="documentsOutline" class="sidebar-icon"></ion-icon>
+                  <ion-label class="menu-label">Reports</ion-label>
+                </ion-item>
+                <div slot="content" class="crop-children">
+                  <ion-menu-toggle :auto-hide="false" v-for="rp in reportPages" :key="rp.url">
+                    <ion-item
+                      router-direction="root"
+                      :router-link="rp.url"
+                      lines="none"
+                      :detail="false"
+                      class="sidebar-item crop-child"
+                      :class="{ active: isActive(rp.url) }"
+                    >
+                      <ion-icon slot="start" :icon="rp.icon" class="sidebar-icon child-icon"></ion-icon>
+                      <ion-label class="menu-label child-label">{{ rp.title }}</ion-label>
+                    </ion-item>
+                  </ion-menu-toggle>
+                </div>
+              </ion-accordion>
+            </ion-accordion-group>
+
             <ion-menu-toggle :auto-hide="false">
               <ion-item button lines="none" :detail="false" class="sidebar-item logout" @click="handleLogout">
                 <ion-icon slot="start" :icon="logOutOutline" class="sidebar-icon"></ion-icon>
@@ -99,7 +128,7 @@ import {
 } from '@ionic/vue';
 import {
   homeOutline, leafOutline, bugOutline, shieldCheckmarkOutline, logOutOutline,
-  flowerOutline, basketOutline, thunderstormOutline, peopleOutline,
+  flowerOutline, basketOutline, thunderstormOutline, peopleOutline, documentsOutline,
 } from 'ionicons/icons';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -122,18 +151,35 @@ const trailingPages = [
   { title: 'Damage Assesments', url: '/brgy/calamity-assessment', icon: thunderstormOutline },
 ];
 
+const reportPages = [
+  { title: 'Crop Production', url: '/brgy/reports/crop-production', icon: leafOutline },
+  { title: 'Standing Crop', url: '/brgy/reports/standing-crop', icon: flowerOutline },
+  { title: 'Pest Surveillance', url: '/brgy/reports/pest-surveillance', icon: bugOutline },
+  { title: 'Damage & Calamity', url: '/brgy/reports/damage-calamity', icon: thunderstormOutline },
+  { title: 'Subsidy Distribution', url: '/brgy/reports/subsidies', icon: documentsOutline },
+];
+
 const cropUrls = cropPages.map((p) => p.url);
+const reportUrls = reportPages.map((p) => p.url);
 const isOnCropRecords = computed(() =>
   cropUrls.some((url) => route.path === url || route.path.startsWith(url + '/')),
 );
+const isOnReports = computed(() => route.path.startsWith('/brgy/reports'));
 const cropsExpanded = ref(isOnCropRecords.value);
+const reportsExpanded = ref(isOnReports.value);
 
 watch(isOnCropRecords, (val) => {
   if (val) cropsExpanded.value = true;
 });
+watch(isOnReports, (val) => {
+  if (val) reportsExpanded.value = true;
+});
 
 function onAccordionChange(e: CustomEvent) {
   cropsExpanded.value = e.detail.value === 'crops';
+}
+function onReportsAccordion(e: CustomEvent) {
+  reportsExpanded.value = e.detail.value === 'reports';
 }
 
 const isActive = (url: string) => route.path === url || route.path.startsWith(url + '/');
