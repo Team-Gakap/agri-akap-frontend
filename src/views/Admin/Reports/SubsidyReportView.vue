@@ -142,6 +142,7 @@
     />
   </ion-page>
 </template>
+            .excel-table tbody tr:hover { background: #eef5ee; }
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue';
@@ -434,7 +435,7 @@ onMounted(async () => {
   width: 100%;
   font-size: 13px;
   color: #1e293b;
-  min-width: 820px;
+  min-width: 900px;
 }
 .excel-table th,
 .excel-table td {

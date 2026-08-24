@@ -604,6 +604,7 @@ onIonViewWillEnter(() => {
 
 @media (min-width: 1024px) {
   .lg\:grid-cols-12 { grid-template-columns: repeat(12, minmax(0, 1fr)); }
+  .lg\:col-span-2 { grid-column: span 2 / span 2; }
   .lg\:col-span-3 { grid-column: span 3 / span 3; }
   .lg\:col-span-4 { grid-column: span 4 / span 4; }
   .lg\:col-span-8 { grid-column: span 8 / span 8; }
@@ -630,7 +631,10 @@ onIonViewWillEnter(() => {
   box-shadow: 0 2px 8px rgba(26, 71, 49, 0.06);
   overflow: hidden;
 }
-.kpi-card { border-top: 4px solid #1a4731; }
+.kpi-card {
+  aspect-ratio: 1 / 1;
+  border-top: 4px solid #1a4731;
+}
 .kpi-card:nth-child(2),
 .kpi-card:nth-child(3) { border-top-color: #d4af37; }
 .kpi-card:nth-child(4) { border-top-color: #64748b; }

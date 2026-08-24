@@ -44,8 +44,14 @@ defineEmits<{
 .form-export-actions.admin .export-btn,
 .form-export-actions.admin .excel-btn,
 .form-export-actions.barangay .excel-btn {
+  --background: #1a4731;
+  --background-activated: #245a3f;
+  --background-focused: #245a3f;
+  --background-hover: #245a3f;
+  --color: #ffffff;
   --border-color: #1a4731;
-  --color: #1a4731;
+  --border-width: 0;
+  --border-radius: 6px;
   font-weight: 700;
   text-transform: none;
 }
