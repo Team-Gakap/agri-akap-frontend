@@ -191,7 +191,7 @@ const subsidyTotalsLabel = computed(() => {
   const byUnit = new Map<string, number>();
   filteredRows.value.forEach((r) => {
     const unit = r.unit || (String(r.item_received || '').split(' ').slice(1).join(' ') || 'Bags');
-    const qty = Number(r.quantity ?? String(r.item_received || '').split(' ')[0] || 0);
+    const qty = Number(r.quantity ?? (String(r.item_received || '').split(' ')[0] || 0));
     byUnit.set(unit, (byUnit.get(unit) || 0) + qty);
   });
   return Array.from(byUnit.entries())
