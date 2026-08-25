@@ -86,7 +86,6 @@ import {
   chatbubbleEllipsesOutline,
   documentTextOutline, documentTextSharp,
   cloudyOutline,
-  earthOutline,
   chevronForwardOutline,
   logOutOutline,
 } from "ionicons/icons";
@@ -115,7 +114,6 @@ const mainPages: NavPage[] = [
   { title: "Subsidy Campaigns",  url: "/admin/subsidies",   iosIcon: cubeOutline,                  mdIcon: cubeOutline },
   { title: "Text Notifications", url: "/admin/broadcasts",  iosIcon: chatbubbleEllipsesOutline,    mdIcon: chatbubbleEllipsesOutline },
   { title: "Weather",            url: "/admin/weather",     iosIcon: cloudyOutline,                mdIcon: cloudyOutline },
-  { title: "Climate GIS",        url: "/admin/weather/climate-hub", iosIcon: earthOutline,          mdIcon: earthOutline },
 ];
 
 const reportPages = [

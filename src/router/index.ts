@@ -53,7 +53,7 @@ const routes: Array<RouteRecordRaw> = [
       { path: "intelligence", redirect: "/admin/dashboard" },
       { path: "weather", name: "PrecisionWeather", component: () => import("@/views/Admin/AdminWeatherHeatmapView.vue") },
       { path: "weather/detail", name: "PrecisionWeatherDetail", component: () => import("@/views/Admin/AdvancedWeatherDashboardView.vue") },
-      { path: "weather/climate-hub", name: "AdvancedClimateHub", component: () => import("@/views/Admin/AdvancedClimateHubView.vue") },
+      { path: "weather/climate-hub", redirect: "/admin/weather" },
       { path: "map", redirect: "/admin/dashboard" },
       { path: "reports", redirect: "/admin/reports/subsidies" },
       { path: "reports/subsidies", name: "ReportSubsidies", component: () => import("@/views/Admin/Reports/SubsidyReportView.vue") },
