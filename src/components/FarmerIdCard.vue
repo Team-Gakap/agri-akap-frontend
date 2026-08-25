@@ -122,7 +122,7 @@ const fullName = computed(() => {
 const photoUrl = computed(() => {
   const path = props.farmer?.photo_path;
   if (!path) return '';
-  if (String(path).startsWith('http')) return path;
+  if (String(path).startsWith('http') || String(path).startsWith('data:')) return path;
   return `${API_BASE}/storage/${path}`;
 });
 </script>

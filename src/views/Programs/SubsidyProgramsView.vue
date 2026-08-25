@@ -44,20 +44,47 @@
         </div>
 
         <div v-else class="table-wrap">
+          <div class="status-tabs" role="tablist" aria-label="Filter by program status">
+            <button
+              v-for="tab in statusTabs"
+              :key="tab.value"
+              type="button"
+              role="tab"
+              class="status-tab"
+              :class="{ active: statusFilter === tab.value }"
+              :aria-selected="statusFilter === tab.value"
+              @click="statusFilter = tab.value"
+            >
+              {{ tab.label }}
+              <span class="tab-count">{{ tab.count }}</span>
+            </button>
+          </div>
+
           <div class="table-tools">
-            <input
-              v-model="searchName"
-              type="search"
-              class="name-search"
-              placeholder="Search program name"
-            />
-            <select v-model="cropFilter" class="crop-filter">
+            <label class="search-wrap">
+              <ion-icon :icon="searchOutline" aria-hidden="true"></ion-icon>
+              <input
+                v-model="searchName"
+                type="search"
+                class="name-search"
+                aria-label="Search by program name or season"
+                placeholder="Search by program name or season…"
+              />
+            </label>
+            <select v-model="statusFilter" class="tool-select" aria-label="Status">
+              <option value="">All statuses</option>
+              <option value="Active">Active</option>
+              <option value="Draft">Draft</option>
+              <option value="Completed">Completed</option>
+            </select>
+            <select v-model="cropFilter" class="tool-select" aria-label="Crop">
               <option value="">All crops</option>
               <option value="Rice">Rice</option>
               <option value="Corn">Corn</option>
               <option value="Both">Rice and Corn</option>
             </select>
           </div>
+
           <div class="table-scroll">
             <table class="program-table">
               <thead>
@@ -65,61 +92,123 @@
                   <th>Program</th>
                   <th>Crop</th>
                   <th>Status</th>
-                  <th>Stock</th>
-                  <th>Claimed</th>
-                  <th></th>
+                  <th>Inventory</th>
+                  <th class="col-actions">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-for="p in filteredPrograms" :key="p.id">
                   <td>
-                    <strong>{{ p.program_name }}</strong>
-                    <div class="row-meta">
-                      {{ p.items_per_hectare }} {{ p.unit_of_measurement }}/ha
-                      · min {{ Number(p.min_hectares_limit ?? 0).toFixed(2) }} ha
-                      · cap {{ Number(p.max_hectares_limit).toFixed(2) }} ha
-                      <span v-if="p.is_low_stock" class="status-pill low-stock">Low Stock</span>
-                    </div>
+                    <div class="program-name">{{ p.program_name }}</div>
+                    <div class="row-meta">{{ allocationMeta(p) }}</div>
                   </td>
-                  <td>{{ cropLabel(p.target_crop) }}</td>
+                  <td class="crop-cell">{{ cropLabel(p.target_crop) }}</td>
                   <td>
                     <span class="status-pill" :class="statusClass(p.status)">{{ p.status }}</span>
                   </td>
-                  <td>{{ fmt(p.remaining_quantity) }} / {{ fmt(p.total_quantity) }} {{ p.unit_of_measurement }}</td>
-                  <td>{{ p.claimed_count }}/{{ p.beneficiaries_count }} claimed</td>
+                  <td class="inv-cell">
+                    <div class="inv-line">
+                      <span class="inv-qty">
+                        {{ fmt(p.remaining_quantity) }} / {{ fmt(p.total_quantity) }}
+                        {{ p.unit_of_measurement }}
+                      </span>
+                      <span v-if="p.is_low_stock" class="stock-badge">Low Stock</span>
+                    </div>
+                    <div
+                      class="progress-track"
+                      role="progressbar"
+                      :aria-valuenow="claimedPct(p)"
+                      aria-valuemin="0"
+                      aria-valuemax="100"
+                      :aria-label="`${claimedPct(p)} percent claimed`"
+                    >
+                      <div class="progress-fill" :style="{ width: claimedPct(p) + '%' }"></div>
+                    </div>
+                    <div class="inv-sub">{{ claimedPct(p) }}% Claimed</div>
+                  </td>
                   <td class="row-actions">
                     <ion-button size="small" fill="solid" class="open-btn" @click="openMasterlist(p.id)">
                       Open Masterlist
                     </ion-button>
                     <ion-button
+                      v-if="p.status === 'Draft'"
                       size="small"
                       fill="outline"
-                      class="gen-btn"
-                      :disabled="p.status === 'Completed' || generatingId === p.id"
-                      @click="confirmGenerate(p)"
+                      class="activate-btn"
+                      :disabled="statusUpdatingId === p.id"
+                      @click="confirmActivate(p)"
                     >
-                      {{ generatingId === p.id ? 'Generating…' : 'Auto-Generate' }}
+                      {{ statusUpdatingId === p.id ? 'Activating…' : 'Activate' }}
                     </ion-button>
-                    <ion-button size="small" fill="outline" class="gen-btn" @click="openRestock(p)">
-                      Log Delivery
-                    </ion-button>
-                    <ion-button size="small" fill="clear" class="settings-btn" @click="openSettings(p)">
-                      Stock Settings
-                    </ion-button>
-                    <ion-button
-                      v-if="p.status !== 'Completed'"
-                      size="small"
-                      fill="clear"
-                      class="complete-btn"
-                      :disabled="completingId === p.id"
-                      @click="confirmComplete(p)"
+                    <button
+                      type="button"
+                      class="more-btn"
+                      :id="`prog-act-${p.id}`"
+                      title="More actions"
+                      :aria-label="`More actions for ${p.program_name}`"
                     >
-                      Mark Completed
-                    </ion-button>
+                      <ion-icon :icon="ellipsisVertical"></ion-icon>
+                    </button>
+                    <ion-popover
+                      :trigger="`prog-act-${p.id}`"
+                      trigger-action="click"
+                      side="left"
+                      css-class="prog-more-pop"
+                      :dismiss-on-select="true"
+                    >
+                      <ion-content>
+                        <ion-list lines="none" class="ctx">
+                          <ion-item
+                            v-if="p.status === 'Draft'"
+                            button
+                            :detail="false"
+                            :disabled="statusUpdatingId === p.id"
+                            @click="confirmActivate(p)"
+                          >
+                            <ion-icon :icon="playCircleOutline" slot="start"></ion-icon>
+                            <ion-label>
+                              {{ statusUpdatingId === p.id ? 'Activating…' : 'Activate Program' }}
+                            </ion-label>
+                          </ion-item>
+                          <ion-item
+                            button
+                            :detail="false"
+                            :disabled="p.status === 'Completed' || generatingId === p.id"
+                            @click="confirmGenerate(p)"
+                          >
+                            <ion-icon :icon="sparklesOutline" slot="start"></ion-icon>
+                            <ion-label>
+                              {{ generatingId === p.id ? 'Generating…' : 'Auto-Generate Masterlist' }}
+                            </ion-label>
+                          </ion-item>
+                          <ion-item button :detail="false" @click="openRestock(p)">
+                            <ion-icon :icon="cubeOutline" slot="start"></ion-icon>
+                            <ion-label>Log Delivery Batch</ion-label>
+                          </ion-item>
+                          <ion-item button :detail="false" @click="openSettings(p)">
+                            <ion-icon :icon="settingsOutline" slot="start"></ion-icon>
+                            <ion-label>Configure Stock Rules</ion-label>
+                          </ion-item>
+                          <ion-item
+                            v-if="p.status !== 'Completed'"
+                            button
+                            :detail="false"
+                            class="warn"
+                            :disabled="statusUpdatingId === p.id"
+                            @click="confirmComplete(p)"
+                          >
+                            <ion-icon :icon="checkmarkDoneOutline" slot="start"></ion-icon>
+                            <ion-label>
+                              {{ statusUpdatingId === p.id ? 'Updating…' : 'Mark Program as Completed' }}
+                            </ion-label>
+                          </ion-item>
+                        </ion-list>
+                      </ion-content>
+                    </ion-popover>
                   </td>
                 </tr>
                 <tr v-if="!filteredPrograms.length">
-                  <td colspan="6" class="empty-row">No programs match this search or crop filter.</td>
+                  <td colspan="5" class="empty-row">No programs match this search or filter.</td>
                 </tr>
               </tbody>
             </table>
@@ -355,10 +444,12 @@ import { useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
   IonButton, IonIcon, IonSpinner, IonModal, IonList, IonItem, IonInput, IonSelect,
-  IonSelectOption, toastController, alertController,
+  IonSelectOption, IonPopover, IonLabel, toastController, alertController,
 } from '@ionic/vue';
 import {
   refreshOutline, addOutline, addCircleOutline, settingsOutline, saveOutline,
+  searchOutline, ellipsisVertical, sparklesOutline, cubeOutline, checkmarkDoneOutline,
+  playCircleOutline,
 } from 'ionicons/icons';
 import apiClient from '@/utils/axios';
 import { cropLabel } from '@/utils/cropLabel';
@@ -387,9 +478,10 @@ const programs = ref<SubsidyProgramRow[]>([]);
 const loading = ref(true);
 const saving = ref(false);
 const generatingId = ref<string | null>(null);
-const completingId = ref<string | null>(null);
+const statusUpdatingId = ref<string | null>(null);
 const searchName = ref('');
 const cropFilter = ref('');
+const statusFilter = ref('');
 const error = ref('');
 const formError = ref('');
 const createOpen = ref(false);
@@ -424,7 +516,7 @@ const toast = async (message: string, color: 'success' | 'warning' | 'danger' | 
 
 const fmt = (v: any) => Number(v ?? 0).toLocaleString('en-PH');
 
-const filteredPrograms = computed(() => {
+const searchedPrograms = computed(() => {
   const q = searchName.value.trim().toLowerCase();
   return programs.value.filter((p) => {
     if (q && !p.program_name.toLowerCase().includes(q)) return false;
@@ -433,10 +525,47 @@ const filteredPrograms = computed(() => {
   });
 });
 
+const statusCounts = computed(() => {
+  const list = searchedPrograms.value;
+  return {
+    all: list.length,
+    active: list.filter((p) => p.status === 'Active').length,
+    draft: list.filter((p) => p.status === 'Draft').length,
+    completed: list.filter((p) => p.status === 'Completed').length,
+  };
+});
+
+const statusTabs = computed(() => [
+  { value: '', label: 'All', count: statusCounts.value.all },
+  { value: 'Active', label: 'Active', count: statusCounts.value.active },
+  { value: 'Draft', label: 'Draft', count: statusCounts.value.draft },
+  { value: 'Completed', label: 'Completed', count: statusCounts.value.completed },
+]);
+
+const filteredPrograms = computed(() => {
+  if (!statusFilter.value) return searchedPrograms.value;
+  return searchedPrograms.value.filter((p) => p.status === statusFilter.value);
+});
+
 const statusClass = (status: string) => {
   if (status === 'Active') return 'active';
   if (status === 'Completed') return 'completed';
   return 'draft';
+};
+
+const claimedPct = (p: SubsidyProgramRow) => {
+  const total = Number(p.beneficiaries_count) || 0;
+  if (!total) return 0;
+  return Math.round((Number(p.claimed_count) / total) * 100);
+};
+
+const allocationMeta = (p: SubsidyProgramRow) => {
+  const unit = p.unit_of_measurement || 'Sacks';
+  const rate = `${p.items_per_hectare} ${unit}/ha`;
+  const cap = `Cap ${Number(p.max_hectares_limit).toFixed(2)} ha`;
+  const min = Number(p.min_hectares_limit ?? 0);
+  if (min > 0) return `${rate} · Min ${min.toFixed(2)} ha · ${cap}`;
+  return `${rate} · ${cap}`;
 };
 
 const fetchPrograms = async () => {
@@ -535,28 +664,40 @@ const openMasterlist = (id: string) => {
   router.push(`/admin/subsidies/${id}/masterlist`);
 };
 
+const confirmActivate = async (p: SubsidyProgramRow) => {
+  const alert = await alertController.create({
+    header: 'Activate this program?',
+    message: `“${p.program_name}” will become available for field release. Technicians can start dispensing subsidies to farmers on the masterlist.`,
+    buttons: [
+      { text: 'Cancel', role: 'cancel' },
+      { text: 'Activate', handler: () => updateProgramStatus(p, 'Active') },
+    ],
+  });
+  await alert.present();
+};
+
 const confirmComplete = async (p: SubsidyProgramRow) => {
   const alert = await alertController.create({
     header: 'Mark program completed?',
     message: `Claims will freeze. The masterlist and subsidy report stay as history. “${p.program_name}” will not be deleted.`,
     buttons: [
       { text: 'Cancel', role: 'cancel' },
-      { text: 'Mark Completed', handler: () => markCompleted(p) },
+      { text: 'Mark Completed', handler: () => updateProgramStatus(p, 'Completed') },
     ],
   });
   await alert.present();
 };
 
-const markCompleted = async (p: SubsidyProgramRow) => {
-  completingId.value = p.id;
+const updateProgramStatus = async (p: SubsidyProgramRow, status: 'Active' | 'Completed') => {
+  statusUpdatingId.value = p.id;
   try {
-    const res = await apiClient.patch(`/subsidies/${p.id}/status`, { status: 'Completed' });
-    await toast(res.data?.message || 'Program marked Completed.', 'success');
+    const res = await apiClient.patch(`/subsidies/${p.id}/status`, { status });
+    await toast(res.data?.message || `Program marked ${status}.`, 'success');
     await fetchPrograms();
   } catch (e: any) {
     await toast(e?.response?.data?.message || 'Failed to update program status.', 'danger');
   } finally {
-    completingId.value = null;
+    statusUpdatingId.value = null;
   }
 };
 
@@ -692,95 +833,229 @@ onMounted(() => fetchPrograms());
   color: #64748b;
   margin: 0.5rem 0 1rem;
 }
+.table-wrap {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.status-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.75rem 0.85rem 0;
+}
+.status-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #475569;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 0.32rem 0.7rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.status-tab:hover { background: #f8fafc; }
+.status-tab.active {
+  background: #e8f5e9;
+  border-color: #c8e6c9;
+  color: #1e7e34;
+}
+.tab-count {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #64748b;
+  background: #f1f5f9;
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  min-width: 1.25rem;
+  text-align: center;
+}
+.status-tab.active .tab-count {
+  background: #c8e6c9;
+  color: #1e7e34;
+}
 .table-tools {
   display: flex;
-  gap: 0.6rem;
+  gap: 0.55rem;
   flex-wrap: wrap;
-  margin-bottom: 0.7rem;
+  align-items: center;
+  padding: 0.75rem 0.85rem 0.85rem;
 }
-.name-search, .crop-filter {
+.search-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 220px;
+  max-width: 28rem;
+}
+.search-wrap ion-icon {
+  position: absolute;
+  left: 0.7rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1rem;
+  color: #94a3b8;
+  pointer-events: none;
+}
+.name-search, .tool-select {
   border: 1px solid #cbd5e1;
   border-radius: 8px;
-  padding: 0.45rem 0.7rem;
+  padding: 0.48rem 0.7rem;
   font-size: 0.88rem;
   background: #fff;
+  font-family: inherit;
+  color: #0f172a;
 }
-.name-search { flex: 1; min-width: 180px; }
-.crop-filter { min-width: 160px; }
+.name-search {
+  width: 100%;
+  padding-left: 2.15rem;
+}
+.tool-select {
+  min-width: 150px;
+  color: #334155;
+}
 .table-scroll { overflow: auto; }
 .program-table {
   width: 100%;
   border-collapse: collapse;
   background: #fff;
-  border: 1px solid #e2e8f0;
 }
 .program-table th, .program-table td {
   text-align: left;
-  padding: 0.7rem 0.75rem;
+  padding: 0.85rem 0.9rem;
   border-bottom: 1px solid #e2e8f0;
-  vertical-align: top;
+  vertical-align: middle;
   font-size: 0.86rem;
 }
 .program-table th {
   background: #f8fafc;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
   color: #64748b;
 }
-.program-table strong { color: #1a4731; }
-.row-meta { margin-top: 0.2rem; color: #64748b; font-size: 0.78rem; }
-.empty-row { text-align: center; color: #64748b; padding: 1.25rem !important; }
+.program-table tbody tr:hover { background: #fafdfa; }
+.program-name {
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.3;
+}
+.row-meta {
+  margin-top: 0.22rem;
+  color: #64748b;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+.crop-cell { color: #334155; font-weight: 500; white-space: nowrap; }
+.empty-row { text-align: center; color: #64748b; padding: 1.4rem !important; }
 .status-pill {
-  font-size: 0.68rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 2px 8px;
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  padding: 3px 9px;
   border-radius: 999px;
+  white-space: nowrap;
 }
-.status-pill.draft { background: #f1f5f9; color: #475569; }
-.status-pill.active { background: #dcfce7; color: #166534; }
-.status-pill.completed { background: #e2e8f0; color: #334155; }
-.status-pill.low-stock {
-  background: #fee2e2;
-  color: #b91c1c;
-  margin-left: 0.35rem;
+.status-pill.draft { background: #e3f2fd; color: #1565c0; }
+.status-pill.active { background: #e8f5e9; color: #1e7e34; }
+.status-pill.completed { background: #f1f5f9; color: #475569; }
+.inv-cell { min-width: 11rem; }
+.inv-line {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
 }
+.inv-qty {
+  font-weight: 700;
+  color: #0f172a;
+  font-size: 0.86rem;
+}
+.stock-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #fff7ed;
+  color: #c2410c;
+  border: 1px solid #fed7aa;
+}
+.progress-track {
+  height: 6px;
+  margin-top: 0.4rem;
+  background: #e2e8f0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #2e7d32, #1a4731);
+  border-radius: 999px;
+  min-width: 0;
+  transition: width 0.25s ease;
+}
+.inv-sub {
+  margin-top: 0.28rem;
+  font-size: 0.72rem;
+  color: #64748b;
+  font-weight: 600;
+}
+.col-actions { text-align: right; width: 1%; }
 .row-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-  min-width: 220px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  white-space: nowrap;
 }
 .open-btn {
   --background: #1a4731;
   --color: #fff;
+  --padding-start: 0.7rem;
+  --padding-end: 0.7rem;
   text-transform: none;
   font-weight: 700;
   margin: 0;
+  height: 32px;
 }
-.gen-btn {
-  --border-color: #1a4731;
-  --color: #1a4731;
+.activate-btn {
+  --border-color: #1e7e34;
+  --color: #1e7e34;
+  --padding-start: 0.7rem;
+  --padding-end: 0.7rem;
   text-transform: none;
   font-weight: 700;
   margin: 0;
+  height: 32px;
 }
-.settings-btn {
-  --color: #64748b;
-  text-transform: none;
-  font-weight: 600;
-  font-size: 0.82rem;
-  margin: 0;
+.more-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
-.complete-btn {
-  --color: #b45309;
-  text-transform: none;
-  font-weight: 700;
-  font-size: 0.82rem;
-  margin: 0;
+.more-btn:hover {
+  background: #f8fafc;
+  color: #1a4731;
+  border-color: #cbd5e1;
 }
+.more-btn ion-icon { font-size: 1.05rem; }
 .cash-cap-hint {
   margin: 0.35rem 0.9rem 0;
   font-size: 0.78rem;
@@ -816,6 +1091,15 @@ onMounted(() => fetchPrograms());
 }
 @media (max-width: 720px) {
   .page-head { flex-direction: column; }
-  .row-actions { min-width: 0; }
+  .search-wrap { max-width: none; }
+  .tool-select { flex: 1; min-width: 140px; }
 }
+</style>
+
+<style>
+.prog-more-pop .ctx { padding: 4px 0; min-width: 15.5rem; }
+.prog-more-pop .ctx ion-item { --min-height: 40px; font-size: 0.88rem; }
+.prog-more-pop .ctx ion-icon { color: #1a4731; font-size: 1.05rem; }
+.prog-more-pop .ctx .warn ion-icon,
+.prog-more-pop .ctx .warn ion-label { color: #b45309; }
 </style>

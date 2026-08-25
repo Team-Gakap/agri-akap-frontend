@@ -10,89 +10,83 @@
     </ion-header>
 
     <ion-content class="auth-bg no-print-bg">
-      <!-- ═══════════════════════════════════════════════════════════
-           WORKSPACE HEADER
-           ═══════════════════════════════════════════════════════════ -->
       <div class="workspace-header no-print">
         <div class="workspace-title">
           <h1>ID Production</h1>
           <p>Search the queue, verify beneficiary details, and print government ID cards.</p>
         </div>
         <div class="workspace-stats">
-          <div class="stat-pill">
-            <span class="stat-value">{{ pagination?.total ?? farmers.length }}</span>
-            <span class="stat-label">Total Farmers</span>
+          <div class="stat-chip">
+            <ion-icon :icon="peopleOutline"></ion-icon>
+            <strong>{{ queueStats.total }}</strong>
+            <span>Total Queue</span>
           </div>
-          <div class="stat-pill stat-pending">
-            <span class="stat-value">{{ pendingOnPageCount }}</span>
-            <span class="stat-label">Pending (page)</span>
+          <div class="stat-chip warn">
+            <ion-icon :icon="cameraOutline"></ion-icon>
+            <strong>{{ queueStats.missingPhoto }}</strong>
+            <span>Missing Photo</span>
           </div>
-          <div class="stat-pill stat-printed">
-            <span class="stat-value">{{ printedOnPageCount }}</span>
-            <span class="stat-label">Printed (page)</span>
-          </div>
-          <div class="stat-pill stat-photo">
-            <span class="stat-value">{{ missingPhotoCount }}</span>
-            <span class="stat-label">Missing photo</span>
+          <div class="stat-chip ok">
+            <ion-icon :icon="printOutline"></ion-icon>
+            <strong>{{ queueStats.printed }}</strong>
+            <span>Printed</span>
           </div>
         </div>
       </div>
 
       <div class="issuance-workspace no-print">
-
-        <!-- ═══════════════════════════════════════════════════════
-             LEFT: SMART QUEUE (~58%) — TABLE FORMAT
-             ═══════════════════════════════════════════════════════ -->
         <aside class="queue-panel">
           <div class="queue-head">
             <h2>Issuance Queue</h2>
-            <span v-if="selectedCount > 0" class="queue-head-badge">{{ selectedCount }} selected</span>
           </div>
 
-          <div class="queue-filters">
-            <ion-searchbar
-              placeholder="Farmer Name or RSBSA Number"
-              @ionInput="handleSearch"
-              :debounce="400"
-              class="list-searchbar"
-            ></ion-searchbar>
-            <ion-select
-              class="list-brgy-filter"
-              label="Barangay"
-              label-placement="stacked"
-              interface="popover"
+          <div class="omni-bar">
+            <label class="search-wrap">
+              <ion-icon :icon="searchOutline" aria-hidden="true"></ion-icon>
+              <input
+                type="search"
+                class="omni-search"
+                placeholder="Search name / RSBSA…"
+                aria-label="Search name or RSBSA number"
+                :value="searchQuery"
+                @input="onSearchInput"
+              />
+            </label>
+            <select
+              class="omni-select"
+              aria-label="Barangay"
               :value="filterBarangay"
-              placeholder="All"
-              @ionChange="onBarangayChange"
+              @change="onBarangayChange"
             >
-              <ion-select-option :value="''">All barangays</ion-select-option>
-              <ion-select-option v-for="b in barangays" :key="b" :value="b">{{ b }}</ion-select-option>
-            </ion-select>
+              <option value="">All barangays</option>
+              <option v-for="b in barangays" :key="b" :value="b">{{ b }}</option>
+            </select>
+            <select
+              class="omni-select"
+              aria-label="ID status"
+              v-model="idStatusFilter"
+            >
+              <option value="">All statuses</option>
+              <option value="pending">Pending</option>
+              <option value="printed">Printed</option>
+              <option value="missing-photo">Missing Photo</option>
+            </select>
           </div>
 
-          <div class="queue-chip-row">
-            <button type="button" class="filter-chip" :class="{ on: queueChip === 'all' }" @click="queueChip = 'all'">All</button>
-            <button type="button" class="filter-chip" :class="{ on: queueChip === 'missing-photo' }" @click="queueChip = 'missing-photo'">
-              Missing photo
+          <div class="segmented" role="tablist" aria-label="Queue filters">
+            <button
+              v-for="tab in queueTabs"
+              :key="tab.value"
+              type="button"
+              role="tab"
+              class="seg-btn"
+              :class="{ on: queueChip === tab.value }"
+              :aria-selected="queueChip === tab.value"
+              @click="queueChip = tab.value"
+            >
+              {{ tab.label }}
+              <span class="seg-count">{{ tab.count }}</span>
             </button>
-            <button type="button" class="filter-chip" :class="{ on: queueChip === 'priority' }" @click="queueChip = 'priority'">
-              Senior / PWD
-            </button>
-            <button type="button" class="filter-chip" :class="{ on: queueChip === 'pending' }" @click="queueChip = 'pending'">
-              Pending only
-            </button>
-          </div>
-
-          <div class="color-legend">
-            <span class="legend-title">Color Codes:</span>
-            <span class="legend-item"><span class="swatch" :style="{ background: CATEGORY.regular.color }"></span>Regular</span>
-            <span class="legend-item"><span class="swatch" :style="{ background: CATEGORY.senior.color }"></span>Senior Citizen (60+)</span>
-            <span class="legend-item"><span class="swatch" :style="{ background: CATEGORY.pwd.color }"></span>PWD</span>
-          </div>
-
-          <div v-if="selectedCount > 0" class="selection-bar">
-            <span class="selection-label">{{ selectedCount }} of {{ visibleFarmers.length }} in view selected</span>
-            <span class="clear-link" @click="clearSelection">Clear</span>
           </div>
 
           <div class="table-wrap">
@@ -108,25 +102,24 @@
                       @change="toggleSelectAll"
                     />
                   </th>
-                  <th class="col-farmer">Farmer</th>
-                  <th class="col-rsbsa">RSBSA No.</th>
+                  <th class="col-farmer">Farmer &amp; Contact</th>
+                  <th class="col-rsbsa">RSBSA Ref No.</th>
                   <th>Barangay</th>
-                  <th class="col-priority">Priority</th>
-                  <th class="col-sex">Sex</th>
-                  <th class="col-contact">Contact</th>
-                  <th class="col-photo">Photo</th>
-                  <th class="col-status">Print</th>
+                  <th>Priority</th>
+                  <th>Photo</th>
+                  <th>Status</th>
+                  <th class="col-action">Action</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="isLoading">
-                  <td colspan="9" class="state-cell">
+                  <td colspan="8" class="state-cell">
                     <ion-spinner name="crescent" color="primary"></ion-spinner>
                   </td>
                 </tr>
 
                 <tr v-else-if="visibleFarmers.length === 0">
-                  <td colspan="9" class="state-cell">
+                  <td colspan="8" class="state-cell">
                     <EmptyState variant="farmers" message="No farmers match the current filters." />
                   </td>
                 </tr>
@@ -152,27 +145,30 @@
                     />
                   </td>
                   <td class="col-farmer">
-                    <span class="farmer-name">{{ farmer.surname }}, {{ farmer.first_name }}</span>
+                    <div class="farmer-name">{{ farmer.surname }}, {{ farmer.first_name }}</div>
+                    <div class="farmer-meta">{{ formatContact(farmer.mobile_number) }} · {{ sexShort(farmer.sex) }}</div>
                   </td>
                   <td class="mono">{{ farmer.rsbsa_no || 'Pending' }}</td>
                   <td>{{ farmer.permanent_brgy || '—' }}</td>
-                  <td class="col-priority">
-                    <span class="priority-mark">
-                      <span class="cat-dot" :style="{ background: catInfo(farmer).color }"></span>
-                      {{ catInfo(farmer).label }}
+                  <td>
+                    <span class="prio-badge" :class="priorityCategory(farmer)">{{ priorityLabel(farmer) }}</span>
+                  </td>
+                  <td>
+                    <span v-if="hasPhoto(farmer)" class="photo-ok" title="Photo uploaded">
+                      <ion-icon :icon="checkmarkCircle"></ion-icon>
+                    </span>
+                    <span v-else class="photo-miss">
+                      <ion-icon :icon="warningOutline"></ion-icon>
+                      Needs Photo
                     </span>
                   </td>
-                  <td class="col-sex">{{ sexShort(farmer.sex) }}</td>
-                  <td class="col-contact" :title="farmer.mobile_number || ''">{{ farmer.mobile_number || '—' }}</td>
-                  <td class="col-photo">
-                    <span class="status-chip" :class="hasPhoto(farmer) ? 'chip-photo-ready' : 'chip-photo-missing'">
-                      {{ hasPhoto(farmer) ? 'Ready' : 'Missing' }}
+                  <td>
+                    <span class="status-chip" :class="'chip-' + issuanceStatus(farmer)">
+                      {{ issuanceLabel(farmer) }}
                     </span>
                   </td>
-                  <td class="col-status">
-                    <span class="status-chip" :class="isPrinted(farmer) ? 'chip-printed' : 'chip-pending'">
-                      {{ isPrinted(farmer) ? 'Printed' : 'Pending' }}
-                    </span>
+                  <td class="col-action" @click.stop>
+                    <button type="button" class="preview-btn" @click="previewSingle(farmer)">Preview</button>
                   </td>
                 </tr>
               </tbody>
@@ -189,55 +185,109 @@
             </ion-button>
           </div>
 
-          <div class="queue-footer">
-            <button
-              class="print-selected-btn"
-              type="button"
-              :disabled="selectedCount === 0"
-              @click="printBatchIds"
-            >
-              <ion-icon :icon="printOutline"></ion-icon>
-              Print ({{ selectedCount }}) Selected IDs
-            </button>
-          </div>
+          <Transition name="batch-bar">
+            <div v-if="selectedCount > 0" class="batch-bar">
+              <span class="batch-label"><strong>{{ selectedCount }}</strong> farmer{{ selectedCount === 1 ? '' : 's' }} selected</span>
+              <div class="batch-actions">
+                <button type="button" class="link-btn" @click="clearSelection">Clear</button>
+                <button type="button" class="ghost-btn" @click="exportIdList">
+                  <ion-icon :icon="pricetagOutline"></ion-icon>
+                  Export ID List
+                </button>
+                <button type="button" class="print-btn" @click="printBatchIds">
+                  <ion-icon :icon="printOutline"></ion-icon>
+                  Batch Print ({{ selectedCount }})
+                </button>
+              </div>
+            </div>
+          </Transition>
         </aside>
 
-        <!-- ═══════════════════════════════════════════════════════
-             RIGHT: DIGITAL TWIN PREVIEW (~42%)
-             ═══════════════════════════════════════════════════════ -->
         <section class="preview-panel">
           <div class="preview-head">
-            <h2>Digital ID Preview</h2>
-            <p>Live render of the secure farmer identification card</p>
+            <h2>{{ previewHeading }}</h2>
+            <p>{{ previewSubhead }}</p>
           </div>
 
           <div class="preview-body">
-            <div v-if="!previewFarmer" class="empty-preview">
-              <ion-icon :icon="idCardOutline" class="empty-icon"></ion-icon>
-              <p>Select a farmer from the queue to generate their secure digital ID.</p>
-            </div>
-
-            <div v-else class="id-preview-wrapper">
-              <div class="action-bar">
-                <div class="action-bar-left">
-                  <ion-badge color="success">READY FOR ISSUANCE</ion-badge>
-                  <ion-badge :color="catInfo(previewFarmer).badge">{{ catInfo(previewFarmer).label }}</ion-badge>
-                </div>
-                <ion-button color="dark" size="small" @click="printSingleId(previewFarmer)">
-                  <ion-icon slot="start" :icon="printOutline"></ion-icon>
-                  Print this ID
-                </ion-button>
-              </div>
-
+            <div v-if="previewFarmer" class="id-preview-wrapper">
               <div class="id-card-stage">
                 <FarmerIdCard :farmer="previewFarmer" />
               </div>
+              <div class="preview-actions">
+                <ion-button color="dark" size="small" class="preview-act" @click="printSingleId(previewFarmer)">
+                  <ion-icon slot="start" :icon="printOutline"></ion-icon>
+                  Print Single ID
+                </ion-button>
+                <ion-button
+                  size="small"
+                  class="preview-act"
+                  :fill="hasPhoto(previewFarmer) ? 'outline' : 'solid'"
+                  :color="hasPhoto(previewFarmer) ? 'medium' : 'warning'"
+                  :disabled="uploadingPhoto"
+                  @click="triggerPhotoUpload"
+                >
+                  <ion-icon slot="start" :icon="cameraOutline"></ion-icon>
+                  {{ uploadingPhoto ? 'Uploading…' : hasPhoto(previewFarmer) ? 'Replace Photo' : 'Upload Photo' }}
+                </ion-button>
+              </div>
+              <p v-if="selectedCount > 1" class="batch-hint">
+                {{ selectedCount }} selected for batch print.
+                <button type="button" class="text-link" @click="previewFarmer = null">View batch summary</button>
+              </p>
+            </div>
+
+            <div v-else-if="selectedCount > 0" class="batch-preview">
+              <p class="batch-preview-title">{{ selectedCount }} item{{ selectedCount === 1 ? '' : 's' }} selected for batch print</p>
+              <div class="mini-row">
+                <div v-for="farmer in batchPreviewFarmers" :key="'mini-' + farmer.id" class="mini-card-frame">
+                  <FarmerIdCard :farmer="farmer" />
+                </div>
+              </div>
+              <p v-if="selectedCount > batchPreviewFarmers.length" class="more-mini">
+                +{{ selectedCount - batchPreviewFarmers.length }} more
+              </p>
+              <div class="preview-actions">
+                <ion-button color="dark" size="small" class="preview-act" @click="printBatchIds">
+                  <ion-icon slot="start" :icon="printOutline"></ion-icon>
+                  Print Batch ({{ selectedCount }})
+                </ion-button>
+                <ion-button size="small" fill="outline" class="preview-act" @click="exportIdList">
+                  <ion-icon slot="start" :icon="pricetagOutline"></ion-icon>
+                  Export ID List
+                </ion-button>
+              </div>
+            </div>
+
+            <div v-else class="empty-preview">
+              <div class="empty-stats">
+                <div>
+                  <strong>{{ queueStats.total }}</strong>
+                  <span>in queue</span>
+                </div>
+                <div>
+                  <strong>{{ queueStats.ready }}</strong>
+                  <span>ready to print</span>
+                </div>
+                <div>
+                  <strong>{{ queueStats.missingPhoto }}</strong>
+                  <span>need a photo</span>
+                </div>
+              </div>
+              <p>Select a farmer to preview their ID, or check rows to prepare a batch print.</p>
             </div>
           </div>
         </section>
       </div>
 
-      <!-- Hidden print grid — @media print only -->
+      <input
+        ref="photoInput"
+        class="hidden-file"
+        type="file"
+        accept="image/*"
+        @change="onPhotoSelected"
+      />
+
       <div class="print-container print-only" id="print-batch">
         <div
           v-for="farmer in printableFarmers"
@@ -256,17 +306,17 @@ import { ref, computed, onMounted, onUnmounted, reactive, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
-  IonBadge, IonButton, IonIcon, IonSpinner,
-  IonSearchbar, IonSelect, IonSelectOption,
-  toastController,
+  IonButton, IonIcon, IonSpinner, toastController,
 } from '@ionic/vue';
 import {
-  printOutline, idCardOutline,
-  chevronBackOutline, chevronForwardOutline,
+  printOutline, searchOutline, peopleOutline, cameraOutline,
+  chevronBackOutline, chevronForwardOutline, checkmarkCircle,
+  warningOutline, pricetagOutline,
 } from 'ionicons/icons';
 import axiosInstance from '@/utils/axios';
 import EmptyState from '@/components/EmptyState.vue';
 import FarmerIdCard from '@/components/FarmerIdCard.vue';
+import { exportAdminGridExcel } from '@/utils/statutoryFormExcel';
 
 const route = useRoute();
 const PRINTED_KEY = 'agri-akap:id-printed-ids';
@@ -277,14 +327,19 @@ const farmers = ref<any[]>([]);
 const isLoading = ref(true);
 const pagination = ref<PaginationMeta | null>(null);
 const searchQuery = ref('');
+let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
 const barangays = ref<string[]>([]);
 const filterBarangay = ref('');
-type QueueChip = 'all' | 'missing-photo' | 'priority' | 'pending';
+type QueueChip = 'all' | 'missing-photo' | 'priority';
 const queueChip = ref<QueueChip>('all');
+type IdStatusFilter = '' | 'pending' | 'printed' | 'missing-photo';
+const idStatusFilter = ref<IdStatusFilter>('');
 
 const selectedIds = reactive(new Set<string>());
 const previewFarmer = ref<any>(null);
+const photoInput = ref<HTMLInputElement | null>(null);
+const uploadingPhoto = ref(false);
 
 const loadPrintedIds = (): Set<string> => {
   try {
@@ -326,20 +381,52 @@ const sexShort = (sex: unknown) => {
   return v.slice(0, 1).toUpperCase();
 };
 
+const formatContact = (n: unknown) => {
+  const raw = String(n || '').trim();
+  if (!raw) return '—';
+  const d = raw.replace(/\D/g, '');
+  if (d.length === 11 && d.startsWith('0')) return `${d.slice(0, 4)}-${d.slice(4, 7)}-${d.slice(7)}`;
+  return raw;
+};
+
 const selectedCount = computed(() => selectedIds.size);
 
-const pendingOnPageCount = computed(() => farmers.value.filter((f) => !isPrinted(f)).length);
-const printedOnPageCount = computed(() => farmers.value.filter((f) => isPrinted(f)).length);
-const missingPhotoCount = computed(() => farmers.value.filter((f) => !hasPhoto(f)).length);
+const statusFilteredFarmers = computed(() => {
+  const s = idStatusFilter.value;
+  return farmers.value.filter((f) => {
+    if (s === 'pending') return !isPrinted(f);
+    if (s === 'printed') return isPrinted(f);
+    if (s === 'missing-photo') return !hasPhoto(f);
+    return true;
+  });
+});
 
 const visibleFarmers = computed(() => {
   const chip = queueChip.value;
-  return farmers.value.filter((f) => {
+  return statusFilteredFarmers.value.filter((f) => {
     if (chip === 'missing-photo') return !hasPhoto(f);
     if (chip === 'priority') return priorityCategory(f) !== 'regular';
-    if (chip === 'pending') return !isPrinted(f);
     return true;
   });
+});
+
+const queueStats = computed(() => {
+  const list = visibleFarmers.value;
+  return {
+    total: list.length,
+    missingPhoto: list.filter((f) => !hasPhoto(f)).length,
+    printed: list.filter((f) => isPrinted(f)).length,
+    ready: list.filter((f) => issuanceStatus(f) === 'ready').length,
+  };
+});
+
+const queueTabs = computed(() => {
+  const list = statusFilteredFarmers.value;
+  return [
+    { value: 'all' as QueueChip, label: 'All', count: list.length },
+    { value: 'missing-photo' as QueueChip, label: 'Missing Photo', count: list.filter((f) => !hasPhoto(f)).length },
+    { value: 'priority' as QueueChip, label: 'Senior / PWD', count: list.filter((f) => priorityCategory(f) !== 'regular').length },
+  ];
 });
 
 const isAllSelected = computed(() =>
@@ -349,9 +436,24 @@ const isIndeterminate = computed(() =>
   !isAllSelected.value && visibleFarmers.value.some((f) => selectedIds.has(f.id))
 );
 
-const printableFarmers = computed(() =>
-  farmers.value.filter((f) => selectedIds.has(f.id))
-);
+const selectedFarmers = computed(() => farmers.value.filter((f) => selectedIds.has(f.id)));
+const batchPreviewFarmers = computed(() => selectedFarmers.value.slice(0, 3));
+const printableFarmers = computed(() => selectedFarmers.value);
+
+const previewHeading = computed(() => {
+  if (previewFarmer.value) return 'Digital ID Preview';
+  if (selectedCount.value > 0) return 'Batch Print Preview';
+  return 'Digital ID Preview';
+});
+
+const previewSubhead = computed(() => {
+  if (previewFarmer.value) {
+    const f = previewFarmer.value;
+    return `${f.surname}, ${f.first_name} · ${f.rsbsa_no || 'Pending RSBSA'}`;
+  }
+  if (selectedCount.value > 0) return 'Mini layout of the selected ID cards';
+  return 'Select a farmer or check rows to prepare a batch';
+});
 
 const toggleSelectAll = () => {
   if (isAllSelected.value) {
@@ -416,13 +518,14 @@ const loadBarangays = async () => {
   }
 };
 
-const handleSearch = (ev: CustomEvent) => {
-  searchQuery.value = (ev.detail as any).value ?? '';
-  fetchFarmers(1, searchQuery.value);
+const onSearchInput = (ev: Event) => {
+  searchQuery.value = (ev.target as HTMLInputElement).value ?? '';
+  window.clearTimeout(searchTimer);
+  searchTimer = window.setTimeout(() => fetchFarmers(1, searchQuery.value), 400);
 };
 
-const onBarangayChange = (e: CustomEvent) => {
-  filterBarangay.value = (e.detail as any).value ?? '';
+const onBarangayChange = (ev: Event) => {
+  filterBarangay.value = (ev.target as HTMLSelectElement).value ?? '';
   fetchFarmers(1, searchQuery.value);
 };
 
@@ -448,13 +551,25 @@ const priorityCategory = (farmer: any): PriorityCategory => {
   return 'regular';
 };
 
-const CATEGORY: Record<PriorityCategory, { label: string; color: string; badge: string }> = {
-  pwd:     { label: 'PWD',            color: '#d4af37', badge: 'warning' },
-  senior:  { label: 'SENIOR CITIZEN', color: '#d4af37', badge: 'warning' },
-  regular: { label: 'REGULAR',        color: '#1a4731', badge: 'success' },
+const priorityLabel = (farmer: any) => {
+  const cat = priorityCategory(farmer);
+  if (cat === 'pwd') return 'PWD';
+  if (cat === 'senior') return 'Senior 60+';
+  return 'Regular';
 };
 
-const catInfo = (farmer: any) => CATEGORY[priorityCategory(farmer)];
+const issuanceStatus = (farmer: any): 'printed' | 'missing' | 'ready' => {
+  if (isPrinted(farmer)) return 'printed';
+  if (!hasPhoto(farmer) || !farmer?.rsbsa_no) return 'missing';
+  return 'ready';
+};
+
+const issuanceLabel = (farmer: any) => {
+  const s = issuanceStatus(farmer);
+  if (s === 'printed') return 'Printed';
+  if (s === 'missing') return 'Missing Info';
+  return 'Ready to Print';
+};
 
 const toast = async (message: string, color = 'primary') => {
   const t = await toastController.create({ message, duration: 2400, color, position: 'top' });
@@ -495,6 +610,76 @@ const printBatchIds = async () => {
   lastPrintIds.value = [];
 };
 
+const exportIdList = async () => {
+  const rows = selectedFarmers.value;
+  if (!rows.length) {
+    await toast('No farmers selected.', 'warning');
+    return;
+  }
+  try {
+    await exportAdminGridExcel({
+      filename: 'farmer-id-issuance-list.xlsx',
+      reportTitle: 'Farmer ID Issuance List',
+      metaLine: `Generated: ${new Date().toLocaleString()} | ${rows.length} selected`,
+      columns: [
+        { key: 'no', label: 'No' },
+        { key: 'rsbsa_no', label: 'RSBSA No.' },
+        { key: 'farmer_name', label: 'Farmer Name' },
+        { key: 'barangay', label: 'Barangay' },
+        { key: 'contact', label: 'Contact' },
+        { key: 'priority', label: 'Priority' },
+        { key: 'photo', label: 'Photo' },
+        { key: 'status', label: 'Issuance Status' },
+      ],
+      rows,
+      getCellValue(row, key, index) {
+        if (key === 'no') return index + 1;
+        if (key === 'farmer_name') return `${row.surname || ''}, ${row.first_name || ''}`.trim();
+        if (key === 'barangay') return String(row.permanent_brgy ?? '');
+        if (key === 'contact') return String(row.mobile_number ?? '');
+        if (key === 'priority') return priorityLabel(row);
+        if (key === 'photo') return hasPhoto(row) ? 'Uploaded' : 'Needs Photo';
+        if (key === 'status') return issuanceLabel(row);
+        return String(row[key] ?? '');
+      },
+    });
+  } catch (err: any) {
+    await toast(err?.response?.data?.message || 'Excel export failed.', 'danger');
+  }
+};
+
+const triggerPhotoUpload = () => {
+  photoInput.value?.click();
+};
+
+const onPhotoSelected = async (ev: Event) => {
+  const input = ev.target as HTMLInputElement;
+  const file = input.files?.[0];
+  const farmer = previewFarmer.value;
+  if (!file || !farmer?.id) {
+    input.value = '';
+    return;
+  }
+  uploadingPhoto.value = true;
+  try {
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(new Error('Could not read the image file.'));
+      reader.readAsDataURL(file);
+    });
+    const res = await axiosInstance.post(`/farmers/${farmer.id}/photo`, { photo_base64: dataUrl });
+    const url = res.data?.data?.photo_url as string | undefined;
+    farmer.photo_path = url || farmer.photo_path || dataUrl;
+    await toast(res.data?.message || 'Farmer photo saved.', 'success');
+  } catch (err: any) {
+    await toast(err?.response?.data?.message || 'Failed to upload photo.', 'danger');
+  } finally {
+    uploadingPhoto.value = false;
+    input.value = '';
+  }
+};
+
 onMounted(() => {
   fetchFarmers();
   loadBarangays();
@@ -503,6 +688,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('afterprint', onAfterPrint);
+  window.clearTimeout(searchTimer);
 });
 </script>
 
@@ -518,9 +704,6 @@ onUnmounted(() => {
   height: 100%;
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   WORKSPACE HEADER
-   ═══════════════════════════════════════════════════════════════════ */
 .workspace-header {
   flex-shrink: 0;
   display: flex;
@@ -548,44 +731,30 @@ onUnmounted(() => {
 .workspace-stats {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
-.stat-pill {
-  display: flex;
-  flex-direction: column;
+.stat-chip {
+  display: inline-flex;
   align-items: center;
-  min-width: 84px;
-  padding: 6px 14px;
-  border-radius: 10px;
-  background: #ffffff;
+  gap: 6px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #fff;
   border: 1px solid #e2e8f0;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 600;
 }
 
-.stat-value {
-  font-size: 1.05rem;
-  font-weight: 800;
-  color: #1a4731;
-  line-height: 1.1;
-}
+.stat-chip ion-icon { font-size: 0.95rem; color: #64748b; }
+.stat-chip strong { font-size: 0.92rem; font-weight: 800; color: #0f172a; }
+.stat-chip.warn { border-color: #fed7aa; background: #fff7ed; color: #9a3412; }
+.stat-chip.warn ion-icon, .stat-chip.warn strong { color: #c2410c; }
+.stat-chip.ok { border-color: #bbf7d0; background: #f0fdf4; }
+.stat-chip.ok ion-icon, .stat-chip.ok strong { color: #15803d; }
 
-.stat-label {
-  font-size: 0.62rem;
-  font-weight: 700;
-  color: #94a3b8;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.stat-pill.stat-pending .stat-value { color: #b45309; }
-.stat-pill.stat-printed .stat-value { color: #64748b; }
-.stat-pill.stat-photo .stat-value { color: #9a3412; }
-
-/* ═══════════════════════════════════════════════════════════════════
-   WORKSPACE GRID
-   ═══════════════════════════════════════════════════════════════════ */
 .issuance-workspace {
   display: grid;
   grid-template-columns: minmax(0, 58fr) minmax(280px, 42fr);
@@ -623,121 +792,96 @@ onUnmounted(() => {
   font-size: 0.92rem;
   font-weight: 800;
   color: #ffffff;
-  letter-spacing: 0.01em;
 }
 
-.queue-head-badge {
-  background: #d4af37;
-  color: #1a4731;
-  font-size: 0.68rem;
-  font-weight: 800;
-  padding: 3px 10px;
-  border-radius: 999px;
-  white-space: nowrap;
-}
-
-.queue-filters {
+.omni-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 10px 12px 8px;
   flex-shrink: 0;
-  border-bottom: 1px solid #e2e8f0;
 }
 
-.list-searchbar {
-  --background: #f8fafc;
-  padding: 6px 8px;
+.search-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 180px;
 }
 
-.list-brgy-filter {
-  --background: #f8fafc;
-  border-top: 1px solid #f1f5f9;
-  padding: 0 12px;
-  font-size: 0.85rem;
+.search-wrap ion-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1rem;
+  color: #94a3b8;
+  pointer-events: none;
 }
 
-.queue-chip-row {
+.omni-search, .omni-select {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.42rem 0.65rem;
+  font-size: 0.82rem;
+  background: #fff;
+  font-family: inherit;
+  color: #0f172a;
+}
+
+.omni-search { width: 100%; padding-left: 2rem; }
+.omni-select { min-width: 148px; color: #334155; }
+
+.segmented {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  padding: 8px 14px 0;
+  padding: 0 12px 10px;
   flex-shrink: 0;
+  border-bottom: 1px solid #f1f5f9;
 }
 
-.filter-chip {
-  border: 1px solid #cbd5e1;
-  background: #ffffff;
+.seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
   color: #475569;
-  font-size: 0.72rem;
-  font-weight: 700;
+  font-size: 0.74rem;
+  font-weight: 600;
   font-family: inherit;
   padding: 4px 10px;
   border-radius: 999px;
   cursor: pointer;
-  min-height: 28px;
 }
 
-.filter-chip.on {
-  background: #1a4731;
-  border-color: #1a4731;
-  color: #ffffff;
+.seg-btn.on {
+  background: #e8f5e9;
+  border-color: #c8e6c9;
+  color: #1e7e34;
 }
 
-.filter-chip:hover:not(.on) {
-  border-color: #1a4731;
-  color: #1a4731;
+.seg-count {
+  font-size: 0.68rem;
+  font-weight: 800;
+  background: #f1f5f9;
+  color: #64748b;
+  padding: 0 6px;
+  border-radius: 999px;
+  min-width: 1.2rem;
+  text-align: center;
 }
 
-.color-legend {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  padding: 8px 14px;
-  font-size: 0.72rem;
-  color: #475569;
-  border-bottom: 1px solid #f1f5f9;
-  flex-shrink: 0;
-}
-
-.legend-title { font-weight: 700; color: #1a4731; }
-.legend-item { display: inline-flex; align-items: center; gap: 5px; }
-.swatch {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  display: inline-block;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-}
-
-.selection-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 6px 16px;
-  background: #eef5ee;
-  border-bottom: 1px solid #dbe9de;
-  font-size: 0.78rem;
-  flex-shrink: 0;
-}
-
-.selection-label { font-weight: 700; color: #1a4731; }
-
-.clear-link {
-  font-size: 0.76rem;
-  color: #ef4444;
-  cursor: pointer;
-  font-weight: 700;
-}
-.clear-link:hover { text-decoration: underline; }
+.seg-btn.on .seg-count { background: #c8e6c9; color: #1e7e34; }
 
 .excel-checkbox {
   width: 15px;
   height: 15px;
   cursor: pointer;
   accent-color: #1a4731;
-  flex-shrink: 0;
 }
 
-/* ── Queue table ───────────────────────────────────────────────── */
 .table-wrap {
   flex: 1;
   min-height: 0;
@@ -749,7 +893,7 @@ onUnmounted(() => {
   width: 100%;
   font-size: 12.5px;
   color: #1e293b;
-  min-width: 760px;
+  min-width: 720px;
 }
 
 .queue-table th,
@@ -763,66 +907,68 @@ onUnmounted(() => {
 .queue-table thead th {
   position: sticky;
   top: 0;
-  background: #1a4731;
-  color: #ffffff;
-  font-weight: 700;
+  background: #f8fafc;
+  color: #64748b;
+  font-weight: 600;
   font-size: 10.5px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   z-index: 2;
   white-space: nowrap;
-  border-bottom: none;
+  border-bottom: 1px solid #e2e8f0;
 }
 
-.queue-table .col-check { width: 40px; text-align: center; }
-.queue-table .col-farmer { min-width: 140px; }
-.queue-table .col-rsbsa { min-width: 120px; }
-.queue-table .col-priority { min-width: 100px; }
-.queue-table .col-sex { width: 44px; text-align: center; }
-.queue-table .col-contact { min-width: 110px; max-width: 140px; }
-.queue-table .col-photo { width: 88px; }
-.queue-table .col-status { width: 84px; }
+.queue-table .col-check { width: 36px; text-align: center; }
+.queue-table .col-farmer { min-width: 160px; }
+.queue-table .col-rsbsa { min-width: 150px; }
+.queue-table .col-action { width: 88px; text-align: right; }
 
 .queue-row { cursor: pointer; transition: background 0.1s ease; }
 .queue-table tbody tr:nth-child(even) { background: #fafcfb; }
 .queue-row:hover { background: #eef5ee; }
 .queue-row.row-selected { background: #e4f3e6; }
 .queue-row.row-active {
-  background: #dbeafe;
+  background: #ecfdf5;
   box-shadow: inset 3px 0 0 #1a4731;
 }
-.queue-row.row-no-photo td { box-shadow: inset 0 -1px 0 #fdba74; }
 
 .state-cell { text-align: center; padding: 2rem 0; }
 
-.farmer-name { font-weight: 700; font-size: 0.86rem; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+.farmer-name { font-weight: 700; font-size: 0.86rem; color: #0f172a; line-height: 1.25; }
+.farmer-meta { margin-top: 2px; color: #64748b; font-size: 0.74rem; }
 
-.priority-mark {
+.prio-badge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-size: 0.68rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.02em;
-  color: #1e293b;
+  font-size: 0.66rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
   white-space: nowrap;
 }
+.prio-badge.regular { background: #f1f5f9; color: #475569; }
+.prio-badge.senior { background: #fff8e1; color: #8a6d12; }
+.prio-badge.pwd { background: #e3f2fd; color: #1565c0; }
 
-.cat-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+.photo-ok {
+  display: inline-flex;
+  color: #15803d;
+  font-size: 1.15rem;
 }
-
-.col-contact {
+.photo-miss {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: #c2410c;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  padding: 2px 7px;
+  border-radius: 999px;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 140px;
 }
+.photo-miss ion-icon { font-size: 0.85rem; }
 
 .mono { font-family: 'Courier New', monospace; font-size: 0.78rem; color: #64748b; }
 
@@ -830,16 +976,26 @@ onUnmounted(() => {
   display: inline-block;
   padding: 2px 8px;
   border-radius: 999px;
-  font-size: 0.62rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
+  font-size: 0.66rem;
+  font-weight: 700;
   white-space: nowrap;
 }
-.status-chip.chip-pending { background: #fffbeb; color: #b45309; border: 1px solid #fcd34d; }
-.status-chip.chip-printed { background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; }
-.status-chip.chip-photo-ready { background: #ecfdf5; color: #047857; border: 1px solid #6ee7b7; }
-.status-chip.chip-photo-missing { background: #ffedd5; color: #9a3412; border: 1px solid #fdba74; }
+.chip-ready { background: #e8f5e9; color: #1e7e34; }
+.chip-printed { background: #f1f5f9; color: #475569; }
+.chip-missing { background: #fdecea; color: #c0392b; }
+
+.preview-btn {
+  border: 1px solid #1a4731;
+  background: #fff;
+  color: #1a4731;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-family: inherit;
+  padding: 4px 9px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+.preview-btn:hover { background: #e8f5e9; }
 
 .list-pagination {
   display: flex;
@@ -852,51 +1008,54 @@ onUnmounted(() => {
 }
 .page-label { font-size: 0.85rem; color: #64748b; font-weight: 600; }
 
-.queue-footer {
+.batch-bar {
   flex-shrink: 0;
-  padding: 10px 12px 12px;
-  border-top: 1px solid #e2e8f0;
-  background: #f8faf9;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 10px 12px;
+  background: #1a4731;
+  color: #fff;
 }
-
-.print-selected-btn {
-  width: 100%;
+.batch-label { font-size: 0.85rem; }
+.batch-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.link-btn {
+  background: none;
+  border: 0;
+  color: #d1e0d6;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+.ghost-btn, .print-btn {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 14px 16px;
-  border-radius: 10px;
-  font-size: 0.95rem;
+  gap: 6px;
+  border-radius: 8px;
+  font-size: 0.78rem;
   font-weight: 800;
-  letter-spacing: 0.02em;
+  font-family: inherit;
+  padding: 7px 12px;
   cursor: pointer;
-  background: #1a4731;
-  color: #ffffff;
-  border: none;
-  box-shadow: 0 4px 12px rgba(26, 71, 49, 0.28);
-  transition: background 0.15s ease, transform 0.12s ease, opacity 0.15s ease;
+}
+.ghost-btn {
+  background: transparent;
+  border: 1px solid #d4af37;
+  color: #f8e7a0;
+}
+.print-btn {
+  background: #d4af37;
+  border: 0;
+  color: #1a4731;
 }
 
-.print-selected-btn ion-icon { font-size: 22px; }
+.batch-bar-enter-active,
+.batch-bar-leave-active { transition: transform 0.22s ease, opacity 0.22s ease; }
+.batch-bar-enter-from,
+.batch-bar-leave-to { transform: translateY(12px); opacity: 0; }
 
-.print-selected-btn:hover:not(:disabled) {
-  background: #143a28;
-}
-
-.print-selected-btn:active:not(:disabled) {
-  transform: scale(0.98);
-}
-
-.print-selected-btn:disabled {
-  opacity: 0.42;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-
-/* ═══════════════════════════════════════════════════════════════════
-   PREVIEW PANEL
-   ═══════════════════════════════════════════════════════════════════ */
 .preview-panel {
   display: flex;
   flex-direction: column;
@@ -920,7 +1079,6 @@ onUnmounted(() => {
   font-size: 0.92rem;
   font-weight: 800;
   color: #ffffff;
-  letter-spacing: 0.01em;
 }
 
 .preview-head p {
@@ -937,7 +1095,8 @@ onUnmounted(() => {
   background:
     radial-gradient(circle, #e2ece6 1px, transparent 1px) 0 0 / 18px 18px,
     #f7faf8;
-  padding: 1.25rem;
+  padding: 1.1rem;
+  overflow: auto;
 }
 
 .empty-preview {
@@ -948,48 +1107,108 @@ onUnmounted(() => {
   flex: 1;
   min-height: 240px;
   color: #64748b;
-  gap: 1rem;
-  width: 100%;
+  gap: 1.1rem;
   text-align: center;
 }
 
-.empty-icon {
-  font-size: 4.5rem;
-  color: #a9bcb2;
+.empty-stats {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
+
+.empty-stats div {
+  display: flex;
+  flex-direction: column;
+  min-width: 72px;
+}
+
+.empty-stats strong {
+  font-size: 1.35rem;
+  color: #1a4731;
+  font-weight: 800;
+}
+
+.empty-stats span { font-size: 0.72rem; color: #64748b; }
 
 .empty-preview p {
   margin: 0;
-  max-width: 320px;
-  font-size: 0.95rem;
+  max-width: 280px;
+  font-size: 0.9rem;
   line-height: 1.5;
-  color: #64748b;
 }
 
-.id-preview-wrapper {
+.id-preview-wrapper,
+.batch-preview {
   width: 100%;
-  height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 1.1rem;
+  gap: 1rem;
+  margin: auto;
 }
 
-.action-bar {
+.preview-actions {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: min(100%, 520px);
+  justify-content: center;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
-.action-bar-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-
-.id-card-stage {
-  display: flex;
-  justify-content: center;
+.preview-act {
+  text-transform: none;
+  font-weight: 700;
+  margin: 0;
 }
+
+.batch-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #64748b;
+}
+
+.text-link {
+  border: 0;
+  background: none;
+  color: #1a4731;
+  font-weight: 800;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 0;
+}
+
+.batch-preview-title {
+  margin: 0;
+  font-weight: 800;
+  color: #1a4731;
+  text-align: center;
+}
+
+.mini-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+}
+
+.mini-card-frame {
+  width: calc(85.6mm * 0.46);
+  height: calc(53.98mm * 0.46);
+  overflow: hidden;
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+}
+
+.mini-card-frame :deep(.id-card) {
+  transform: scale(0.46);
+  transform-origin: top left;
+}
+
+.more-mini { margin: 0; font-size: 0.78rem; color: #64748b; font-weight: 700; }
+
+.hidden-file { display: none; }
 
 .print-only { display: none; }
 .print-container { display: none; }
@@ -1075,43 +1294,17 @@ onUnmounted(() => {
 }
 
 @media (max-width: 768px) {
-  .auth-bg {
-    --overflow: auto;
-  }
-
-  .auth-bg::part(scroll) {
-    height: auto;
-  }
-
-  .workspace-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
+  .auth-bg { --overflow: auto; }
+  .auth-bg::part(scroll) { height: auto; }
+  .workspace-header { flex-direction: column; align-items: flex-start; }
   .issuance-workspace {
     grid-template-columns: 1fr;
     height: auto;
     min-height: 0;
   }
-
-  .queue-panel {
-    height: auto;
-    max-height: none;
-  }
-
-  .table-wrap {
-    max-height: 50vh;
-  }
-
-  .preview-panel {
-    height: auto;
-    min-height: 360px;
-  }
-
-  .action-bar {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-  }
+  .queue-panel { height: auto; max-height: none; }
+  .table-wrap { max-height: 50vh; }
+  .preview-panel { height: auto; min-height: 360px; }
+  .omni-select { flex: 1; }
 }
 </style>

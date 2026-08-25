@@ -65,7 +65,7 @@ const onToggle = (barangay: string, checked: boolean) => {
   margin: 0;
   padding: 0.35rem 1rem 0.55rem;
   font-size: 0.78rem;
-  color: #64748b;
+  color: #475569;
 }
 .brgy-list {
   max-height: 220px;
@@ -73,7 +73,18 @@ const onToggle = (barangay: string, checked: boolean) => {
   border-top: 1px solid #e2e8f0;
 }
 .brgy-list.dimmed {
-  opacity: 0.55;
+  opacity: 1;
+}
+.brgy-list ion-item {
+  --color: #0f172a;
+  --background: #fff;
+}
+.brgy-list ion-checkbox {
+  --checkbox-background-checked: #1a4731;
+  --border-color-checked: #1a4731;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #0f172a;
 }
 .empty {
   margin: 0;

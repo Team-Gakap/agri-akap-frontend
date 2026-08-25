@@ -75,15 +75,20 @@
               <ion-card-subtitle>Active pest outbreaks &middot; Severe crop damage</ion-card-subtitle>
             </ion-card-header>
             <ion-card-content class="map-content">
-              <div class="map-shell">
-                <div v-if="mapLoading" class="map-loading"><ion-spinner name="crescent"></ion-spinner></div>
-                <div ref="mapEl" class="map-canvas"></div>
+              <div v-if="mapLoadError" class="map-error">
+                <p><strong>Map unavailable.</strong> {{ mapLoadError }}</p>
               </div>
-              <div class="map-legend">
-                <span class="legend-chip"><i class="dot pest"></i>Active pest outbreak</span>
-                <span class="legend-chip"><i class="dot damage"></i>Severe damage (&ge;50%)</span>
-                <span v-if="!mapMarkerCount" class="legend-chip muted">No high-priority markers right now.</span>
-              </div>
+              <template v-else>
+                <div class="map-shell">
+                  <div v-if="mapLoading" class="map-loading"><ion-spinner name="crescent"></ion-spinner></div>
+                  <div ref="mapEl" class="map-canvas"></div>
+                </div>
+                <div class="map-legend">
+                  <span class="legend-chip"><i class="dot pest"></i>Active pest outbreak</span>
+                  <span class="legend-chip"><i class="dot damage"></i>Severe damage (&ge;50%)</span>
+                  <span v-if="!mapMarkerCount" class="legend-chip muted">No high-priority markers right now.</span>
+                </div>
+              </template>
             </ion-card-content>
           </ion-card>
 
@@ -212,16 +217,15 @@ import {
   CategoryScale,
   LinearScale,
 } from 'chart.js';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
 import apiClient from '@/utils/axios';
 import { toast } from '@/utils/toast';
+import { loadGoogleMaps } from '@/utils/googleMaps';
 
 ChartJS.register(Title, Tooltip, Legend, ArcElement, BarElement, CategoryScale, LinearScale);
 
 const LGU_GREEN = '#1a4731';
 const LGU_GOLD = '#d4af37';
-const ECHAGUE: [number, number] = [16.7053, 121.6772];
+const ECHAGUE = { lat: 16.7053, lng: 121.6772 };
 
 const router = useRouter();
 const initialLoading = ref(true);
@@ -232,9 +236,11 @@ const smsOpen = ref(false);
 const mapLoading = ref(false);
 const mapMarkerCount = ref(0);
 const mapEl = ref<HTMLDivElement | null>(null);
+const mapLoadError = ref('');
 
-let map: L.Map | null = null;
-let mapLayers: L.LayerGroup | null = null;
+let map: google.maps.Map | null = null;
+let infoWindow: google.maps.InfoWindow | null = null;
+let markers: google.maps.Marker[] = [];
 
 const descriptive = reactive<any>({});
 const diagnostic = reactive<any>({ pest_breakdown: [], crop_distribution: [], distributions_by_barangay: [] });
@@ -328,35 +334,60 @@ const esc = (s: any) => String(s ?? '').replace(/[&<>"]/g, (c) =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
 
 const destroyMap = () => {
-  if (mapLayers) {
-    mapLayers.clearLayers();
-    mapLayers = null;
-  }
-  if (map) {
-    map.remove();
-    map = null;
-  }
+  markers.forEach((m) => m.setMap(null));
+  markers = [];
+  infoWindow?.close();
+  map = null;
 };
 
-const initMap = () => {
-  if (!mapEl.value) return;
-  if (map) {
-    setTimeout(() => map?.invalidateSize(), 200);
+const initMap = async () => {
+  if (!mapEl.value || map) {
+    if (map) google.maps.event.trigger(map, 'resize');
     return;
   }
-  map = L.map(mapEl.value, { center: ECHAGUE, zoom: 12 });
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap contributors',
-  }).addTo(map);
-  mapLayers = L.layerGroup().addTo(map);
-  setTimeout(() => map?.invalidateSize(), 300);
+  try {
+    await loadGoogleMaps();
+  } catch (err: any) {
+    mapLoadError.value = err?.message ?? 'Failed to load Google Maps.';
+    return;
+  }
+  map = new google.maps.Map(mapEl.value, {
+    center: ECHAGUE,
+    zoom: 12,
+    mapTypeControl: false,
+    streetViewControl: false,
+    fullscreenControl: false,
+  });
+  infoWindow = new google.maps.InfoWindow();
+  google.maps.event.trigger(map, 'resize');
+};
+
+const addMarker = (lat: number, lng: number, fill: string, stroke: string, radius: number, html: string) => {
+  if (!map) return;
+  const marker = new google.maps.Marker({
+    position: { lat, lng },
+    map,
+    icon: {
+      path: google.maps.SymbolPath.CIRCLE,
+      scale: radius,
+      fillColor: fill,
+      fillOpacity: 0.9,
+      strokeColor: stroke,
+      strokeWeight: 1.5,
+    },
+  });
+  marker.addListener('click', () => {
+    if (!map || !infoWindow) return;
+    infoWindow.setContent(html);
+    infoWindow.open(map, marker);
+  });
+  markers.push(marker);
 };
 
 const renderMap = (data: any) => {
   if (!map) return;
-  if (!mapLayers) mapLayers = L.layerGroup().addTo(map);
-  mapLayers.clearLayers();
+  markers.forEach((m) => m.setMap(null));
+  markers = [];
 
   const damage = (data.damage_points ?? []).filter((d: any) => Number(d.damage_percentage || 0) >= 50);
   const pests = (data.pest_outbreaks ?? []).filter((p: any) => {
@@ -370,27 +401,17 @@ const renderMap = (data: any) => {
     const sev = String(p.severity || '').toLowerCase();
     const fill = sev.includes('high') || sev.includes('severe') || sev.includes('critical') ? '#b91c1c'
       : sev.includes('med') ? '#d97706' : '#eab308';
-    L.circleMarker([p.lat, p.lng], {
-      radius: 8, color: '#422006', weight: 1.5, fillColor: fill, fillOpacity: 0.9,
-    })
-      .bindPopup(
-        `<strong>${esc(p.pest_name || 'Pest outbreak')}</strong><br/>` +
-        `Severity: ${esc(p.severity || '-')}<br/>` +
-        `${esc(p.commodity || '')} &middot; Brgy ${esc(p.brgy || '-')}`
-      )
-      .addTo(mapLayers!);
+    addMarker(p.lat, p.lng, fill, '#422006', 8,
+      `<strong>${esc(p.pest_name || 'Pest outbreak')}</strong><br/>` +
+      `Severity: ${esc(p.severity || '-')}<br/>` +
+      `${esc(p.commodity || '')} &middot; Brgy ${esc(p.brgy || '-')}`);
   });
 
   damage.forEach((d: any) => {
-    L.circleMarker([d.lat, d.lng], {
-      radius: 7, color: '#7f1d1d', weight: 1, fillColor: '#ef4444', fillOpacity: 0.85,
-    })
-      .bindPopup(
-        `<strong>${esc(d.calamity_name || 'Damage')}</strong><br/>` +
-        `Damage: <b>${esc(d.damage_percentage)}%</b><br/>` +
-        `Brgy ${esc(d.brgy || '-')}`
-      )
-      .addTo(mapLayers!);
+    addMarker(d.lat, d.lng, '#ef4444', '#7f1d1d', 7,
+      `<strong>${esc(d.calamity_name || 'Damage')}</strong><br/>` +
+      `Damage: <b>${esc(d.damage_percentage)}%</b><br/>` +
+      `Brgy ${esc(d.brgy || '-')}`);
   });
 };
 
@@ -427,7 +448,7 @@ const fetchOverview = async () => {
 const fetchAll = async () => {
   await fetchOverview();
   await nextTick();
-  initMap();
+  await initMap();
   await fetchMapData();
 };
 
@@ -600,6 +621,19 @@ ion-card-subtitle {
   background: #fff; border-radius: 50%; padding: 6px;
   box-shadow: 0 1px 4px rgba(0,0,0,0.2);
 }
+.map-error {
+  min-height: 380px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 2rem;
+  border-radius: 12px;
+  background: #fef2f2;
+  color: #991b1b;
+  font-size: 0.85rem;
+}
+.map-error strong { display: block; margin-bottom: 0.3rem; font-size: 0.95rem; }
 .map-legend { display: flex; gap: 0.75rem; flex-wrap: wrap; }
 .legend-chip {
   font-size: 0.78rem;

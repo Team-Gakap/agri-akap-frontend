@@ -276,7 +276,7 @@
     <ion-modal :is-open="dossierOpen" @didDismiss="closeDossier">
       <ion-header>
         <ion-toolbar color="primary">
-          <ion-title>Farmer dossier</ion-title>
+          <ion-title>Farmer Profile</ion-title>
           <ion-buttons slot="end">
             <ion-button @click="closeDossier">Close</ion-button>
           </ion-buttons>

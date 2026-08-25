@@ -83,6 +83,17 @@
             />
           </div>
           <div class="actions">
+            <ion-button
+              v-if="program.status === 'Draft'"
+              size="small"
+              fill="solid"
+              class="act-btn primary"
+              :disabled="activating || isMockData"
+              @click="confirmActivate"
+            >
+              <ion-icon slot="start" :icon="playCircleOutline"></ion-icon>
+              {{ activating ? 'Activating…' : 'Activate Program' }}
+            </ion-button>
             <ion-button size="small" fill="solid" class="act-btn primary" :disabled="generating || program.status === 'Completed'" @click="confirmGenerate">
               <ion-icon slot="start" :icon="syncOutline"></ion-icon>
               Auto-Generate Masterlist
@@ -242,7 +253,7 @@ import {
 } from '@ionic/vue';
 import {
   refreshOutline, syncOutline, chatbubbleEllipsesOutline, printOutline, eyeOutline,
-  alertCircleOutline, addCircleOutline, checkmarkCircleOutline,
+  alertCircleOutline, addCircleOutline, checkmarkCircleOutline, playCircleOutline,
 } from 'ionicons/icons';
 import apiClient from '@/utils/axios';
 import { cropLabel } from '@/utils/cropLabel';
@@ -265,6 +276,7 @@ const programId = computed(() => String(route.params.id || ''));
 
 const loading = ref(true);
 const generating = ref(false);
+const activating = ref(false);
 const sendingSms = ref(false);
 const smsOpen = ref(false);
 const error = ref('');
@@ -410,6 +422,32 @@ const fetchMasterlist = async () => {
     loadMock();
   } finally {
     loading.value = false;
+  }
+};
+
+const confirmActivate = async () => {
+  const alert = await alertController.create({
+    header: 'Activate this program?',
+    message: 'Once Active, technicians can start dispensing subsidies to farmers on this masterlist.',
+    buttons: [
+      { text: 'Cancel', role: 'cancel' },
+      { text: 'Activate', handler: () => activateProgram() },
+    ],
+  });
+  await alert.present();
+};
+
+const activateProgram = async () => {
+  if (!programId.value || isMockData.value) return;
+  activating.value = true;
+  try {
+    const res = await apiClient.patch(`/subsidies/${programId.value}/status`, { status: 'Active' });
+    program.status = res.data?.data?.status || 'Active';
+    await toast(res.data?.message || 'Program marked Active.', 'success');
+  } catch (e: any) {
+    await toast(e?.response?.data?.message || 'Failed to activate program.', 'danger');
+  } finally {
+    activating.value = false;
   }
 };
 
