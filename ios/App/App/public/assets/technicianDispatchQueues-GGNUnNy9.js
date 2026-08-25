@@ -1,0 +1,1 @@
+function e(e){if(!e)return`Unknown farmer`;let t=e.surname||e.last_name||``,n=[e.first_name,e.middle_name,e.ext_name].filter(Boolean).join(` `);return t&&n?`${t}, ${n}`:e.full_name||t||n||`Unknown farmer`}function t(e){let t=new Date(e);return Number.isNaN(t.getTime())?e:t.toLocaleDateString(`en-PH`,{month:`short`,day:`numeric`,year:`numeric`})}export{t as n,e as t};

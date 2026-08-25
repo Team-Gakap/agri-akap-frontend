@@ -1,0 +1,1 @@
+System.register([],function(t,e){return t("t",function(t){return t?/^https?:\/\//i.test(t)||t.startsWith("data:")?t:`${String("http://127.0.0.1:8000/api").replace(/\/api\/?$/,"")}/storage/${String(t).replace(/^\/+/,"")}`:null}),{setters:[],execute:function(){}}});

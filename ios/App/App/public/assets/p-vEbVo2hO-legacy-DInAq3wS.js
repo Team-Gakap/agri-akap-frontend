@@ -1,0 +1,1 @@
+System.register(["./p-vEbVo2hO-legacy-DFJufTIG.js"],function(t,e){var r,a,n,c,o;return{setters:[function(t){r=t.a,a=t.i,n=t.n,c=t.r,o=t.t}],execute:function(){t("MENU_BACK_BUTTON_PRIORITY",n),t("OVERLAY_BACK_BUTTON_PRIORITY",o),t("blockHardwareBackButton",c),t("shouldUseCloseWatcher",a),t("startHardwareBackButton",r)}}});

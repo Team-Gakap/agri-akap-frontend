@@ -1,0 +1,1 @@
+var e=`/assets/echague-logo-BWrydVEN.png`;export{e as t};

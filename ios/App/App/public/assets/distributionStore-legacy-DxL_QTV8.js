@@ -1,0 +1,1 @@
+System.register(["./axios-legacy-CnMBa2L6.js","./runtime-core.esm-bundler-legacy-BaDc03X3.js"],function(t,e){var n,u;return{setters:[function(t){n=t.u},function(t){u=t.K}],execute:function(){t("t",n("distribution",()=>{const t=u(null);return{context:t,setContext:function(e){t.value=e},clear:function(){t.value=null}}}))}}});

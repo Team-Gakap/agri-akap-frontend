@@ -1,0 +1,1 @@
+import{t as e}from"./p-Cl0B-RWe-NBPVihL3.js";export{e as createGesture};

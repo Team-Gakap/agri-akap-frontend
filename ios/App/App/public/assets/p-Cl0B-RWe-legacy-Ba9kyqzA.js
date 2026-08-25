@@ -1,0 +1,1 @@
+System.register(["./p-Cl0B-RWe-legacy-AfwNiVDu.js"],function(e,t){var n;return{setters:[function(e){e.n,n=e.t}],execute:function(){e("createGesture",n)}}});

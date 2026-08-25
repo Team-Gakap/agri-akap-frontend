@@ -1,0 +1,1 @@
+System.register([],function(n,t){return n({n:function(n){const t=Number(null==n?void 0:n.size_ha);return Number.isFinite(t)&&t>0?t:0},t:function(n,t){if(""===n||null==n)return"";const e=Number(n);return Number.isNaN(e)?String(n):String(function(n,t){const e=Number(n);return!Number.isFinite(e)||e<0?0:t>0&&e>t?t:e}(e,t))}}),{setters:[],execute:function(){}}});

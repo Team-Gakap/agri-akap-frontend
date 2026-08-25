@@ -1,1 +1,0 @@
-System.register(["./runtime-core.esm-bundler-legacy-Deqeokok.js","./axios-legacy-syneJVQp.js"],function(t,e){var n,u;return{setters:[function(t){n=t.U},function(t){u=t.u}],execute:function(){t("t",u("distribution",()=>{const t=n(null);return{context:t,setContext:function(e){t.value=e},clear:function(){t.value=null}}}))}}});

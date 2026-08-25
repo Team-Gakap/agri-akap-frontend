@@ -1,0 +1,1 @@
+function e(e){let t=Number(e?.size_ha);return Number.isFinite(t)&&t>0?t:0}function t(e,t){let n=Number(e);return!Number.isFinite(n)||n<0?0:t>0&&n>t?t:n}function n(e,n){if(e===``||e==null)return``;let r=Number(e);return String(Number.isNaN(r)?e:t(r,n))}export{e as n,n as t};

@@ -1,0 +1,1 @@
+System.register(["./p-CBzELu-H-legacy-CyrC0Wj7.js"],function(n,t){var e;return{setters:[function(n){e=n.n,n.t}],execute:function(){n("iosTransitionAnimation",e)}}});

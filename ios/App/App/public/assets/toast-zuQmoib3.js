@@ -1,0 +1,1 @@
+import{et as e}from"./dist-ou7plDrK.js";async function t(t,n=`success`,r=2600){let i=await e.create({message:t,duration:r,color:n,position:`top`});return await i.present(),i}var n={success:(e,n=2600)=>t(e,`success`,n),error:(e,n=2600)=>t(e,`danger`,n),warning:(e,n=2600)=>t(e,`warning`,n)};export{n,t};

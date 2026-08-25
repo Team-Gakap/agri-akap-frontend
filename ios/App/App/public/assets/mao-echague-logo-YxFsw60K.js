@@ -1,1 +1,0 @@
-var e=`/assets/mao-echague-logo-BDpikNpj.png`;export{e as t};

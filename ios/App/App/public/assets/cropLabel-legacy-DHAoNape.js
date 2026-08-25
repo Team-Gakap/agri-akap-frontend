@@ -1,0 +1,1 @@
+System.register([],function(t,e){return t("t",function(t){return t?"Both"===t?"Rice and Corn":t:"—"}),{setters:[],execute:function(){}}});

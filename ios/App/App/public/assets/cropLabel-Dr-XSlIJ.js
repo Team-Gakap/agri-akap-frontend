@@ -1,0 +1,1 @@
+function e(e){return e?e===`Both`?`Rice and Corn`:e:`—`}export{e as t};
