@@ -558,6 +558,7 @@ export async function syncAllPendingData(): Promise<{ synced: number; failed: nu
         client_id: r.client_id,
         farmer_id: r.farmer_id,
         rsbsa_no: r.rsbsa_no,
+        farm_plot_id: r.farm_plot_id,
         device_id: getDeviceId(),
         geometry_type: r.geometry_type,
         coordinates: r.coordinates,

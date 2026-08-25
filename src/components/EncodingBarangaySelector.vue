@@ -8,19 +8,16 @@
       </div>
     </div>
 
-    <ion-select
+    <SearchableSelect
       v-if="isAdminOverride"
-      class="field target-brgy"
+      variant="filter"
       label="Target Barangay"
-      label-placement="stacked"
-      interface="popover"
-      placeholder="Select barangay…"
-      :value="selectedBarangay"
+      placeholder="Search barangay…"
+      :options="barangayOptions"
+      :model-value="selectedBarangay"
       :disabled="loadingBarangays"
-      @ionChange="onBarangayChange"
-    >
-      <ion-select-option v-for="b in barangayOptions" :key="b" :value="b">{{ b }}</ion-select-option>
-    </ion-select>
+      @update:model-value="onBarangayPicked"
+    />
 
     <div v-else-if="!canEncode" class="warn-banner">
       No assigned barangay on this account. Ask MAO admin to set <code>assigned_barangay</code> before encoding.
@@ -29,8 +26,9 @@
 </template>
 
 <script setup lang="ts">
-import { IonSelect, IonSelectOption, IonIcon } from '@ionic/vue';
+import { IonIcon } from '@ionic/vue';
 import { createOutline } from 'ionicons/icons';
+import SearchableSelect from '@/components/SearchableSelect.vue';
 
 defineProps<{
   isAdminOverride: boolean;
@@ -45,8 +43,7 @@ const emit = defineEmits<{
   (e: 'change'): void;
 }>();
 
-const onBarangayChange = (e: CustomEvent) => {
-  const value = String(e.detail.value || '');
+const onBarangayPicked = (value: string) => {
   emit('update:selectedBarangay', value);
   emit('change');
 };
@@ -75,14 +72,6 @@ const onBarangayChange = (e: CustomEvent) => {
 }
 .admin-banner strong { display: block; margin-bottom: 0.2rem; }
 .admin-banner p { margin: 0; font-size: 0.82rem; opacity: 0.9; }
-
-.target-brgy {
-  max-width: 360px;
-  --background: #f8fafc;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 0 10px;
-}
 
 .warn-banner {
   background: #fff8e1;

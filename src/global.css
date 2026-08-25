@@ -24,6 +24,14 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Use the app toggle instead of the browser's second password-reveal control. */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear,
+ion-input::part(native)::-ms-reveal,
+ion-input::part(native)::-ms-clear {
+  display: none;
+}
+
 h1, h2, h3, h4, h5, h6 {
   color: var(--mao-text);
   letter-spacing: -0.01em;
@@ -413,5 +421,150 @@ table.mao-table {
     border-radius: 0 !important;
     overflow: visible !important;
   }
+}
+
+/* Encoding plot/farmer selects — full option text, no ellipsis */
+ion-popover.encoding-select-popover {
+  --width: min(420px, 92vw);
+  --max-width: 92vw;
+}
+ion-popover.encoding-select-popover ion-item {
+  --inner-padding-end: 12px;
+  align-items: flex-start;
+}
+ion-popover.encoding-select-popover ion-label,
+ion-popover.encoding-select-popover .item-inner,
+ion-popover.encoding-select-popover ion-item {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: unset !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Encoder fields — visible borders + dark text on white (Ionic
+   toolbars set --color:#fff which otherwise leaks into focused inputs)
+   ═══════════════════════════════════════════════════════════════════ */
+ion-input.field,
+ion-select.field,
+ion-textarea.field,
+ion-input.finput,
+ion-select.fselect,
+ion-textarea.ftextarea,
+ion-input.search-input {
+  --color: #0f172a;
+  --background: #ffffff;
+  --placeholder-color: #64748b;
+  --placeholder-opacity: 1;
+  --highlight-color-focused: #1a4731;
+  --highlight-color-valid: #1a4731;
+  --highlight-height: 0;
+  border: 1.5px solid #94a3b8;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0f172a;
+  box-sizing: border-box;
+  overflow: visible;
+  max-width: 100%;
+}
+
+ion-input.field,
+ion-select.field,
+ion-input.finput,
+ion-select.fselect,
+ion-input.search-input {
+  min-height: 42px;
+  height: auto;
+  max-height: none;
+}
+
+ion-select.field,
+ion-select.fselect {
+  display: flex;
+  align-items: center;
+  padding-inline: 12px;
+}
+
+ion-input.field.ion-focused,
+ion-select.field.ion-focused,
+ion-textarea.field.ion-focused,
+ion-input.finput.ion-focused,
+ion-select.fselect.ion-focused,
+ion-textarea.ftextarea.ion-focused,
+ion-input.search-input.ion-focused,
+ion-input.field:focus-within,
+ion-select.field:focus-within,
+ion-textarea.field:focus-within,
+ion-input.finput:focus-within,
+ion-select.fselect:focus-within,
+ion-textarea.ftextarea:focus-within {
+  border-color: #1a4731;
+  outline: 2px solid rgba(26, 71, 49, 0.18);
+  outline-offset: 1px;
+  box-shadow: none;
+}
+
+ion-select.field::part(text),
+ion-select.fselect::part(text),
+ion-select.field::part(placeholder),
+ion-select.fselect::part(placeholder) {
+  color: #0f172a;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  opacity: 1;
+  line-height: 1.25;
+  word-break: break-word;
+}
+ion-select.field::part(placeholder),
+ion-select.fselect::part(placeholder) {
+  color: #64748b;
+}
+
+ion-input.field::part(native),
+ion-input.finput::part(native),
+ion-input.search-input::part(native),
+ion-textarea.field::part(native),
+ion-textarea.ftextarea::part(native) {
+  color: #0f172a;
+  -webkit-text-fill-color: #0f172a;
+  caret-color: #0f172a;
+}
+
+.filter-bar input.filter-input,
+.filter-bar select.filter-select,
+.filter-bar textarea,
+.rpt-shell input.filter-input,
+.rpt-shell select.filter-select,
+input.filter-input,
+select.filter-select {
+  border: 1.5px solid #94a3b8;
+  border-radius: 6px;
+  background: #ffffff;
+  color: #0f172a;
+}
+.filter-bar input.filter-input:focus,
+.filter-bar select.filter-select:focus,
+.rpt-shell input.filter-input:focus,
+.rpt-shell select.filter-select:focus,
+input.filter-input:focus,
+select.filter-select:focus {
+  outline: none;
+  border-color: #1a4731;
+  box-shadow: 0 0 0 2px rgba(26, 71, 49, 0.14);
+}
+
+input.filter-input::placeholder,
+.ss-input::placeholder {
+  color: #64748b;
+  opacity: 1;
+}
+
+input:-webkit-autofill,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-text-fill-color: #0f172a !important;
+  caret-color: #0f172a;
+  box-shadow: 0 0 0 1000px #ffffff inset;
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset;
 }
 

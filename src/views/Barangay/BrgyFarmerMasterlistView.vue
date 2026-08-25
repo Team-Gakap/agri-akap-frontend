@@ -17,44 +17,46 @@
       </ion-toolbar>
     </ion-header>
 
-    <ion-content class="page-bg">
-      <div class="shell">
+    <ion-content class="rpt-content">
+      <div class="rpt-shell">
         <header class="intro">
           <h1>{{ barangayLabel }}</h1>
           <p class="lede">Farmers registered in your barangay.</p>
         </header>
 
-        <div v-if="loading && !farmers.length" class="center-state">
-          <ion-spinner name="crescent" color="primary"></ion-spinner>
-          <p>Loading farmers…</p>
-        </div>
-
-        <div v-else-if="error" class="center-state error">
-          <p>{{ error }}</p>
-          <ion-button @click="fetchFarmers()">Retry</ion-button>
-        </div>
-
-        <div v-else class="table-card">
-          <div class="table-meta">
-            <span>{{ meta.total.toLocaleString() }} farmers in your barangay</span>
+        <div class="grid-shell">
+          <div class="grid-head">
+            <span class="grid-title">Barangay farmer masterlist</span>
+            <span class="row-pill">{{ meta.total.toLocaleString() }} record(s)</span>
           </div>
-          <div class="table-wrap">
-            <table>
+
+          <div v-if="loading && !farmers.length" class="grid-state">
+            <ion-spinner name="crescent" color="primary"></ion-spinner>
+            <p>Loading farmers…</p>
+          </div>
+          <div v-else-if="error" class="grid-state error">
+            <p>{{ error }}</p>
+            <ion-button size="small" @click="fetchFarmers()">Retry</ion-button>
+          </div>
+          <div v-else class="table-scroll">
+            <table class="excel-table">
               <thead>
                 <tr>
+                  <th class="col-no">No</th>
                   <th>RSBSA No.</th>
-                  <th>Name</th>
+                  <th>Farmer Name</th>
                   <th>Birthdate</th>
                   <th>Mobile</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="!farmers.length">
-                  <td colspan="4" class="empty">No farmers found for your barangay.</td>
+                  <td colspan="5" class="empty-row">No farmers found for your barangay.</td>
                 </tr>
-                <tr v-for="f in farmers" :key="f.id">
+                <tr v-for="(f, i) in farmers" :key="f.id">
+                  <td class="col-no">{{ (meta.current_page - 1) * 15 + i + 1 }}</td>
                   <td class="mono">{{ f.rsbsa_no || '—' }}</td>
-                  <td><strong>{{ formatName(f) }}</strong></td>
+                  <td>{{ formatName(f) }}</td>
                   <td>{{ formatDate(f.birthdate) }}</td>
                   <td>{{ f.mobile_number || '—' }}</td>
                 </tr>
@@ -71,7 +73,7 @@
             >
               Previous
             </ion-button>
-            <span>Page {{ meta.current_page }} / {{ meta.last_page }}</span>
+            <span>Page {{ meta.current_page }} of {{ meta.last_page }}</span>
             <ion-button
               size="small"
               fill="outline"
@@ -155,71 +157,90 @@ onMounted(() => fetchFarmers());
 </script>
 
 <style scoped>
-.page-bg { --background: #f4f8f5; }
-.shell { max-width: 1000px; margin: 0 auto; padding: 1.1rem 1rem 2rem; }
+.rpt-content { --background: #eef2f0; }
+.rpt-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 0.75rem 1rem 1rem;
+  gap: 0.65rem;
+}
+.intro h1 { margin: 0; font-size: 1.25rem; font-weight: 900; color: #1a4731; }
+.lede { margin: 0.25rem 0 0; color: #64748b; font-size: 0.88rem; }
 
-.intro { margin-bottom: 1rem; }
-.eyebrow {
-  margin: 0;
+.grid-shell {
+  flex: 1;
+  min-height: 0;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.grid-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 1rem;
+  background: linear-gradient(90deg, #1a4731 0%, #245a3f 100%);
+}
+.grid-title { color: #d1e0d6; font-size: 0.9rem; font-weight: 700; }
+.row-pill {
+  background: #d4af37;
+  color: #1a4731;
   font-size: 0.72rem;
   font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #d4af37;
+  padding: 2px 10px;
+  border-radius: 999px;
 }
-.intro h1 {
-  margin: 0.25rem 0 0;
-  font-size: 1.4rem;
-  font-weight: 900;
-  color: #1a4731;
-}
-.lede {
-  margin: 0.3rem 0 0;
+.grid-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
   color: #64748b;
-  font-size: 0.9rem;
+  padding: 2rem;
 }
-
-.center-state { text-align: center; padding: 3rem 1rem; color: #64748b; }
-.center-state.error { color: #b91c1c; }
-
-.table-card {
-  background: #fff;
-  border: 1px solid #d5e3da;
-  border-radius: 16px;
-  overflow: hidden;
+.grid-state.error { color: #b91c1c; }
+.table-scroll { flex: 1; overflow: auto; }
+.excel-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 13px;
+  color: #1e293b;
+  min-width: 640px;
 }
-.table-meta {
-  padding: 0.75rem 1rem;
-  font-size: 0.8rem;
-  font-weight: 700;
-  color: #64748b;
-  border-bottom: 1px solid #e8f0ea;
-}
-.table-wrap { overflow-x: auto; }
-table { width: 100%; border-collapse: collapse; min-width: 640px; }
-th, td {
-  padding: 0.75rem 1rem;
+.excel-table th, .excel-table td {
+  border: 1px solid #cbd5e1;
+  padding: 4px 8px;
   text-align: left;
-  border-bottom: 1px solid #eef2f0;
-  font-size: 0.9rem;
+  white-space: nowrap;
 }
-th {
+.excel-table thead th {
+  position: sticky;
+  top: 0;
   background: #1a4731;
-  color: #d4af37;
-  font-size: 0.72rem;
+  color: #fff;
+  font-weight: 700;
+  font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.03em;
+  z-index: 2;
 }
-td strong { color: #1a4731; }
-.mono { font-family: ui-monospace, monospace; font-size: 0.82rem; }
-.empty { text-align: center; color: #94a3b8; padding: 2rem 1rem; }
-
+.excel-table tbody tr:nth-child(even) { background: #f8fafc; }
+.excel-table tbody tr:hover { background: #eef5ee; }
+.col-no { text-align: right; width: 44px; }
+.mono { font-family: 'Courier New', monospace; }
+.empty-row { text-align: center; color: #94a3b8; padding: 2rem 0; font-style: italic; }
 .pager {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 1rem;
-  padding: 0.85rem;
+  padding: 0.65rem;
   font-size: 0.85rem;
   color: #64748b;
   font-weight: 600;

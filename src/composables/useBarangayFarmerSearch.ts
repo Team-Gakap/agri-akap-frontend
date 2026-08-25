@@ -144,3 +144,8 @@ export function formatBirthday(d: string): string {
   const yy = String(dt.getFullYear()).slice(-2);
   return `${mm}-${dd}-${yy}`;
 }
+
+export function farmerDisplayName(f: FarmerOption): string {
+  const given = [f.first_name, f.middle_name, f.ext_name].filter(Boolean).join(' ');
+  return f.surname ? `${f.surname}, ${given}`.trim() : given || '—';
+}

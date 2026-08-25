@@ -3,7 +3,7 @@
     <ion-header class="gis-header">
       <ion-toolbar color="primary">
         <ion-buttons slot="start">
-          <ion-back-button default-href="/tech/dashboard"></ion-back-button>
+          <ion-back-button :default-href="plotId ? '/tech/geo-tag-queue' : '/tech/dashboard'"></ion-back-button>
         </ion-buttons>
         <ion-title>Mobile GIS Geo-Tag</ion-title>
       </ion-toolbar>
@@ -20,6 +20,7 @@
               <div class="float-main">
                 <span class="float-label">Farmer</span>
                 <strong class="float-farmer">{{ farmerDisplayName }}</strong>
+                <p v-if="assignedPlotLabel" class="float-plot">{{ assignedPlotLabel }}</p>
                 <button
                   v-if="hasAssignedFarmer"
                   type="button"
@@ -197,6 +198,10 @@
                 <ion-select-option value="Rice">Rice</ion-select-option>
                 <ion-select-option value="Corn">Corn</ion-select-option>
                 <ion-select-option value="High-Value Crops">High-Value Crops</ion-select-option>
+                <ion-select-option
+                  v-if="assignedPlotCommodity && !['Rice', 'Corn', 'High-Value Crops'].includes(assignedPlotCommodity)"
+                  :value="assignedPlotCommodity"
+                >{{ assignedPlotCommodity }}</ion-select-option>
               </ion-select>
             </ion-item>
             <ion-item>
@@ -448,6 +453,18 @@ const accuracyM = ref<number | null>(null);
 const draftPoints = ref<LatLngPoint[]>([]);
 const pendingGeometry = ref<PendingGeometry | null>(null);
 
+interface AssignedPlot {
+  id: string;
+  commodity: string;
+  parcel_name: string;
+  location_brgy: string;
+  size_ha: number;
+  planting_start_month: string | null;
+  planting_end_month: string | null;
+  remarks: string;
+}
+
+const plotId = ref(String(route.query.plot_id || route.query.plot || '').trim());
 const farmerId = ref(String(route.query.farmer || route.query.farmer_id || '').trim());
 const farmerName = ref(
   String(route.query.farmerName || route.query.farmer_name || route.query.name || '').trim(),
@@ -467,7 +484,95 @@ const farmerDisplayName = computed(() =>
 );
 
 const registeredAreaHa = ref(0);
-const farmerPlots = ref<Array<{ id: string; commodity: string; size_ha: number }>>([]);
+const farmerPlots = ref<AssignedPlot[]>([]);
+
+const plotFromQuery = (): AssignedPlot | null => {
+  const id = String(route.query.plot_id || route.query.plot || '').trim();
+  if (!id) return null;
+  return {
+    id,
+    commodity: String(route.query.commodity || '').trim(),
+    parcel_name: String(route.query.parcel_name || '').trim(),
+    location_brgy: String(route.query.barangay || '').trim(),
+    size_ha: Number(route.query.size_ha) || 0,
+    planting_start_month: String(route.query.planting_start || '').trim() || null,
+    planting_end_month: String(route.query.planting_end || '').trim() || null,
+    remarks: String(route.query.notes || '').trim(),
+  };
+};
+
+const assignedPlot = ref<AssignedPlot | null>(plotFromQuery());
+
+const mapApiPlot = (p: any): AssignedPlot => ({
+  id: String(p.id),
+  commodity: String(p.commodity || ''),
+  parcel_name: String(p.parcel_name || ''),
+  location_brgy: String(p.location_brgy || ''),
+  size_ha: Number(p.size_ha) || 0,
+  planting_start_month: p.planting_start_month || null,
+  planting_end_month: p.planting_end_month || null,
+  remarks: String(p.geotag_notes || p.remarks || ''),
+});
+
+const defaultParcelName = (p: AssignedPlot) => {
+  if (p.parcel_name.trim()) return p.parcel_name.trim();
+  return [p.commodity, p.location_brgy, p.size_ha ? `${p.size_ha.toFixed(2)} ha` : '']
+    .filter(Boolean)
+    .join(' · ') || 'Parcel 1';
+};
+
+const resolvedAssignedPlot = computed(() => {
+  if (assignedPlot.value && (!plotId.value || assignedPlot.value.id === plotId.value)) {
+    return assignedPlot.value;
+  }
+  if (plotId.value) {
+    return farmerPlots.value.find((p) => p.id === plotId.value) || plotFromQuery();
+  }
+  return plotFromQuery();
+});
+
+const assignedPlotLabel = computed(() => {
+  const p = resolvedAssignedPlot.value;
+  if (!p) return '';
+  return defaultParcelName(p);
+});
+
+const assignedPlotCommodity = computed(() => resolvedAssignedPlot.value?.commodity || '');
+
+const applyAssignedPlotMeta = () => {
+  if (formModalOpen.value) return;
+  const p = resolvedAssignedPlot.value;
+  if (!p) return;
+  if (p.commodity) meta.crop_planted = p.commodity;
+  meta.parcel_name = defaultParcelName(p);
+  if (p.planting_start_month) meta.planting_start_month = p.planting_start_month;
+  if (p.planting_end_month) meta.planting_end_month = p.planting_end_month;
+  if (p.remarks) meta.observations = p.remarks;
+};
+
+const loadAssignedPlot = async () => {
+  if (!plotId.value) {
+    assignedPlot.value = plotFromQuery();
+    applyAssignedPlotMeta();
+    return;
+  }
+  assignedPlot.value = plotFromQuery() || assignedPlot.value;
+  applyAssignedPlotMeta();
+  try {
+    const res = await apiClient.get(`/farm-plots/${plotId.value}`);
+    const p = res.data?.data;
+    if (p) {
+      assignedPlot.value = mapApiPlot(p);
+      applyAssignedPlotMeta();
+    }
+  } catch {
+    const fromFarmer = farmerPlots.value.find((p) => p.id === plotId.value);
+    if (fromFarmer) {
+      assignedPlot.value = fromFarmer;
+      applyAssignedPlotMeta();
+    }
+  }
+};
 
 const loadFarmerBudget = async (id: string) => {
   if (!id) {
@@ -480,11 +585,14 @@ const loadFarmerBudget = async (id: string) => {
     const f = res.data?.data;
     const plots = f?.farm_plots || f?.farmPlots || [];
     registeredAreaHa.value = Number(f?.total_farm_area_ha ?? 0) || 0;
-    farmerPlots.value = plots.map((p: any) => ({
-      id: String(p.id),
-      commodity: String(p.commodity || ''),
-      size_ha: Number(p.size_ha) || 0,
-    }));
+    farmerPlots.value = plots.map(mapApiPlot);
+    if (plotId.value) {
+      const match = farmerPlots.value.find((p) => p.id === plotId.value);
+      if (match && (!assignedPlot.value || assignedPlot.value.id === match.id)) {
+        assignedPlot.value = match;
+        applyAssignedPlotMeta();
+      }
+    }
   } catch {
     registeredAreaHa.value = 0;
     farmerPlots.value = [];
@@ -517,6 +625,8 @@ const clearFarmer = () => {
   farmerId.value = '';
   farmerName.value = '';
   rsbsaNo.value = '';
+  plotId.value = '';
+  assignedPlot.value = null;
   searchQuery.value = '';
   searchResults.value = [];
   registeredAreaHa.value = 0;
@@ -637,7 +747,21 @@ const meta = reactive({
   photoPreviewSrc: null as string | null,
 });
 
+watch(
+  () => [plotId.value, farmerPlots.value, assignedPlot.value] as const,
+  () => {
+    if (formModalOpen.value) return;
+    applyAssignedPlotMeta();
+  },
+);
+
 const matchingPlotForCrop = computed(() => {
+  if (plotId.value) {
+    return assignedPlot.value
+      || farmerPlots.value.find((p) => p.id === plotId.value)
+      || farmerPlots.value[0]
+      || null;
+  }
   const crop = String(meta.crop_planted || '').trim().toLowerCase();
   if (!crop) return null;
   return farmerPlots.value.find((p) => p.commodity.trim().toLowerCase() === crop)
@@ -788,6 +912,7 @@ const resetMetaForm = () => {
   aewSigRef.value?.clear();
   hasFarmerSignature.value = false;
   hasAewSignature.value = false;
+  applyAssignedPlotMeta();
 };
 
 const clearDraftLayers = () => {
@@ -1195,6 +1320,7 @@ const saveGeoTagRecord = async () => {
       farmer_id: farmerId.value || undefined,
       farmer_name: farmerDisplayName.value,
       rsbsa_no: rsbsaNo.value || undefined,
+      farm_plot_id: plotId.value || matchingPlotForCrop.value?.id || undefined,
       geometry_type: geometry.type,
       coordinates,
       crop_planted: meta.crop_planted,
@@ -1243,14 +1369,30 @@ watch(
     route.query.name,
     route.query.rsbsa,
     route.query.rsbsa_no,
+    route.query.plot_id,
+    route.query.plot,
+    route.query.commodity,
+    route.query.parcel_name,
+    route.query.barangay,
+    route.query.size_ha,
+    route.query.planting_start,
+    route.query.planting_end,
+    route.query.notes,
   ],
   () => {
     const id = String(route.query.farmer || route.query.farmer_id || '').trim();
     const name = String(route.query.farmerName || route.query.farmer_name || route.query.name || '').trim();
     const rsbsa = String(route.query.rsbsa || route.query.rsbsa_no || '').trim();
+    const pid = String(route.query.plot_id || route.query.plot || '').trim();
     if (id) farmerId.value = id;
     if (name) farmerName.value = name;
     if (rsbsa) rsbsaNo.value = rsbsa;
+    plotId.value = pid;
+    if (pid) {
+      assignedPlot.value = plotFromQuery() || assignedPlot.value;
+      applyAssignedPlotMeta();
+      void loadAssignedPlot();
+    }
   },
 );
 
@@ -1261,6 +1403,9 @@ onMounted(async () => {
   if (farmerId.value) {
     void loadFarmerBudget(farmerId.value);
   }
+  if (plotId.value) {
+    void loadAssignedPlot();
+  }
 });
 
 /** Ionic keeps pages cached — resize when this tab becomes visible again. */
@@ -1268,6 +1413,15 @@ onIonViewDidEnter(() => {
   clearScannerBackground();
   refreshMapSize();
   setTimeout(refreshMapSize, 200);
+  const pid = String(route.query.plot_id || route.query.plot || '').trim();
+  const id = String(route.query.farmer || route.query.farmer_id || '').trim();
+  const name = String(route.query.farmerName || route.query.farmer_name || route.query.name || '').trim();
+  const rsbsa = String(route.query.rsbsa || route.query.rsbsa_no || '').trim();
+  if (id) farmerId.value = id;
+  if (name) farmerName.value = name;
+  if (rsbsa) rsbsaNo.value = rsbsa;
+  plotId.value = pid;
+  if (pid) void loadAssignedPlot();
 });
 
 watch(farmerId, (id) => {
@@ -1379,6 +1533,14 @@ onBeforeUnmount(async () => {
   font-weight: 800;
   color: #1a4731;
   line-height: 1.2;
+}
+
+.float-plot {
+  margin: 0.2rem 0 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #0f766e;
+  line-height: 1.3;
 }
 
 .change-farmer-btn {

@@ -1,6 +1,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useAuthStore } from '@/stores/authStore';
 import apiClient from '@/utils/axios';
+import { ECHAGUE_BARANGAYS } from '@/data/echagueBarangays';
 
 /**
  * Shared barangay context for data-encoding forms.
@@ -25,9 +26,10 @@ export function useEncodingBarangay() {
     loadingBarangays.value = true;
     try {
       const res = await apiClient.get('/farmers/barangays');
-      barangayOptions.value = (res.data?.data ?? []).filter(Boolean);
+      const names = (res.data?.data ?? []).filter(Boolean);
+      barangayOptions.value = names.length ? names : [...ECHAGUE_BARANGAYS];
     } catch {
-      barangayOptions.value = [];
+      barangayOptions.value = [...ECHAGUE_BARANGAYS];
     } finally {
       loadingBarangays.value = false;
     }

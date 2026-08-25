@@ -220,7 +220,6 @@
                 :value="form.unit_of_measurement"
                 @ionChange="(e: any) => form.unit_of_measurement = e.detail.value"
               >
-                <ion-select-option value="Bags">Bags</ion-select-option>
                 <ion-select-option value="Sacks">Sacks</ion-select-option>
                 <ion-select-option value="Kg">Kg</ion-select-option>
                 <ion-select-option value="Cash (PHP)">Cash (PHP)</ion-select-option>

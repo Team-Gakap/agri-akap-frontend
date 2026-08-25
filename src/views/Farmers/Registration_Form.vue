@@ -5,7 +5,7 @@
         <ion-buttons slot="start">
           <ion-back-button :default-href="farmersHome" class="back-btn" />
         </ion-buttons>
-        <ion-title class="toolbar-title">RSBSA Enrollment Form</ion-title>
+        <ion-title class="toolbar-title">{{ isEdit ? 'Edit Farmer Record' : 'RSBSA Enrollment Form' }}</ion-title>
       </ion-toolbar>
     </ion-header>
 
@@ -20,7 +20,7 @@
             </div>
             <div class="lh-titles">
               <div class="lh-agency">REGISTRY SYSTEM FOR BASIC SECTORS IN AGRICULTURE</div>
-              <div class="lh-main">RSBSA Enrollment Form</div>
+              <div class="lh-main">{{ isEdit ? 'RSBSA Record Update' : 'RSBSA Enrollment Form' }}</div>
             </div>
           </div>
           <div class="lh-right">
@@ -48,7 +48,7 @@
         <!--Part 1-->
         <div class="form-section">
           <div class="part-banner">
-            <div class="part-label">PART 1</div>
+            <div class="part-label">PART I</div>
             <div class="part-title">PERSONAL INFORMATION</div>
           </div>
 
@@ -137,8 +137,14 @@
                   <ion-input v-model="farmer.permanent_street" class="finput" />
                 </div>
                 <div class="field-wrap">
-                  <label class="flabel req">BARANGAY</label>
-                  <ion-input v-model="farmer.permanent_brgy" class="finput" />
+                  <SearchableSelect
+                    v-model="farmer.permanent_brgy"
+                    label="Barangay"
+                    placeholder="Search barangay…"
+                    :options="barangayOptions"
+                    required
+                    @change="onPermanentBrgy"
+                  />
                 </div>
               </div>
               <div class="fgrid g3 mt6">
@@ -176,8 +182,14 @@
                   <ion-input v-model="farmer.provincial_street" class="finput" :disabled="sameAddress" />
                 </div>
                 <div class="field-wrap">
-                  <label class="flabel">BARANGAY</label>
-                  <ion-input v-model="farmer.provincial_brgy" class="finput" :disabled="sameAddress" />
+                  <SearchableSelect
+                    v-model="farmer.provincial_brgy"
+                    label="Barangay"
+                    placeholder="Search barangay…"
+                    :options="barangayOptions"
+                    :disabled="sameAddress"
+                    @change="onProvincialBrgy"
+                  />
                 </div>
               </div>
               <div class="fgrid g3 mt6">
@@ -347,19 +359,19 @@
         <div class="form-section">
           
           <div class="part-banner">
-            <div class="part-label">PART 2</div>
-            <div class="part-title">LIVELIHOOD PROFILE</div>
+            <div class="part-label">PART II</div>
+            <div class="part-title">FARM PROFILE</div>
           </div>
 
           <!--  Livelihood  -->
           <div class="subsection">
-            <div class="subsection-title">LIVELIHOOD / TYPE OF FARMER</div>
+            <div class="subsection-title">MAIN LIVELIHOOD</div>
             <div class="subsection-body">
               <div class="radio-row wrap">
-                <label v-for="lv in livelihoodTypes" :key="lv"
-                  class="radio-pill" :class="{ active: farmer.livelihood_type === lv }">
-                  <input type="radio" v-model="farmer.livelihood_type" :value="lv" @change="onLivelihoodTypeChange" class="r-hidden" />
-                  <span class="r-dot"></span> {{ lv }}
+                <label v-for="lv in livelihoodTypes" :key="lv.value"
+                  class="radio-pill" :class="{ active: farmer.livelihood_type === lv.value }">
+                  <input type="radio" v-model="farmer.livelihood_type" :value="lv.value" @change="onLivelihoodTypeChange" class="r-hidden" />
+                  <span class="r-dot"></span> {{ lv.label }}
                 </label>
               </div>
             </div>
@@ -385,7 +397,7 @@
         <div class="form-section">
 
           <div class="part-banner">
-            <div class="part-label">PART 3</div>
+            <div class="part-label">PART III</div>
             <div class="part-title">FARM PARCEL INFORMATION</div>
           </div>
 
@@ -405,8 +417,14 @@
               <div class="subsection-body">
                 <div class="fgrid g3">
                   <div class="field-wrap">
-                    <label class="flabel req">BARANGAY</label>
-                    <ion-input v-model="plot.location_brgy" class="finput" />
+                    <SearchableSelect
+                      :model-value="plot.location_brgy"
+                      label="Barangay"
+                      placeholder="Search barangay…"
+                      :options="barangayOptions"
+                      required
+                      @update:model-value="(v) => onPlotBrgy(idx, v)"
+                    />
                   </div>
                   <div class="field-wrap">
                     <label class="flabel req">MUNICIPALITY / CITY</label>
@@ -417,25 +435,6 @@
                     <ion-input v-model="plot.location_province" class="finput" />
                   </div>
                 </div>
-                <div class="fgrid g3 mt6">
-                  <div class="field-wrap">
-                    <label class="flabel">LATITUDE (GPS)</label>
-                    <ion-input type="number" v-model="plot.latitude" class="finput" placeholder="e.g. 14.5995" />
-                  </div>
-                  <div class="field-wrap">
-                    <label class="flabel">LONGITUDE (GPS)</label>
-                    <ion-input type="number" v-model="plot.longitude" class="finput" placeholder="e.g. 120.9842" />
-                  </div>
-                  <div class="field-wrap">
-                    <label class="flabel">GEOREF ID / GPX ID</label>
-                    <ion-input v-model="plot.georef_id" class="finput" placeholder="e.g. GPX-ECH-0001" />
-                  </div>
-                </div>
-                <ion-button fill="outline" size="small" class="gps-btn mt6"
-                  :disabled="plot.locating" @click="useCurrentLocation(idx)">
-                  <span v-if="plot.locating">Locating…</span>
-                  <span v-else>Use current location</span>
-                </ion-button>
               </div>
             </div>
 
@@ -472,17 +471,17 @@
             <!-- Land Owner -->
             <div class="subsection">
               <div class="subsection-title">
-                LAND OWNER INFORMATION
-                <span v-if="plot.ownership_type === 'Tenant'" class="tenant-flag">Required for Tenant</span>
+                NAME OF LAND OWNER
+                <span v-if="needsLandOwner(plot)" class="tenant-flag">Required for Tenant / Lessee</span>
               </div>
               <div class="subsection-body">
                 <div class="fgrid g3">
                   <div class="field-wrap">
-                    <label class="flabel" :class="{ req: plot.ownership_type === 'Tenant' }">LAND OWNER'S FIRST NAME</label>
+                    <label class="flabel" :class="{ req: needsLandOwner(plot) }">LAND OWNER'S FIRST NAME</label>
                     <ion-input v-model="plot.land_owner_first_name" class="finput" />
                   </div>
                   <div class="field-wrap">
-                    <label class="flabel" :class="{ req: plot.ownership_type === 'Tenant' }">LAND OWNER'S SURNAME</label>
+                    <label class="flabel" :class="{ req: needsLandOwner(plot) }">LAND OWNER'S SURNAME</label>
                     <ion-input v-model="plot.land_owner_surname" class="finput" />
                   </div>
                   <div class="field-wrap">
@@ -490,7 +489,7 @@
                     <ion-input v-model="plot.land_owner_ext_name" class="finput" />
                   </div>
                 </div>
-                <div class="field-wrap mt6" v-if="plot.ownership_type === 'Tenant'">
+                <div class="field-wrap mt6" v-if="needsLandOwner(plot)">
                   <label class="flabel req">LAND OWNER'S RSBSA NO.</label>
                   <ion-input v-model="plot.land_owner_rsbsa_no" class="finput" placeholder="Landowner's RSBSA reference number" />
                 </div>
@@ -505,24 +504,34 @@
             <div class="subsection">
               <div class="subsection-title">COMMODITY DETAILS</div>
               <div class="subsection-body">
-                <div class="commodity-tbl">
-                  <div class="ctbl-head">
-                    <span>COMMODITY</span>
-                    <span>SIZE (ha)</span>
-                    <span>NO. OF HEADS / TREES</span>
-                    <span>FARM TYPE</span>
-                    <span>ORGANIC</span>
+                <div class="fgrid g3">
+                  <div class="field-wrap">
+                    <label class="flabel req">COMMODITY</label>
+                    <ion-select v-model="plot.commodity" interface="popover" class="fselect" placeholder="Select commodity">
+                      <ion-select-option v-for="c in commodityOptions" :key="c" :value="c">{{ c }}</ion-select-option>
+                    </ion-select>
                   </div>
-                  <div class="ctbl-body">
-                    <ion-input v-model="plot.commodity" class="finput" placeholder="e.g. Rice, Corn, Livestock" />
+                  <div class="field-wrap">
+                    <label class="flabel req">SIZE (ha)</label>
                     <ion-input type="number" v-model="plot.size_ha" class="finput" placeholder="0.0000" />
+                  </div>
+                  <div class="field-wrap">
+                    <label class="flabel">NO. OF HEADS / TREES</label>
                     <ion-input type="number" v-model="plot.no_of_heads_or_trees" class="finput" placeholder="0" />
-                    <ion-select v-model="plot.farm_type" interface="popover" class="fselect" placeholder="Select">
+                  </div>
+                </div>
+                <div class="fgrid g3 mt6">
+                  <div class="field-wrap">
+                    <label class="flabel req">FARM TYPE</label>
+                    <ion-select v-model="plot.farm_type" interface="popover" class="fselect" placeholder="Select farm type">
                       <ion-select-option v-for="ft in farmTypes" :key="ft" :value="ft">{{ ft }}</ion-select-option>
                     </ion-select>
-                    <div class="organic-cell">
+                  </div>
+                  <div class="field-wrap">
+                    <label class="flabel">ORGANIC PRACTITIONER</label>
+                    <div class="organic-row">
                       <ion-checkbox v-model="plot.is_organic" class="fcheck" />
-                      <span class="chk-label">Yes</span>
+                      <span class="chk-label">Yes, organic</span>
                     </div>
                   </div>
                 </div>
@@ -561,7 +570,7 @@
         <!--  SUBMIT button-->
         <ion-button expand="block" class="submit-btn" :disabled="isSubmitting" @click="submitForm">
           <span v-if="isSubmitting">Submitting...</span>
-          <span v-else> SUBMIT ENROLLMENT FORM</span>
+          <span v-else>{{ isEdit ? 'SAVE FARMER RECORD' : 'SUBMIT ENROLLMENT FORM' }}</span>
         </ion-button>
 
         <div class="footer-line">
@@ -580,14 +589,25 @@ import {
   toastController,
 } from "@ionic/vue";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
-import { Geolocation } from "@capacitor/geolocation";
 
 import { reactive, ref, onMounted, computed } from "vue";
 import axiosInstance from "@/utils/axios";
-import { useRouter } from "vue-router";
-// import AppNavbar from '@/components/AppNavbar.vue'; // Unused in this layout
+import { useRouter, useRoute } from "vue-router";
+import SearchableSelect from "@/components/SearchableSelect.vue";
+import { useOfficialBarangays } from "@/composables/useOfficialBarangays";
+import {
+  COMMODITY_OPTIONS,
+  ECHAGUE_CITY,
+  ECHAGUE_PROVINCE,
+  ECHAGUE_REGION,
+} from "@/data/echagueBarangays";
 
 const router = useRouter();
+const route = useRoute();
+const { barangays: barangayOptions } = useOfficialBarangays();
+
+const editId = computed(() => String(route.query.id || "").trim());
+const isEdit = computed(() => !!editId.value);
 
 // Return to the farmer registry (admin) or technician home (tech uses QR lookup).
 const farmersHome = computed(() =>
@@ -637,9 +657,17 @@ const govIdTypes = [
   "PhilSys ID","GSIS UMID","SSS UMID","Driver's License","PRC ID",
   "Voter's ID","Passport","Postal ID","OFW ID","PWD ID","Senior Citizen ID","Others",
 ];
-const livelihoodTypes = ["Farmer","Farm Worker","Fisher","Agri-Youth"];
+/** Labels follow DA RSBSA Form 01-2024; values stay API-compatible. */
+const livelihoodTypes = [
+  { value: "Farmer", label: "Farmer" },
+  { value: "Farm Worker", label: "Farmworker" },
+  { value: "Fisher", label: "Fisherfolk" },
+  { value: "Agri-Youth", label: "Agri-youth" },
+];
 const ownershipTypes  = ["Registered Owner","Tenant","Lessee","Others"];
 const farmTypes       = ["Irrigated","Rainfed Upland","Rainfed Lowland","Urban/Peri-Urban"];
+const needsLandOwner  = (plot: { ownership_type: string }) =>
+  plot.ownership_type === "Tenant" || plot.ownership_type === "Lessee";
 
 // DA RSBSA livelihood sub-classifications, keyed by the broad livelihood type.
 const livelihoodDetailMap: Record<string, string[]> = {
@@ -712,13 +740,10 @@ const farmer = reactive({
 
 /* ── farm plots ── */
 const createPlot = () => ({
+  id: "" as string,
   location_brgy: "", 
-  location_city: "", 
-  location_province: "",
-  latitude: "" as string|number, 
-  longitude: "" as string|number,
-  georef_id: "",
-  locating: false,
+  location_city: ECHAGUE_CITY, 
+  location_province: ECHAGUE_PROVINCE,
   total_parcel_area_ha: "" as string|number,
   is_ancestral_domain: false, 
   is_agrarian_reform_beneficiary: false,
@@ -738,27 +763,14 @@ const createPlot = () => ({
   remarks: "",
 });
 const farmPlots = reactive([createPlot()]);
+const commodityOptions = computed(() => {
+  const extra = farmPlots
+    .map((p) => p.commodity)
+    .filter((c) => c && !(COMMODITY_OPTIONS as readonly string[]).includes(c));
+  return [...COMMODITY_OPTIONS, ...Array.from(new Set(extra))];
+});
 const addPlot    = () => farmPlots.push(createPlot());
 const removePlot = (i: number) => farmPlots.splice(i, 1);
-
-/* Capture the device GPS fix into a plot's latitude/longitude. */
-const useCurrentLocation = async (i: number) => {
-  const plot = farmPlots[i];
-  plot.locating = true;
-  try {
-    const pos = await Geolocation.getCurrentPosition({
-      enableHighAccuracy: true,
-      timeout: 15000,
-    });
-    plot.latitude = Number(pos.coords.latitude.toFixed(6));
-    plot.longitude = Number(pos.coords.longitude.toFixed(6));
-    await showToast(`Location captured for Farm Plot ${i + 1}.`, 'success');
-  } catch {
-    await showToast('Unable to get GPS location. You may enter coordinates manually.', 'warning');
-  } finally {
-    plot.locating = false;
-  }
-};
 
 /* age compute */
 const computeAge = () => {
@@ -786,6 +798,31 @@ const onSameAddress  = () => {
   }
 };
 
+const onPermanentBrgy = (value: string) => {
+  farmer.permanent_brgy = value;
+  if (value) {
+    farmer.permanent_city = ECHAGUE_CITY;
+    farmer.permanent_province = ECHAGUE_PROVINCE;
+    farmer.permanent_region = ECHAGUE_REGION;
+    if (sameAddress.value) onSameAddress();
+  }
+};
+const onProvincialBrgy = (value: string) => {
+  farmer.provincial_brgy = value;
+  if (value && !sameAddress.value) {
+    farmer.provincial_city = ECHAGUE_CITY;
+    farmer.provincial_province = ECHAGUE_PROVINCE;
+    farmer.provincial_region = ECHAGUE_REGION;
+  }
+};
+const onPlotBrgy = (idx: number, value: string) => {
+  farmPlots[idx].location_brgy = value;
+  if (value) {
+    farmPlots[idx].location_city = ECHAGUE_CITY;
+    farmPlots[idx].location_province = ECHAGUE_PROVINCE;
+  }
+};
+
 /* ── Auto-Generate Transaction Code ── */
 const generateTransactionCode = () => {
   const date = new Date();
@@ -797,10 +834,83 @@ const generateTransactionCode = () => {
   return `ECH-${year}${month}-${randomStr}`; // e.g., ECH-202606-A1B2
 };
 
+const API_BASE = import.meta.env.VITE_API_URL?.replace('/api', '') ?? 'http://127.0.0.1:8000';
+
+const applyFarmerRecord = (data: any) => {
+  const skip = new Set(['farm_plots', 'farmPlots', 'distributions', 'photo_base64']);
+  Object.keys(farmer).forEach((key) => {
+    if (skip.has(key)) return;
+    if (data[key] !== undefined && data[key] !== null) {
+      (farmer as any)[key] = data[key];
+    }
+  });
+  farmer.no_middle_name = !!data.no_middle_name;
+  farmer.no_ext_name = !!data.no_ext_name;
+  farmer.is_mobile_owner = data.is_mobile_owner !== false;
+  farmer.is_icc_ip = !!data.is_icc_ip;
+  farmer.is_pwd = !!data.is_pwd;
+  farmer.is_4ps_beneficiary = !!data.is_4ps_beneficiary;
+  if (data.birthdate) {
+    farmer.birthdate = String(data.birthdate).slice(0, 10);
+    computeAge();
+  }
+  if (data.photo_path) {
+    photoPreview.value = `${API_BASE}/storage/${data.photo_path}`;
+  }
+  const plots = data.farm_plots || data.farmPlots || [];
+  farmPlots.splice(0, farmPlots.length);
+  if (plots.length) {
+    plots.forEach((p: any) => {
+      const row = createPlot();
+      Object.assign(row, {
+        id: p.id || '',
+        location_brgy: p.location_brgy || '',
+        location_city: p.location_city || ECHAGUE_CITY,
+        location_province: p.location_province || ECHAGUE_PROVINCE,
+        total_parcel_area_ha: p.total_parcel_area_ha ?? '',
+        is_ancestral_domain: !!p.is_ancestral_domain,
+        is_agrarian_reform_beneficiary: !!p.is_agrarian_reform_beneficiary,
+        ownership_type: p.ownership_type || '',
+        land_owner_first_name: p.land_owner_first_name || '',
+        land_owner_surname: p.land_owner_surname || '',
+        land_owner_ext_name: p.land_owner_ext_name || '',
+        land_owner_rsbsa_no: p.land_owner_rsbsa_no || '',
+        proof_of_ownership_document: p.proof_of_ownership_document || '',
+        commodity: p.commodity || '',
+        size_ha: p.size_ha ?? '',
+        no_of_heads_or_trees: p.no_of_heads_or_trees ?? '',
+        farm_type: p.farm_type || '',
+        is_organic: !!p.is_organic,
+        cropping_schedule: p.cropping_schedule || '',
+        rotational_tiller_full_name: p.rotational_tiller_full_name || '',
+        remarks: p.remarks || '',
+      });
+      farmPlots.push(row);
+    });
+  } else {
+    farmPlots.push(createPlot());
+  }
+};
+
+const loadFarmerForEdit = async () => {
+  try {
+    const res = await axiosInstance.get(`/farmers/${editId.value}`);
+    const data = res.data?.data;
+    if (!data) throw new Error('empty');
+    applyFarmerRecord(data);
+  } catch {
+    errorMsg.value = 'Could not load this farmer record for editing.';
+    await showToast('Could not load farmer record.', 'danger');
+  }
+};
+
 // Trigger when the page loads
-onMounted(() => {
+onMounted(async () => {
+  if (isEdit.value) {
+    await loadFarmerForEdit();
+    return;
+  }
   farmer.transaction_code = generateTransactionCode();
-  // RSBSA is assigned by the API on enroll (see FarmerController::store)
   farmer.rsbsa_no = "";
 });
 
@@ -832,14 +942,12 @@ const validate = (): boolean => {
     if (!p.location_brgy.trim())               { errorMsg.value = `${n}: Barangay is required.`;             return false; }
     if (!p.location_city.trim())               { errorMsg.value = `${n}: Municipality/City is required.`;    return false; }
     if (!p.location_province.trim())           { errorMsg.value = `${n}: Province is required.`;             return false; }
-    if (p.latitude !== "" && (Number(p.latitude) < -90 || Number(p.latitude) > 90))       { errorMsg.value = `${n}: Latitude must be between -90 and 90.`;   return false; }
-    if (p.longitude !== "" && (Number(p.longitude) < -180 || Number(p.longitude) > 180))  { errorMsg.value = `${n}: Longitude must be between -180 and 180.`; return false; }
     if (!p.total_parcel_area_ha)               { errorMsg.value = `${n}: Total Parcel Area is required.`;    return false; }
     if (!p.ownership_type)                     { errorMsg.value = `${n}: Ownership Type is required.`;       return false; }
-    if (p.ownership_type === 'Tenant') {
-      if (!p.land_owner_first_name.trim())     { errorMsg.value = `${n}: Landowner first name is required for tenants.`; return false; }
-      if (!p.land_owner_surname.trim())        { errorMsg.value = `${n}: Landowner surname is required for tenants.`;    return false; }
-      if (!p.land_owner_rsbsa_no.trim())       { errorMsg.value = `${n}: Landowner RSBSA number is required for tenants.`; return false; }
+    if (needsLandOwner(p)) {
+      if (!p.land_owner_first_name.trim())     { errorMsg.value = `${n}: Landowner first name is required for tenants/lessees.`; return false; }
+      if (!p.land_owner_surname.trim())        { errorMsg.value = `${n}: Landowner surname is required for tenants/lessees.`;    return false; }
+      if (!p.land_owner_rsbsa_no.trim())       { errorMsg.value = `${n}: Landowner RSBSA number is required for tenants/lessees.`; return false; }
     }
     if (!p.proof_of_ownership_document.trim()) { errorMsg.value = `${n}: Proof of Ownership is required.`;   return false; }
     if (!p.commodity.trim())                   { errorMsg.value = `${n}: Commodity is required.`;            return false; }
@@ -859,20 +967,46 @@ const submitForm = async () => {
   errorMsg.value = ""; // clear previous errors
 
   try {
-    // Send null RSBSA so the API assigns a unique sequential number
-    // (ConvertEmptyStringsToNull previously saved blank enrollments as null).
+    const plots = farmPlots.map((p) => ({
+      ...(p.id ? { id: p.id } : {}),
+      location_brgy: p.location_brgy,
+      location_city: p.location_city,
+      location_province: p.location_province,
+      total_parcel_area_ha: p.total_parcel_area_ha,
+      is_ancestral_domain: !!p.is_ancestral_domain,
+      is_agrarian_reform_beneficiary: !!p.is_agrarian_reform_beneficiary,
+      ownership_type: p.ownership_type,
+      land_owner_first_name: p.land_owner_first_name || null,
+      land_owner_surname: p.land_owner_surname || null,
+      land_owner_ext_name: p.land_owner_ext_name || null,
+      land_owner_rsbsa_no: p.land_owner_rsbsa_no || null,
+      proof_of_ownership_document: p.proof_of_ownership_document,
+      commodity: p.commodity,
+      size_ha: p.size_ha,
+      no_of_heads_or_trees: p.no_of_heads_or_trees === '' ? null : p.no_of_heads_or_trees,
+      farm_type: p.farm_type,
+      is_organic: !!p.is_organic,
+      cropping_schedule: p.cropping_schedule || null,
+      rotational_tiller_full_name: p.rotational_tiller_full_name || null,
+      remarks: p.remarks || null,
+    }));
+
     const payload = {
       ...farmer,
-      rsbsa_no: null,
-      plots: farmPlots,
+      rsbsa_no: isEdit.value ? (farmer.rsbsa_no || null) : null,
+      plots,
     };
 
-    const res = await axiosInstance.post('/farmers', payload);
+    const res = isEdit.value
+      ? await axiosInstance.patch(`/farmers/${editId.value}`, payload)
+      : await axiosInstance.post('/farmers', payload);
     
     if (res.data.status === 'success' || res.status === 200 || res.status === 201) {
       const assigned = res.data?.data?.rsbsa_no;
       await showToast(
-        assigned ? `Farmer enrolled. RSBSA: ${assigned}` : 'Farmer enrolled successfully!',
+        isEdit.value
+          ? 'Farmer record updated.'
+          : (assigned ? `Farmer enrolled. RSBSA: ${assigned}` : 'Farmer enrolled successfully!'),
         'success',
       );
       router.push(farmersHome.value);
@@ -900,7 +1034,7 @@ const submitForm = async () => {
 
 <style scoped>
 /* ═══════ DESIGN TOKENS — auto light / dark ═══════ */
-:host {
+.page-wrapper {
   /* Light mode */
   --bg-page:       #f2efea;
   --bg-card:       #ffffff;
@@ -927,10 +1061,14 @@ const submitForm = async () => {
   --sub-head-bg:   #e8f0eb;
   --sub-head-txt:  #1a4731;
   --sub-border:    #2a6648;
+
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 16px 16px 64px;
 }
 
 @media (prefers-color-scheme: dark) {
-  :host {
+  .page-wrapper {
     --bg-page:       #0f1a14;
     --bg-card:       #1a2820;
     --bg-sub:        #1e3028;
@@ -960,17 +1098,11 @@ const submitForm = async () => {
 }
 
 /* ═══════ GLOBAL ═══════ */
-.rsbsa-toolbar { --background: var(--c-green); --color: #fff; }
-.toolbar-title { font-weight: 700; letter-spacing: .4px; }
+.rsbsa-toolbar { --background: #1a4731; --color: #fff; }
+.toolbar-title { font-weight: 700; letter-spacing: .4px; color: #fff; }
 .back-btn { --color: #fff; }
 
-.rsbsa-content { --background: var(--bg-page); }
-
-.page-wrapper {
-  max-width: 960px;
-  margin: 0;
-  padding: 12px 12px 64px;
-}
+.rsbsa-content { --background: #f2efea; }
 
 /* ═══════ LETTERHEAD ═══════ */
 .letterhead {
@@ -978,10 +1110,11 @@ const submitForm = async () => {
   justify-content: space-between;
   align-items: center;
   background: var(--bg-card);
-  border: 2px solid var(--c-border);
+  border: 1px solid #d5d9d6;
   padding: 12px 16px;
-  margin-bottom: 8px;
-  border-radius: 4px;
+  margin-bottom: 12px;
+  border-radius: 8px;
+  box-shadow: 0 1px 2px rgba(26, 71, 49, 0.04);
 }
 .lh-left { display: flex; align-items: center; gap: 14px; }
 .lh-seal {
@@ -1022,25 +1155,36 @@ const submitForm = async () => {
 
 /* ═══════ TRANSACTION ROW ═══════ */
 .tx-row {
-  display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 14px;
+  margin-bottom: 12px;
+  align-items: start;
 }
 
 /* ═══════ FORM SECTION ═══════ */
 .form-section {
   background: var(--bg-card);
-  border: 2px solid var(--c-border);
-  border-radius: 4px;
-  margin-bottom: 14px;
-  overflow: hidden;
+  border: 1px solid #d5d9d6;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  overflow: visible;
+  box-shadow: 0 1px 2px rgba(26, 71, 49, 0.04);
 }
 
-/* ── Part Banner ── */
+/* Keep part banner corners tidy without clipping field borders */
 .part-banner {
   display: flex;
   align-items: stretch;
   background: var(--part-head-bg);
-  border-bottom: 2px solid var(--c-border);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  position: sticky;
+  top: 0;
+  z-index: 4;
 }
+
+/* ── Part Banner ── */
 .part-label {
   background: var(--c-gold);
   color: var(--c-green);
@@ -1051,7 +1195,7 @@ const submitForm = async () => {
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  border-right: 2px solid rgba(0,0,0,.2);
+  border-right: none;
 }
 .part-title {
   color: var(--part-head-txt);
@@ -1063,86 +1207,237 @@ const submitForm = async () => {
   align-items: center;
 }
 
-/* ── Subsection ── */
+/* ── Subsection: spacing over stacked rules ── */
 .subsection {
-  border-bottom: 1px solid var(--c-border);
+  border-bottom: none;
+}
+.subsection + .subsection {
+  border-top: 1px solid #eef1ef;
 }
 .subsection:last-child { border-bottom: none; }
 
 .subsection-title {
-  background: var(--sub-head-bg);
+  background: transparent;
   color: var(--sub-head-txt);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
-  letter-spacing: .6px;
-  padding: 6px 14px;
-  border-bottom: 1px solid var(--sub-border);
+  letter-spacing: .5px;
+  padding: 14px 16px 2px;
+  border-bottom: none;
   text-transform: uppercase;
 }
 .subsection-body {
-  padding: 10px 14px 12px;
+  padding: 10px 16px 18px;
+  overflow: visible;
 }
 
 /* ═══════ GRID ═══════ */
-.fgrid   { display: grid; gap: 8px; }
+.fgrid {
+  display: grid;
+  gap: 14px 16px;
+  align-items: start;
+}
 .g1 { grid-template-columns: 1fr; }
-.g2 { grid-template-columns: 1fr 1fr; }
-.g3 { grid-template-columns: 1fr 1fr 1fr; }
-.g4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+.g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .mt4 { margin-top: 4px; }
-.mt6 { margin-top: 6px; }
+.mt6 { margin-top: 8px; }
 
 /* ═══════ FIELD ═══════ */
-.field-wrap { display: flex; flex-direction: column; }
+.field-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
 
 .flabel {
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: .4px;
+  letter-spacing: .35px;
   color: var(--c-label);
   text-transform: uppercase;
-  margin-bottom: 3px;
+  margin: 0;
+  line-height: 1.2;
+  min-height: 14px;
 }
 .flabel.req::after { content: " *"; color: var(--c-red); }
 
+/* Shared control rhythm — same height for input / select / barangay picker */
+.finput,
+.fselect,
+.ftextarea {
+  --control-h: 42px;
+  --control-radius: 6px;
+  --control-border: #94a3b8;
+  --control-border-focus: #1a4731;
+}
+
 /* ═══════ INPUTS ═══════ */
 .finput {
-  --background:       var(--bg-input);
-  --color:            var(--c-text);
-  --placeholder-color: var(--c-text-soft);
+  --background: #ffffff;
+  --color: #0f172a;
+  --placeholder-color: #64748b;
   --placeholder-opacity: 1;
-  --padding-start: 8px;
-  --padding-end:   8px;
-  --padding-top:   6px;
-  --padding-bottom:6px;
-  border: 1px solid var(--c-border-in);
-  border-radius: 3px;
+  --padding-start: 12px;
+  --padding-end: 12px;
+  --padding-top: 0;
+  --padding-bottom: 0;
+  --highlight-height: 0;
+  border: 1.5px solid var(--control-border);
+  border-radius: var(--control-radius);
   font-size: 13px;
-  min-height: 36px;
+  min-height: var(--control-h);
+  height: auto;
+  max-height: none;
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: none;
+  margin: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow: visible;
+}
+.finput.ion-focused,
+.finput:focus-within {
+  border-color: var(--control-border-focus);
+  outline: 2px solid rgba(26, 71, 49, 0.18);
+  outline-offset: 1px;
+  box-shadow: none;
 }
 .finput[disabled] {
   --background: var(--bg-input-dis);
-  opacity: .6;
+  opacity: .65;
+}
+.finput::part(native) {
+  min-width: 0;
+  width: 100%;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .fselect {
-  background: var(--bg-input);
-  color: var(--c-text);
-  border: 1px solid var(--c-border-in);
-  border-radius: 3px;
-  padding: 7px 8px;
+  --background: #ffffff;
+  --color: #0f172a;
+  --placeholder-color: #64748b;
+  --padding-start: 12px;
+  --padding-end: 28px;
+  --padding-top: 0;
+  --padding-bottom: 0;
+  --highlight-height: 0;
+  background: #ffffff;
+  color: #0f172a;
+  border: 1.5px solid var(--control-border);
+  border-radius: var(--control-radius);
+  padding-inline: 12px;
   font-size: 13px;
-  min-height: 36px;
+  min-height: var(--control-h);
+  height: auto;
+  max-height: none;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  box-shadow: none;
+  box-sizing: border-box;
+  overflow: visible;
+}
+.fselect.ion-focused,
+.fselect:focus-within {
+  border-color: var(--control-border-focus);
+  outline: 2px solid rgba(26, 71, 49, 0.18);
+  outline-offset: 1px;
+  box-shadow: none;
+}
+.fselect::part(container) {
+  min-height: unset;
+  height: auto;
+  min-width: 0;
+  width: 100%;
+  align-items: center;
+  overflow: visible;
+}
+.fselect::part(text),
+.fselect::part(placeholder) {
+  color: #0f172a;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  line-height: 1.25;
+  word-break: break-word;
+}
+.fselect::part(placeholder) {
+  color: #64748b;
+  opacity: 1;
+}
+.fselect::part(icon) {
+  color: #64748b;
+  opacity: 1;
+  margin-inline-start: 6px;
 }
 
 .ftextarea {
-  --background:    var(--bg-input);
-  --color:         var(--c-text);
-  --padding-start: 8px;
-  --padding-end:   8px;
-  border: 1px solid var(--c-border-in);
-  border-radius: 3px;
+  --background: #ffffff;
+  --color: #0f172a;
+  --padding-start: 12px;
+  --padding-end: 12px;
+  --padding-top: 10px;
+  --padding-bottom: 10px;
+  --highlight-height: 0;
+  border: 1.5px solid var(--control-border);
+  border-radius: var(--control-radius);
   font-size: 13px;
+  min-height: 72px;
+  height: auto;
+  max-height: none;
+  background: #ffffff;
+  margin: 0;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: visible;
+}
+.ftextarea.ion-focused,
+.ftextarea:focus-within {
+  border-color: var(--control-border-focus);
+  outline: 2px solid rgba(26, 71, 49, 0.18);
+  outline-offset: 1px;
+}
+
+/* Keep SearchableSelect controls flush with sibling inputs in a row */
+.field-wrap :deep(.ss) {
+  width: 100%;
+  max-width: 100%;
+  overflow: visible;
+}
+.field-wrap :deep(.ss-label) {
+  font-size: 10px;
+  min-height: 14px;
+  margin-bottom: 0;
+  line-height: 1.2;
+}
+.field-wrap :deep(.ss-control) {
+  min-height: 42px;
+  height: auto;
+  border: 1.5px solid #94a3b8;
+  border-radius: 6px;
+  padding: 0 8px 0 12px;
+  box-sizing: border-box;
+  overflow: visible;
+}
+.field-wrap :deep(.ss.open .ss-control) {
+  border-color: #1a4731;
+  outline: 2px solid rgba(26, 71, 49, 0.18);
+  outline-offset: 1px;
+  box-shadow: none;
+}
+.field-wrap :deep(.ss-input) {
+  font-size: 13px;
+  padding: 8px 0;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 /* ═══════ RADIO ═══════ */
@@ -1157,17 +1452,18 @@ const submitForm = async () => {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 5px 12px;
-  border: 1.5px solid var(--c-border);
-  border-radius: 4px;
+  padding: 7px 12px;
+  border: 1px solid #c5ccd4;
+  border-radius: 6px;
   font-size: 12px;
   font-weight: 600;
   color: var(--c-text);
-  background: var(--bg-input);
+  background: #ffffff;
   cursor: pointer;
   user-select: none;
   transition: background .12s, border-color .12s, color .12s;
   white-space: nowrap;
+  min-height: 36px;
 }
 .radio-pill.active {
   background: var(--c-green);
@@ -1210,11 +1506,11 @@ const submitForm = async () => {
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  background: var(--c-note-bg);
-  border: 1px solid var(--c-note-border);
-  border-radius: 3px;
+  background: #fbfaf3;
+  border: 1px solid #e6d9a8;
+  border-radius: 6px;
   padding: 8px 10px;
-  margin-top: 8px;
+  margin-top: 10px;
 }
 .chk-label {
   font-size: 11.5px;
@@ -1228,34 +1524,56 @@ const submitForm = async () => {
 
 /* ═══════ PLOT CARD ═══════ */
 .plot-card {
-  border: 1.5px solid var(--c-green-mid);
-  border-radius: 4px;
-  margin: 12px 12px 0;
-  background: var(--bg-sub);
-  overflow: hidden;
+  border: 1px solid #cfd8d2;
+  border-radius: 8px;
+  margin: 12px 16px 0;
+  background: #fbfcfb;
+  overflow: visible;
 }
 .plot-card-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: var(--c-green-mid);
-  padding: 7px 12px;
+  gap: 8px;
+  background: #1a4731;
+  padding: 8px 12px;
+  color: #ffffff;
+  border-radius: 8px 8px 0 0;
+}
+.plot-card .subsection + .subsection {
+  border-top: 1px solid #eef1ef;
+}
+.plot-card .subsection-title {
+  padding-left: 14px;
+  padding-right: 14px;
+}
+.plot-card .subsection-body {
+  padding-left: 14px;
+  padding-right: 14px;
 }
 .plot-num {
-  color: #fff;
-  font-size: 11px;
+  color: #ffffff !important;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: .6px;
+  text-transform: uppercase;
 }
-.del-plot-btn { --color: #ffb3ae; font-size: 12px; font-weight: 700; }
-
-.gps-btn {
-  --border-color: var(--c-green-mid);
-  --color: var(--c-green-mid);
+.del-plot-btn {
+  --color: #ffffff;
+  --background: transparent;
+  --background-hover: rgba(255, 255, 255, 0.12);
+  --background-activated: rgba(255, 255, 255, 0.2);
+  --ripple-color: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+  font-size: 12px;
   font-weight: 700;
-  font-size: 11px;
-  text-transform: none;
+  margin: 0;
+  height: 28px;
 }
+.del-plot-btn::part(native) {
+  color: #ffffff;
+}
+
 .tenant-flag {
   margin-left: 8px;
   background: var(--c-gold);
@@ -1268,46 +1586,37 @@ const submitForm = async () => {
   text-transform: uppercase;
 }
 
-.add-plot-wrap { padding: 10px 12px 12px; }
+.add-plot-wrap { padding: 12px 16px 16px; }
 .add-plot-btn {
-  --border-color: var(--c-green);
-  --color:        var(--c-green);
+  --border-color: #1a4731;
+  --color: #1a4731;
+  --border-width: 1px;
+  --border-radius: 6px;
   font-weight: 700;
   font-size: 13px;
+  height: 40px;
 }
 
-/* ═══════ COMMODITY TABLE ═══════ */
-.commodity-tbl {
-  border: 1px solid var(--c-border);
-  border-radius: 3px;
-  overflow: hidden;
-}
-.ctbl-head {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1.5fr 1.5fr .8fr;
-  background: var(--sub-head-bg);
-  border-bottom: 1px solid var(--c-border);
-}
-.ctbl-head span {
-  padding: 5px 8px;
-  font-size: 9px;
-  font-weight: 800;
-  letter-spacing: .4px;
-  color: var(--sub-head-txt);
-  text-transform: uppercase;
-  border-right: 1px solid var(--c-border);
-}
-.ctbl-head span:last-child { border-right: none; }
-.ctbl-body {
-  display: grid;
-  grid-template-columns: 2fr 1fr 1.5fr 1.5fr .8fr;
+.organic-row {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px;
-  background: var(--bg-card);
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 4px;
 }
-.organic-cell {
-  display: flex; flex-direction: column; align-items: center; gap: 3px;
+
+/* ═══════ RESPONSIVE ═══════ */
+@media (max-width: 1100px) {
+  .g4 { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 900px) {
+  .g3 { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 640px) {
+  .g4, .g3, .g2 { grid-template-columns: 1fr; }
+  .tx-row { grid-template-columns: 1fr; }
+  .letterhead { flex-direction: column; gap: 10px; align-items: flex-start; }
+  .lh-right { align-self: flex-end; }
 }
 
 /* ═══════ ERROR / SUBMIT ═══════ */
@@ -1343,15 +1652,5 @@ const submitForm = async () => {
   color: var(--c-text-soft);
   margin-top: 16px;
   letter-spacing: .3px;
-}
-
-/* ═══════ RESPONSIVE ═══════ */
-@media (max-width: 768px) {
-  .g4, .g3, .g2 { grid-template-columns: 1fr; }
-  .tx-row { grid-template-columns: 1fr; }
-  .letterhead { flex-direction: column; gap: 10px; align-items: flex-start; }
-  .lh-right { align-self: flex-end; }
-  .ctbl-head, .ctbl-body { grid-template-columns: 1fr 1fr; }
-  .ctbl-head span:nth-child(n+3), .ctbl-body > *:nth-child(n+3) { grid-column: span 1; }
 }
 </style>

@@ -55,8 +55,8 @@
             <div v-if="farmerSearch.searching.value" class="hint">Searching…</div>
             <ul v-if="farmerSearch.results.value.length" class="suggest">
               <li v-for="f in farmerSearch.results.value" :key="f.id" @click="onSelectFarmer(f)">
-                <strong>{{ f.surname }}, {{ f.first_name }}</strong>
-                <span>{{ f.rsbsa_no }} · {{ f.barangay }}</span>
+                <strong>{{ farmerDisplayName(f) }}</strong>
+                <span>{{ f.rsbsa_no || 'No RSBSA' }} · {{ f.barangay }}</span>
               </li>
             </ul>
           </div>
@@ -76,6 +76,7 @@
               label="Farm Location / Plot"
               label-placement="stacked"
               interface="popover"
+              :interface-options="{ cssClass: 'encoding-select-popover' }"
               :value="form.plot_id"
               :disabled="!farmerSearch.selected.value"
               @ionChange="onPlotChange"
@@ -188,6 +189,7 @@ import EncodingBarangaySelector from '@/components/EncodingBarangaySelector.vue'
 import VarietyField from '@/components/VarietyField.vue';
 import {
   useBarangayFarmerSearch,
+  farmerDisplayName,
   type FarmerOption,
 } from '@/composables/useBarangayFarmerSearch';
 import apiClient from '@/utils/axios';
@@ -552,7 +554,14 @@ onMounted(() => {
 .event-bar { margin-bottom: 0.75rem; }
 .field {
   flex: 1; min-width: 140px;
-  --background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0 10px;
+  --background: #ffffff;
+  --color: #0f172a;
+  --placeholder-color: #64748b;
+  border: 1.5px solid #94a3b8;
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #ffffff;
+  color: #0f172a;
 }
 .field.grow { flex: 2; min-width: 200px; }
 
@@ -621,14 +630,18 @@ onMounted(() => {
 }
 .suggest {
   list-style: none; margin: 4px 0 0; padding: 0; border: 1px solid #e2e8f0;
-  border-radius: 8px; background: white; max-height: 220px; overflow: auto; z-index: 5;
+  border-radius: 8px; background: white; max-height: 280px; overflow: auto; z-index: 20;
+  position: absolute; left: 0; right: 0; width: 100%; min-width: 100%;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
 }
 .suggest li {
-  padding: 0.55rem 0.75rem; cursor: pointer; display: flex; flex-direction: column;
+  padding: 0.6rem 0.85rem; cursor: pointer; display: flex; flex-direction: column; gap: 2px;
   border-bottom: 1px solid #f1f5f9;
+  white-space: normal; overflow: visible; text-overflow: unset;
 }
 .suggest li:hover { background: #e8f5e9; }
-.suggest li span { font-size: 0.78rem; color: #64748b; }
+.suggest li strong { white-space: normal; overflow: visible; font-size: 0.9rem; color: #0f172a; }
+.suggest li span { font-size: 0.78rem; color: #64748b; white-space: normal; overflow: visible; }
 
 .demo-grid { margin-bottom: 0.75rem; }
 .ro {

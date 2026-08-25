@@ -148,6 +148,8 @@ export interface OfflineGeoTag {
   farmer_id?: string;
   farmer_name?: string;
   rsbsa_no?: string;
+  /** When set, the walk updates this existing parcel instead of inserting a new one. */
+  farm_plot_id?: string;
   geometry_type: GeoTagGeometryType;
   /** Polygon vertices [{lat,lng},…] or single marker {lat,lng} */
   coordinates: string;

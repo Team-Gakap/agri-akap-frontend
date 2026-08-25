@@ -9,56 +9,97 @@
       </ion-toolbar>
     </ion-header>
 
-    <ion-content class="ion-padding auth-bg no-print-bg">
-      <div class="issuance-container">
+    <ion-content class="auth-bg no-print-bg">
+      <!-- ═══════════════════════════════════════════════════════════
+           WORKSPACE HEADER
+           ═══════════════════════════════════════════════════════════ -->
+      <div class="workspace-header no-print">
+        <div class="workspace-title">
+          <h1>ID Production</h1>
+          <p>Search the queue, verify beneficiary details, and print government ID cards.</p>
+        </div>
+        <div class="workspace-stats">
+          <div class="stat-pill">
+            <span class="stat-value">{{ pagination?.total ?? farmers.length }}</span>
+            <span class="stat-label">Total Farmers</span>
+          </div>
+          <div class="stat-pill stat-pending">
+            <span class="stat-value">{{ pendingOnPageCount }}</span>
+            <span class="stat-label">Pending (page)</span>
+          </div>
+          <div class="stat-pill stat-printed">
+            <span class="stat-value">{{ printedOnPageCount }}</span>
+            <span class="stat-label">Printed (page)</span>
+          </div>
+          <div class="stat-pill stat-photo">
+            <span class="stat-value">{{ missingPhotoCount }}</span>
+            <span class="stat-label">Missing photo</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="issuance-workspace no-print">
 
         <!-- ═══════════════════════════════════════════════════════
-             HEADER + COLOR LEGEND
+             LEFT: SMART QUEUE (~58%) — TABLE FORMAT
              ═══════════════════════════════════════════════════════ -->
-        <div class="header-section no-print">
-          <h2>Farmer ID Issuance</h2>
-          <p class="text-muted">Card Selection and Printing Options</p>
+        <aside class="queue-panel">
+          <div class="queue-head">
+            <h2>Issuance Queue</h2>
+            <span v-if="selectedCount > 0" class="queue-head-badge">{{ selectedCount }} selected</span>
+          </div>
+
+          <div class="queue-filters">
+            <ion-searchbar
+              placeholder="Farmer Name or RSBSA Number"
+              @ionInput="handleSearch"
+              :debounce="400"
+              class="list-searchbar"
+            ></ion-searchbar>
+            <ion-select
+              class="list-brgy-filter"
+              label="Barangay"
+              label-placement="stacked"
+              interface="popover"
+              :value="filterBarangay"
+              placeholder="All"
+              @ionChange="onBarangayChange"
+            >
+              <ion-select-option :value="''">All barangays</ion-select-option>
+              <ion-select-option v-for="b in barangays" :key="b" :value="b">{{ b }}</ion-select-option>
+            </ion-select>
+          </div>
+
+          <div class="queue-chip-row">
+            <button type="button" class="filter-chip" :class="{ on: queueChip === 'all' }" @click="queueChip = 'all'">All</button>
+            <button type="button" class="filter-chip" :class="{ on: queueChip === 'missing-photo' }" @click="queueChip = 'missing-photo'">
+              Missing photo
+            </button>
+            <button type="button" class="filter-chip" :class="{ on: queueChip === 'priority' }" @click="queueChip = 'priority'">
+              Senior / PWD
+            </button>
+            <button type="button" class="filter-chip" :class="{ on: queueChip === 'pending' }" @click="queueChip = 'pending'">
+              Pending only
+            </button>
+          </div>
+
           <div class="color-legend">
-            <span class="legend-title">ID Color Codes:</span>
+            <span class="legend-title">Color Codes:</span>
             <span class="legend-item"><span class="swatch" :style="{ background: CATEGORY.regular.color }"></span>Regular</span>
             <span class="legend-item"><span class="swatch" :style="{ background: CATEGORY.senior.color }"></span>Senior Citizen (60+)</span>
             <span class="legend-item"><span class="swatch" :style="{ background: CATEGORY.pwd.color }"></span>PWD</span>
           </div>
-        </div>
 
-        <ion-grid class="no-print">
-          <ion-row>
-            <!-- ═══════════════════════════════════════════════════
-                 LEFT: FARMER LIST WITH BULK SELECTION
-                 ═══════════════════════════════════════════════════ -->
-            <ion-col size="12" size-md="5" size-lg="4">
-              <ion-card class="list-card">
-                <ion-card-content class="ion-no-padding">
+          <div v-if="selectedCount > 0" class="selection-bar">
+            <span class="selection-label">{{ selectedCount }} of {{ visibleFarmers.length }} in view selected</span>
+            <span class="clear-link" @click="clearSelection">Clear</span>
+          </div>
 
-                  <!-- 1. Filter Bar: Search + Barangay -->
-                  <div class="list-filter-bar">
-                    <ion-searchbar
-                      placeholder="Farmer Name or RSBSA Number"
-                      @ionInput="handleSearch"
-                      :debounce="400"
-                      class="list-searchbar"
-                    ></ion-searchbar>
-                    <ion-select
-                      class="list-brgy-filter"
-                      label="Barangay"
-                      label-placement="stacked"
-                      interface="popover"
-                      :value="filterBarangay"
-                      placeholder="All"
-                      @ionChange="onBarangayChange"
-                    >
-                      <ion-select-option :value="''">All barangays</ion-select-option>
-                      <ion-select-option v-for="b in barangays" :key="b" :value="b">{{ b }}</ion-select-option>
-                    </ion-select>
-                  </div>
-
-                  <!-- Select All header -->
-                  <div class="list-select-all">
+          <div class="table-wrap">
+            <table class="queue-table">
+              <thead>
+                <tr>
+                  <th class="col-check">
                     <input
                       type="checkbox"
                       class="excel-checkbox"
@@ -66,270 +107,170 @@
                       :indeterminate="isIndeterminate"
                       @change="toggleSelectAll"
                     />
-                    <span class="select-all-label">
-                      {{ selectedIds.size > 0 ? `${selectedIds.size} selected` : 'All Farmers' }}
-                    </span>
-                    <span v-if="selectedIds.size > 0" class="clear-link" @click="clearSelection">Clear</span>
-                  </div>
-
-                  <!-- Loading -->
-                  <div v-if="isLoading" class="text-center p-4">
+                  </th>
+                  <th class="col-farmer">Farmer</th>
+                  <th class="col-rsbsa">RSBSA No.</th>
+                  <th>Barangay</th>
+                  <th class="col-priority">Priority</th>
+                  <th class="col-sex">Sex</th>
+                  <th class="col-contact">Contact</th>
+                  <th class="col-photo">Photo</th>
+                  <th class="col-status">Print</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="isLoading">
+                  <td colspan="9" class="state-cell">
                     <ion-spinner name="crescent" color="primary"></ion-spinner>
-                  </div>
+                  </td>
+                </tr>
 
-                  <!-- Farmer list with checkboxes -->
-                  <ion-list v-else lines="full" class="farmer-select-list">
-                    <ion-item
-                      v-for="farmer in farmers"
-                      :key="farmer.id"
-                      :class="{ 'selected-item': selectedIds.has(farmer.id), 'preview-active': previewFarmer?.id === farmer.id }"
-                    >
-                      <input
-                        type="checkbox"
-                        slot="start"
-                        class="excel-checkbox row-check"
-                        :checked="selectedIds.has(farmer.id)"
-                        @change="toggleRow(farmer)"
-                      />
-                      <ion-label button @click="previewSingle(farmer)" class="farmer-label-btn">
-                        <h2><strong>{{ farmer.surname }}, {{ farmer.first_name }}</strong></h2>
-                        <p class="mono">{{ farmer.rsbsa_no || 'RSBSA Pending' }}</p>
-                        <p class="brgy-text">{{ farmer.permanent_brgy }}</p>
-                      </ion-label>
-                      <div slot="end" class="item-end-badges">
-                        <ion-badge v-if="isPriority(farmer)" :color="catInfo(farmer).badge" class="priority-badge">{{ catInfo(farmer).label }}</ion-badge>
-                      </div>
-                    </ion-item>
+                <tr v-else-if="visibleFarmers.length === 0">
+                  <td colspan="9" class="state-cell">
+                    <EmptyState variant="farmers" message="No farmers match the current filters." />
+                  </td>
+                </tr>
 
-                    <EmptyState
-                      v-if="!isLoading && farmers.length === 0"
-                      variant="farmers"
-                      message="No farmers found."
+                <tr
+                  v-else
+                  v-for="farmer in visibleFarmers"
+                  :key="farmer.id"
+                  class="queue-row"
+                  :class="{
+                    'row-selected': selectedIds.has(farmer.id),
+                    'row-active': previewFarmer?.id === farmer.id,
+                    'row-no-photo': !hasPhoto(farmer),
+                  }"
+                  @click="previewSingle(farmer)"
+                >
+                  <td class="col-check" @click.stop>
+                    <input
+                      type="checkbox"
+                      class="excel-checkbox"
+                      :checked="selectedIds.has(farmer.id)"
+                      @change="toggleRow(farmer)"
                     />
-                  </ion-list>
+                  </td>
+                  <td class="col-farmer">
+                    <span class="farmer-name">{{ farmer.surname }}, {{ farmer.first_name }}</span>
+                  </td>
+                  <td class="mono">{{ farmer.rsbsa_no || 'Pending' }}</td>
+                  <td>{{ farmer.permanent_brgy || '—' }}</td>
+                  <td class="col-priority">
+                    <span class="priority-mark">
+                      <span class="cat-dot" :style="{ background: catInfo(farmer).color }"></span>
+                      {{ catInfo(farmer).label }}
+                    </span>
+                  </td>
+                  <td class="col-sex">{{ sexShort(farmer.sex) }}</td>
+                  <td class="col-contact" :title="farmer.mobile_number || ''">{{ farmer.mobile_number || '—' }}</td>
+                  <td class="col-photo">
+                    <span class="status-chip" :class="hasPhoto(farmer) ? 'chip-photo-ready' : 'chip-photo-missing'">
+                      {{ hasPhoto(farmer) ? 'Ready' : 'Missing' }}
+                    </span>
+                  </td>
+                  <td class="col-status">
+                    <span class="status-chip" :class="isPrinted(farmer) ? 'chip-printed' : 'chip-pending'">
+                      {{ isPrinted(farmer) ? 'Printed' : 'Pending' }}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
-                  <!-- Pagination -->
-                  <div v-if="pagination && pagination.last_page > 1" class="list-pagination">
-                    <ion-button fill="clear" size="small" :disabled="pagination.current_page <= 1" @click="loadPage(pagination.current_page - 1)">
-                      <ion-icon slot="icon-only" :icon="chevronBackOutline"></ion-icon>
-                    </ion-button>
-                    <span class="page-label">{{ pagination.current_page }}/{{ pagination.last_page }}</span>
-                    <ion-button fill="clear" size="small" :disabled="pagination.current_page >= pagination.last_page" @click="loadPage(pagination.current_page + 1)">
-                      <ion-icon slot="icon-only" :icon="chevronForwardOutline"></ion-icon>
-                    </ion-button>
-                  </div>
-                </ion-card-content>
-              </ion-card>
-            </ion-col>
+          <div v-if="pagination && pagination.last_page > 1" class="list-pagination">
+            <ion-button fill="clear" size="small" :disabled="pagination.current_page <= 1" @click="loadPage(pagination.current_page - 1)">
+              <ion-icon slot="icon-only" :icon="chevronBackOutline"></ion-icon>
+            </ion-button>
+            <span class="page-label">{{ pagination.current_page }}/{{ pagination.last_page }}</span>
+            <ion-button fill="clear" size="small" :disabled="pagination.current_page >= pagination.last_page" @click="loadPage(pagination.current_page + 1)">
+              <ion-icon slot="icon-only" :icon="chevronForwardOutline"></ion-icon>
+            </ion-button>
+          </div>
 
-            <!-- ═══════════════════════════════════════════════════
-                 RIGHT: SINGLE ID PREVIEW
-                 ═══════════════════════════════════════════════════ -->
-            <ion-col size="12" size-md="7" size-lg="8" class="preview-col">
-              <div v-if="!previewFarmer" class="empty-preview">
-                <ion-icon :icon="idCardOutline" style="font-size:3rem;color:#94a3b8;"></ion-icon>
-                <p>Click a farmer's name to preview their ID card.</p>
-                <p class="hint-text">Use checkboxes to select farmers for batch printing.</p>
-              </div>
-
-              <div v-else class="id-preview-wrapper">
-                <div class="action-bar">
-                  <div class="action-bar-left">
-                    <ion-badge color="success">READY FOR ISSUANCE</ion-badge>
-                    <ion-badge :color="catInfo(previewFarmer).badge">{{ catInfo(previewFarmer).label }}</ion-badge>
-                  </div>
-                  <ion-button color="dark" size="small" @click="printSingleId(previewFarmer)">
-                    <ion-icon slot="start" :icon="printOutline"></ion-icon>
-                    Printout
-                  </ion-button>
-                </div>
-
-                <!-- Single ID Card Preview -->
-                <div class="id-card-preview-frame">
-                  <div class="id-card" :class="catClass(previewFarmer)">
-                    <div class="id-header">
-                      <img src="@/assets/images/echague-logo.png" alt="MAO Logo" class="id-logo" onerror="this.style.display='none'" />
-                      <div class="id-header-text">
-                        <p class="gov-line-1">REPUBLIC OF THE PHILIPPINES</p>
-                        <p class="gov-line-2">Municipality of Echague</p>
-                        <p class="gov-line-3">MUNICIPAL AGRICULTURE OFFICE</p>
-                      </div>
-                    </div>
-
-                    <div class="id-body">
-                      <div class="photo-section">
-                        <div class="photo-box">
-                          <img v-if="previewFarmer.photo_path"
-                            :src="`${API_BASE}/storage/${previewFarmer.photo_path}`"
-                            class="photo-img"
-                          />
-                          <ion-icon v-else :icon="personOutline" class="photo-icon"></ion-icon>
-                        </div>
-                        <div class="badge-role">REGISTERED FARMER</div>
-                      </div>
-
-                      <div class="details-section">
-                        <div class="detail-group">
-                          <span class="detail-label">FULL NAME</span>
-                          <span class="detail-value name-value">
-                            {{ previewFarmer.first_name }}
-                            {{ previewFarmer.middle_name ? previewFarmer.middle_name[0] + '.' : '' }}
-                            {{ previewFarmer.surname }}
-                            {{ previewFarmer.ext_name || '' }}
-                          </span>
-                        </div>
-                        <div class="detail-group">
-                          <span class="detail-label">RSBSA NUMBER</span>
-                          <span class="detail-value rsbsa-value">{{ previewFarmer.rsbsa_no || 'PENDING' }}</span>
-                        </div>
-                        <div class="detail-row">
-                          <div class="detail-group">
-                            <span class="detail-label">BARANGAY</span>
-                            <span class="detail-value">{{ previewFarmer.permanent_brgy }}</span>
-                          </div>
-                          <div class="detail-group">
-                            <span class="detail-label">SEX</span>
-                            <span class="detail-value">{{ previewFarmer.sex }}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div class="qr-section">
-                        <qrcode-vue :value="previewFarmer.id" :size="80" level="H" />
-                        <p class="qr-label">Scan to Verify</p>
-                      </div>
-                    </div>
-
-                    <!-- Footer: color-coded by priority -->
-                    <div class="id-footer" :class="catFooterClass(previewFarmer)">
-                      <span v-if="isPriority(previewFarmer)" class="footer-star">★</span>
-                      {{ catInfo(previewFarmer).footer }}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </ion-col>
-          </ion-row>
-        </ion-grid>
+          <div class="queue-footer">
+            <button
+              class="print-selected-btn"
+              type="button"
+              :disabled="selectedCount === 0"
+              @click="printBatchIds"
+            >
+              <ion-icon :icon="printOutline"></ion-icon>
+              Print ({{ selectedCount }}) Selected IDs
+            </button>
+          </div>
+        </aside>
 
         <!-- ═══════════════════════════════════════════════════════
-             FLOATING BULK PRINT BAR
+             RIGHT: DIGITAL TWIN PREVIEW (~42%)
              ═══════════════════════════════════════════════════════ -->
-        <Transition name="bulk-bar">
-          <div v-if="selectedIds.size > 0" class="bulk-print-bar no-print">
-            <div class="bulk-bar-inner">
-              <div class="bulk-count">
-                <ion-icon :icon="printOutline" class="bulk-icon"></ion-icon>
-                <strong>{{ selectedIds.size }}</strong> ID{{ selectedIds.size !== 1 ? 's' : '' }} ready to print
+        <section class="preview-panel">
+          <div class="preview-head">
+            <h2>Digital ID Preview</h2>
+            <p>Live render of the secure farmer identification card</p>
+          </div>
+
+          <div class="preview-body">
+            <div v-if="!previewFarmer" class="empty-preview">
+              <ion-icon :icon="idCardOutline" class="empty-icon"></ion-icon>
+              <p>Select a farmer from the queue to generate their secure digital ID.</p>
+            </div>
+
+            <div v-else class="id-preview-wrapper">
+              <div class="action-bar">
+                <div class="action-bar-left">
+                  <ion-badge color="success">READY FOR ISSUANCE</ion-badge>
+                  <ion-badge :color="catInfo(previewFarmer).badge">{{ catInfo(previewFarmer).label }}</ion-badge>
+                </div>
+                <ion-button color="dark" size="small" @click="printSingleId(previewFarmer)">
+                  <ion-icon slot="start" :icon="printOutline"></ion-icon>
+                  Print this ID
+                </ion-button>
               </div>
-              <button class="bulk-print-btn" @click="printBatchIds">
-                <ion-icon :icon="printOutline"></ion-icon>
-                Print Batch
-              </button>
+
+              <div class="id-card-stage">
+                <FarmerIdCard :farmer="previewFarmer" />
+              </div>
             </div>
           </div>
-        </Transition>
-
+        </section>
       </div>
 
-      <!-- ═══════════════════════════════════════════════════════════
-           HIDDEN PRINT CONTAINER — rendered for @media print only
-           Generates a 2-column A4 grid of ID cards for selected farmers
-           ═══════════════════════════════════════════════════════════ -->
+      <!-- Hidden print grid — @media print only -->
       <div class="print-container print-only" id="print-batch">
         <div
           v-for="farmer in printableFarmers"
           :key="'print-' + farmer.id"
           class="id-card-print-wrapper"
         >
-          <div class="id-card" :class="catClass(farmer)">
-            <div class="id-header">
-              <img src="@/assets/images/echague-logo.png" alt="MAO Logo" class="id-logo" onerror="this.style.display='none'" />
-              <div class="id-header-text">
-                <p class="gov-line-1">REPUBLIC OF THE PHILIPPINES</p>
-                <p class="gov-line-2">Municipality of Echague</p>
-                <p class="gov-line-3">MUNICIPAL AGRICULTURE OFFICE</p>
-              </div>
-            </div>
-
-            <div class="id-body">
-              <div class="photo-section">
-                <div class="photo-box">
-                  <img v-if="farmer.photo_path"
-                    :src="`${API_BASE}/storage/${farmer.photo_path}`"
-                    class="photo-img"
-                  />
-                  <ion-icon v-else :icon="personOutline" class="photo-icon"></ion-icon>
-                </div>
-                <div class="badge-role">REGISTERED FARMER</div>
-              </div>
-
-              <div class="details-section">
-                <div class="detail-group">
-                  <span class="detail-label">FULL NAME</span>
-                  <span class="detail-value name-value">
-                    {{ farmer.first_name }}
-                    {{ farmer.middle_name ? farmer.middle_name[0] + '.' : '' }}
-                    {{ farmer.surname }}
-                    {{ farmer.ext_name || '' }}
-                  </span>
-                </div>
-                <div class="detail-group">
-                  <span class="detail-label">RSBSA NUMBER</span>
-                  <span class="detail-value rsbsa-value">{{ farmer.rsbsa_no || 'PENDING' }}</span>
-                </div>
-                <div class="detail-row">
-                  <div class="detail-group">
-                    <span class="detail-label">BARANGAY</span>
-                    <span class="detail-value">{{ farmer.permanent_brgy }}</span>
-                  </div>
-                  <div class="detail-group">
-                    <span class="detail-label">SEX</span>
-                    <span class="detail-value">{{ farmer.sex }}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div class="qr-section">
-                <qrcode-vue :value="farmer.id" :size="70" level="H" />
-                <p class="qr-label">Scan to Verify</p>
-              </div>
-            </div>
-
-            <div class="id-footer" :class="catFooterClass(farmer)">
-              <span v-if="isPriority(farmer)" class="footer-star">★</span>
-              {{ catInfo(farmer).footer }}
-            </div>
-          </div>
+          <FarmerIdCard :farmer="farmer" print-mode />
         </div>
       </div>
-
     </ion-content>
   </ion-page>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, reactive } from 'vue';
+import { ref, computed, onMounted, onUnmounted, reactive, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
-  IonGrid, IonRow, IonCol, IonCard, IonCardContent,
-  IonList, IonItem, IonLabel, IonBadge, IonButton, IonIcon, IonSpinner,
+  IonBadge, IonButton, IonIcon, IonSpinner,
   IonSearchbar, IonSelect, IonSelectOption,
   toastController,
 } from '@ionic/vue';
 import {
-  printOutline, personOutline, idCardOutline,
+  printOutline, idCardOutline,
   chevronBackOutline, chevronForwardOutline,
 } from 'ionicons/icons';
-import QrcodeVue from 'qrcode.vue';
 import axiosInstance from '@/utils/axios';
 import EmptyState from '@/components/EmptyState.vue';
+import FarmerIdCard from '@/components/FarmerIdCard.vue';
 
 const route = useRoute();
-const API_BASE = import.meta.env.VITE_API_URL?.replace('/api', '') ?? 'http://127.0.0.1:8000';
+const PRINTED_KEY = 'agri-akap:id-printed-ids';
 
-// ── Data state ────────────────────────────────────────────────────
 interface PaginationMeta { current_page: number; last_page: number; total: number; }
 
 const farmers = ref<any[]>([]);
@@ -337,33 +278,86 @@ const isLoading = ref(true);
 const pagination = ref<PaginationMeta | null>(null);
 const searchQuery = ref('');
 
-// ── Filter state ──────────────────────────────────────────────────
 const barangays = ref<string[]>([]);
 const filterBarangay = ref('');
+type QueueChip = 'all' | 'missing-photo' | 'priority' | 'pending';
+const queueChip = ref<QueueChip>('all');
 
-// ── Selection state ───────────────────────────────────────────────
 const selectedIds = reactive(new Set<string>());
 const previewFarmer = ref<any>(null);
 
-// ── Computed ──────────────────────────────────────────────────────
+const loadPrintedIds = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem(PRINTED_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return new Set(Array.isArray(arr) ? arr.map(String) : []);
+  } catch {
+    return new Set();
+  }
+};
+
+const printedIds = ref<Set<string>>(loadPrintedIds());
+const lastPrintIds = ref<string[]>([]);
+
+const persistPrinted = (ids: Set<string>) => {
+  try {
+    localStorage.setItem(PRINTED_KEY, JSON.stringify([...ids]));
+  } catch {
+    // private mode / quota
+  }
+};
+
+const commitPrinted = (ids: Iterable<string>) => {
+  const next = new Set(printedIds.value);
+  for (const id of ids) next.add(String(id));
+  printedIds.value = next;
+  persistPrinted(next);
+};
+
+const isPrinted = (farmer: any) => printedIds.value.has(String(farmer?.id));
+const hasPhoto = (farmer: any) => !!farmer?.photo_path;
+
+const sexShort = (sex: unknown) => {
+  const v = String(sex || '').trim();
+  if (!v) return '—';
+  const lower = v.toLowerCase();
+  if (lower.startsWith('m')) return 'M';
+  if (lower.startsWith('f')) return 'F';
+  return v.slice(0, 1).toUpperCase();
+};
+
+const selectedCount = computed(() => selectedIds.size);
+
+const pendingOnPageCount = computed(() => farmers.value.filter((f) => !isPrinted(f)).length);
+const printedOnPageCount = computed(() => farmers.value.filter((f) => isPrinted(f)).length);
+const missingPhotoCount = computed(() => farmers.value.filter((f) => !hasPhoto(f)).length);
+
+const visibleFarmers = computed(() => {
+  const chip = queueChip.value;
+  return farmers.value.filter((f) => {
+    if (chip === 'missing-photo') return !hasPhoto(f);
+    if (chip === 'priority') return priorityCategory(f) !== 'regular';
+    if (chip === 'pending') return !isPrinted(f);
+    return true;
+  });
+});
+
 const isAllSelected = computed(() =>
-  farmers.value.length > 0 && farmers.value.every((f) => selectedIds.has(f.id))
+  visibleFarmers.value.length > 0 && visibleFarmers.value.every((f) => selectedIds.has(f.id))
 );
 const isIndeterminate = computed(() =>
-  !isAllSelected.value && farmers.value.some((f) => selectedIds.has(f.id))
+  !isAllSelected.value && visibleFarmers.value.some((f) => selectedIds.has(f.id))
 );
 
-/** Farmers to render in the hidden print container */
 const printableFarmers = computed(() =>
   farmers.value.filter((f) => selectedIds.has(f.id))
 );
 
-// ── Selection actions ─────────────────────────────────────────────
 const toggleSelectAll = () => {
   if (isAllSelected.value) {
-    farmers.value.forEach((f) => selectedIds.delete(f.id));
+    visibleFarmers.value.forEach((f) => selectedIds.delete(f.id));
   } else {
-    farmers.value.forEach((f) => selectedIds.add(f.id));
+    visibleFarmers.value.forEach((f) => selectedIds.add(f.id));
   }
 };
 
@@ -383,15 +377,13 @@ const previewSingle = (farmer: any) => {
   previewFarmer.value = farmer;
 };
 
-// ── Farmer data fetching ──────────────────────────────────────────
 const fetchFarmers = async (page = 1, search = '') => {
   isLoading.value = true;
   try {
-    const params: Record<string, any> = { page, search };
+    const params: Record<string, any> = { page, search, per_page: 50 };
     if (filterBarangay.value) params.barangay = filterBarangay.value;
     const res = await axiosInstance.get('/farmers', { params });
     const payload = res.data.data;
-    // Surface priority beneficiaries (PWD, then Senior) first within the page.
     const rank = (f: any) => (priorityCategory(f) === 'pwd' ? 0 : priorityCategory(f) === 'senior' ? 1 : 2);
     farmers.value = [...payload.data].sort((a: any, b: any) => rank(a) - rank(b));
     pagination.value = {
@@ -400,7 +392,6 @@ const fetchFarmers = async (page = 1, search = '') => {
       total: payload.total,
     };
 
-    // Auto-select if launched from FarmersListPage with a farmer_id query param
     const targetId = route.query.farmer_id as string | undefined;
     if (targetId && !previewFarmer.value) {
       const match = farmers.value.find((f: any) => f.id === targetId);
@@ -437,9 +428,6 @@ const onBarangayChange = (e: CustomEvent) => {
 
 const loadPage = (page: number) => fetchFarmers(page, searchQuery.value);
 
-// ── Priority category helpers ─────────────────────────────────────
-const initials = (f: any) => ((f.first_name?.[0] ?? '') + (f.surname?.[0] ?? '')).toUpperCase();
-
 const ageOf = (farmer: any): number | null => {
   if (!farmer?.birthdate) return null;
   const bd = new Date(farmer.birthdate);
@@ -460,102 +448,204 @@ const priorityCategory = (farmer: any): PriorityCategory => {
   return 'regular';
 };
 
-const CATEGORY: Record<PriorityCategory, { label: string; color: string; badge: string; footer: string }> = {
-  pwd:     { label: 'PWD',            color: '#d4af37', badge: 'warning',  footer: 'PRIORITY ACCESS — PERSON WITH DISABILITY' },
-  senior:  { label: 'SENIOR CITIZEN', color: '#d4af37', badge: 'warning',  footer: 'PRIORITY ACCESS — SENIOR CITIZEN' },
-  regular: { label: 'REGULAR',        color: '#1a4731', badge: 'success',  footer: 'OFFICIAL GOVERNMENT BENEFICIARY CARD' },
+const CATEGORY: Record<PriorityCategory, { label: string; color: string; badge: string }> = {
+  pwd:     { label: 'PWD',            color: '#d4af37', badge: 'warning' },
+  senior:  { label: 'SENIOR CITIZEN', color: '#d4af37', badge: 'warning' },
+  regular: { label: 'REGULAR',        color: '#1a4731', badge: 'success' },
 };
 
 const catInfo = (farmer: any) => CATEGORY[priorityCategory(farmer)];
-const isPriority = (farmer: any): boolean => priorityCategory(farmer) !== 'regular';
 
-/** CSS class for the id-card element based on priority */
-const catClass = (farmer: any): string => {
-  const cat = priorityCategory(farmer);
-  return cat === 'regular' ? 'cat-regular' : 'cat-priority';
-};
-
-/** CSS class for the footer based on priority */
-const catFooterClass = (farmer: any): string => {
-  return isPriority(farmer) ? 'footer-priority' : 'footer-regular';
-};
-
-// ── Print actions ─────────────────────────────────────────────────
 const toast = async (message: string, color = 'primary') => {
   const t = await toastController.create({ message, duration: 2400, color, position: 'top' });
   await t.present();
 };
 
-const printSingleId = (farmer: any) => {
-  // Ensure this single farmer is in the print set
-  const wasSelected = selectedIds.has(farmer.id);
-  // Temporarily set only this farmer
-  selectedIds.clear();
-  selectedIds.add(farmer.id);
-  // Give Vue a tick to render the print container
-  requestAnimationFrame(() => {
-    window.print();
-    // Restore previous selection state
-    if (!wasSelected) {
-      selectedIds.delete(farmer.id);
-    }
-  });
+const onAfterPrint = () => {
+  if (lastPrintIds.value.length) {
+    commitPrinted(lastPrintIds.value);
+    lastPrintIds.value = [];
+  }
 };
 
-const printBatchIds = () => {
+const printSingleId = async (farmer: any) => {
+  const previous = new Set(selectedIds);
+  selectedIds.clear();
+  selectedIds.add(farmer.id);
+  lastPrintIds.value = [farmer.id];
+  await nextTick();
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+  window.print();
+  commitPrinted([farmer.id]);
+  lastPrintIds.value = [];
+  selectedIds.clear();
+  previous.forEach((id) => selectedIds.add(id));
+};
+
+const printBatchIds = async () => {
   if (selectedIds.size === 0) {
-    toast('No farmers selected.', 'warning');
+    await toast('No farmers selected.', 'warning');
     return;
   }
+  const ids = [...selectedIds];
+  lastPrintIds.value = ids;
+  await nextTick();
   window.print();
+  commitPrinted(ids);
+  lastPrintIds.value = [];
 };
 
 onMounted(() => {
   fetchFarmers();
   loadBarangays();
+  window.addEventListener('afterprint', onAfterPrint);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('afterprint', onAfterPrint);
 });
 </script>
 
 <style scoped>
-/* ═══════════════════════════════════════════════════════════════════
-   ID ISSUANCE PORTAL — Scoped Styles
-   Professional Government ID + Bulk A4 Print Layout
-   ═══════════════════════════════════════════════════════════════════ */
+.auth-bg {
+  --background: #eef3ef;
+  --overflow: hidden;
+}
 
-/* ── Page ──────────────────────────────────────────────────────── */
-.auth-bg { --background: #f4f8f5; }
-.issuance-container { max-width: 1280px; margin: 0 auto; padding-top: 0.75rem; padding-bottom: 2rem; }
-
-/* ── Header section ────────────────────────────────────────────── */
-.header-section { margin-bottom: 1.25rem; }
-.header-section h2 { font-weight: 800; color: #1a4731; margin: 0 0 4px; font-size: 1.4rem; }
-.text-muted { color: #6c757d; font-size: 0.9rem; margin: 0; }
-.color-legend { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-top: 0.75rem; font-size: 0.8rem; color: #475569; }
-.legend-title { font-weight: 700; color: #1a4731; }
-.legend-item { display: inline-flex; align-items: center; gap: 5px; }
-.swatch { width: 14px; height: 14px; border-radius: 3px; display: inline-block; border: 1px solid rgba(0,0,0,0.1); }
+.auth-bg::part(scroll) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
 
 /* ═══════════════════════════════════════════════════════════════════
-   LEFT PANEL — Farmer list card
+   WORKSPACE HEADER
    ═══════════════════════════════════════════════════════════════════ */
-.list-card {
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+.workspace-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 16px 16px 0;
+}
+
+.workspace-title h1 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #1a4731;
+  letter-spacing: -0.01em;
+}
+
+.workspace-title p {
+  margin: 2px 0 0;
+  font-size: 0.82rem;
+  color: #6b7f74;
+}
+
+.workspace-stats {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.stat-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 84px;
+  padding: 6px 14px;
+  border-radius: 10px;
+  background: #ffffff;
   border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+}
+
+.stat-value {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #1a4731;
+  line-height: 1.1;
+}
+
+.stat-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.stat-pill.stat-pending .stat-value { color: #b45309; }
+.stat-pill.stat-printed .stat-value { color: #64748b; }
+.stat-pill.stat-photo .stat-value { color: #9a3412; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   WORKSPACE GRID
+   ═══════════════════════════════════════════════════════════════════ */
+.issuance-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 58fr) minmax(280px, 42fr);
+  gap: 14px;
+  padding: 12px 16px 16px;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.queue-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
   overflow: hidden;
 }
 
-/* ── Filter bar ────────────────────────────────────────────────── */
-.list-filter-bar {
+.queue-head {
+  flex-shrink: 0;
   display: flex;
-  flex-direction: column;
-  gap: 0;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: linear-gradient(90deg, #1a4731 0%, #245a3f 100%);
+}
+
+.queue-head h2 {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 0.01em;
+}
+
+.queue-head-badge {
+  background: #d4af37;
+  color: #1a4731;
+  font-size: 0.68rem;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.queue-filters {
+  flex-shrink: 0;
   border-bottom: 1px solid #e2e8f0;
 }
+
 .list-searchbar {
   --background: #f8fafc;
   padding: 6px 8px;
 }
+
 .list-brgy-filter {
   --background: #f8fafc;
   border-top: 1px solid #f1f5f9;
@@ -563,352 +653,354 @@ onMounted(() => {
   font-size: 0.85rem;
 }
 
-/* ── Select All row ────────────────────────────────────────────── */
-.list-select-all {
+.queue-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 14px 0;
+  flex-shrink: 0;
+}
+
+.filter-chip {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-family: inherit;
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  min-height: 28px;
+}
+
+.filter-chip.on {
+  background: #1a4731;
+  border-color: #1a4731;
+  color: #ffffff;
+}
+
+.filter-chip:hover:not(.on) {
+  border-color: #1a4731;
+  color: #1a4731;
+}
+
+.color-legend {
   display: flex;
   align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 8px 14px;
+  font-size: 0.72rem;
+  color: #475569;
+  border-bottom: 1px solid #f1f5f9;
+  flex-shrink: 0;
+}
+
+.legend-title { font-weight: 700; color: #1a4731; }
+.legend-item { display: inline-flex; align-items: center; gap: 5px; }
+.swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.selection-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
-  padding: 8px 16px;
-  background: #f8faf9;
-  border-bottom: 1px solid #e2e8f0;
-  font-size: 0.82rem;
-}
-.select-all-label {
-  font-weight: 700;
-  color: #1a4731;
-  flex: 1;
-}
-.clear-link {
+  padding: 6px 16px;
+  background: #eef5ee;
+  border-bottom: 1px solid #dbe9de;
   font-size: 0.78rem;
+  flex-shrink: 0;
+}
+
+.selection-label { font-weight: 700; color: #1a4731; }
+
+.clear-link {
+  font-size: 0.76rem;
   color: #ef4444;
   cursor: pointer;
-  font-weight: 600;
+  font-weight: 700;
 }
 .clear-link:hover { text-decoration: underline; }
 
-/* ── Checkboxes ────────────────────────────────────────────────── */
 .excel-checkbox {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
   cursor: pointer;
   accent-color: #1a4731;
   flex-shrink: 0;
 }
-.row-check { margin-right: 8px; }
 
-/* ── Farmer list items ─────────────────────────────────────────── */
-.farmer-select-list {
-  max-height: 480px;
-  overflow-y: auto;
-}
-.farmer-select-list ion-item {
-  --padding-start: 12px;
-  --inner-padding-end: 8px;
-}
-.farmer-label-btn { cursor: pointer; }
-.farmer-label-btn h2 { font-size: 0.9rem; margin: 0; color: #0f172a; }
-.mono { font-family: monospace; font-size: 0.78rem; color: #64748b; margin: 2px 0 0; }
-.brgy-text { font-size: 0.78rem; color: #2e7d32; margin: 1px 0 0; }
-.item-end-badges { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
-.priority-badge { font-size: 0.6rem; }
-.selected-item { --background: #e8f5e9; }
-.preview-active { --background: #dbeafe; border-left: 3px solid #1a4731; }
-.p-4 { padding: 1rem; }
-.text-center { text-align: center; }
-
-/* ── List pagination ───────────────────────────────────────────── */
-.list-pagination { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 8px; border-top: 1px solid #e2e8f0; }
-.page-label { font-size: 0.85rem; color: #64748b; font-weight: 600; }
-
-/* ═══════════════════════════════════════════════════════════════════
-   RIGHT PANEL — ID Preview
-   ═══════════════════════════════════════════════════════════════════ */
-.preview-col { display: flex; align-items: flex-start; justify-content: center; flex-direction: column; }
-.empty-preview { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 400px; background: #f1f5f9; border-radius: 12px; border: 2px dashed #cbd5e1; color: #94a3b8; gap: 0.75rem; width: 100%; text-align: center; padding: 2rem; }
-.hint-text { font-size: 0.82rem; color: #b0b8c1; }
-.id-preview-wrapper { width: 100%; }
-.action-bar { display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 500px; margin: 0 auto 1rem; gap: 8px; }
-.action-bar-left { display: flex; align-items: center; gap: 8px; }
-
-/* ── ID Card Preview frame (screen shadow) ─────────────────────── */
-.id-card-preview-frame {
-  display: flex;
-  justify-content: center;
-}
-
-/* ═══════════════════════════════════════════════════════════════════
-   THE ID CARD — Professional Government Credential
-   CR80 ratio: 85.6mm × 53.98mm ≈ 3.375in × 2.125in
-   ═══════════════════════════════════════════════════════════════════ */
-.id-card {
-  width: 85.6mm;
-  height: 53.98mm;
-  background: #ffffff;
-  border-radius: 8px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.08);
-  overflow: hidden;
-  border: 1px solid #d1d5db;
-  font-family: 'Helvetica Neue', Arial, sans-serif;
-  display: flex;
-  flex-direction: column;
-  -webkit-print-color-adjust: exact;
-  print-color-adjust: exact;
-  position: relative;
-}
-
-/* ── ID Header — LGU Forest Green ──────────────────────────────── */
-.id-header {
-  background: #1a4731;
-  color: #ffffff;
-  display: flex;
-  align-items: center;
-  padding: 5px 10px;
-  gap: 7px;
-  flex-shrink: 0;
-}
-.id-logo {
-  width: 26px;
-  height: 26px;
-  background: white;
-  border-radius: 50%;
-  padding: 1px;
-  object-fit: contain;
-  flex-shrink: 0;
-}
-.id-header-text {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.2;
-}
-.gov-line-1 {
-  margin: 0;
-  font-size: 5.5px;
-  font-weight: 600;
-  letter-spacing: 0.8px;
-  opacity: 0.85;
-  text-transform: uppercase;
-}
-.gov-line-2 {
-  margin: 0;
-  font-size: 7.5px;
-  font-weight: 800;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-}
-.gov-line-3 {
-  margin: 0;
-  font-size: 6px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  color: #d4af37;
-}
-
-/* ── ID Body ───────────────────────────────────────────────────── */
-.id-body {
-  display: flex;
-  padding: 6px 10px;
-  gap: 8px;
-  background: #ffffff;
+/* ── Queue table ───────────────────────────────────────────────── */
+.table-wrap {
   flex: 1;
-  align-items: center;
+  min-height: 0;
+  overflow: auto;
 }
 
-/* Photo */
-.photo-section {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 56px;
-  flex-shrink: 0;
-  gap: 3px;
-}
-.photo-box {
-  width: 48px;
-  height: 48px;
-  background: #f1f5f9;
-  border: 1.5px solid #cbd5e1;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-.photo-img { width: 100%; height: 100%; object-fit: cover; }
-.photo-icon { font-size: 1.6rem; color: #94a3b8; }
-.badge-role {
-  font-size: 4.5px;
-  font-weight: 800;
-  background: #1a4731;
-  color: white;
-  padding: 1.5px 5px;
-  border-radius: 2px;
-  text-align: center;
-  letter-spacing: 0.3px;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-/* Details */
-.details-section { flex-grow: 1; min-width: 0; }
-.detail-group { display: flex; flex-direction: column; margin-bottom: 3px; }
-.detail-row { display: flex; gap: 10px; }
-.detail-label {
-  font-size: 5px;
-  font-weight: 700;
-  color: #94a3b8;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  line-height: 1;
-}
-.detail-value {
-  font-size: 8px;
-  font-weight: 600;
+.queue-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12.5px;
   color: #1e293b;
-  margin-top: 1px;
-  line-height: 1.2;
-}
-.name-value {
-  font-size: 10px;
-  font-weight: 800;
-  text-transform: uppercase;
-  color: #0f172a;
-  letter-spacing: 0.02em;
-}
-.rsbsa-value {
-  font-family: 'Courier New', monospace;
-  font-size: 9px;
-  font-weight: 700;
-  color: #1a4731;
-  letter-spacing: 0.8px;
+  min-width: 760px;
 }
 
-/* QR Code */
-.qr-section {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
-}
-.qr-label {
-  font-size: 4.5px;
-  color: #94a3b8;
-  margin: 0;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
+.queue-table th,
+.queue-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #eef2f1;
+  text-align: left;
+  vertical-align: middle;
 }
 
-/* ── ID Footer — color-coded ───────────────────────────────────── */
-.id-footer {
-  text-align: center;
-  padding: 3.5px 10px;
-  font-size: 5.5px;
-  font-weight: 800;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-  flex-shrink: 0;
-}
-.footer-regular {
+.queue-table thead th {
+  position: sticky;
+  top: 0;
   background: #1a4731;
   color: #ffffff;
-  border-top: 2px solid #143a28;
+  font-weight: 700;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  z-index: 2;
+  white-space: nowrap;
+  border-bottom: none;
 }
-.footer-priority {
-  background: linear-gradient(90deg, #d4af37 0%, #f1c94b 50%, #d4af37 100%);
-  color: #3a2f00;
-  border-top: 2px solid #b8860b;
-}
-.footer-star { margin-right: 4px; }
 
-/* Category border accents on card */
-.id-card.cat-regular { border-top: 3px solid #1a4731; }
-.id-card.cat-priority { border-top: 3px solid #d4af37; }
+.queue-table .col-check { width: 40px; text-align: center; }
+.queue-table .col-farmer { min-width: 140px; }
+.queue-table .col-rsbsa { min-width: 120px; }
+.queue-table .col-priority { min-width: 100px; }
+.queue-table .col-sex { width: 44px; text-align: center; }
+.queue-table .col-contact { min-width: 110px; max-width: 140px; }
+.queue-table .col-photo { width: 88px; }
+.queue-table .col-status { width: 84px; }
 
-/* ═══════════════════════════════════════════════════════════════════
-   FLOATING BULK PRINT BAR
-   ═══════════════════════════════════════════════════════════════════ */
-.bulk-print-bar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  z-index: 999;
-  background: linear-gradient(135deg, #1a4731 0%, #0f2d1e 100%);
-  color: #ffffff;
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.25);
-  border-top: 2px solid #d4af37;
+.queue-row { cursor: pointer; transition: background 0.1s ease; }
+.queue-table tbody tr:nth-child(even) { background: #fafcfb; }
+.queue-row:hover { background: #eef5ee; }
+.queue-row.row-selected { background: #e4f3e6; }
+.queue-row.row-active {
+  background: #dbeafe;
+  box-shadow: inset 3px 0 0 #1a4731;
 }
-.bulk-bar-inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 24px;
-  max-width: 1280px;
-  margin: 0 auto;
-  gap: 16px;
-}
-.bulk-count {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.92rem;
-}
-.bulk-icon { font-size: 22px; color: #d4af37; }
-.bulk-count strong { font-weight: 800; font-size: 1.15rem; color: #d4af37; }
+.queue-row.row-no-photo td { box-shadow: inset 0 -1px 0 #fdba74; }
 
-.bulk-print-btn {
+.state-cell { text-align: center; padding: 2rem 0; }
+
+.farmer-name { font-weight: 700; font-size: 0.86rem; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+
+.priority-mark {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 10px 24px;
-  border-radius: 8px;
-  font-size: 0.88rem;
-  font-weight: 700;
-  cursor: pointer;
-  background: #d4af37;
-  color: #1a1a1a;
-  border: none;
-  transition: all 0.15s ease;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
   letter-spacing: 0.02em;
+  color: #1e293b;
   white-space: nowrap;
 }
-.bulk-print-btn ion-icon { font-size: 18px; }
-.bulk-print-btn:hover {
-  background: #e8c84b;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
-}
-.bulk-print-btn:active { transform: scale(0.97); }
 
-/* Bar transitions */
-.bulk-bar-enter-active { animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
-.bulk-bar-leave-active { animation: slideDown 0.2s ease-in forwards; }
-@keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-@keyframes slideDown { from { transform: translateY(0); opacity: 1; } to { transform: translateY(100%); opacity: 0; } }
+.cat-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+
+.col-contact {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
+
+.mono { font-family: 'Courier New', monospace; font-size: 0.78rem; color: #64748b; }
+
+.status-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+.status-chip.chip-pending { background: #fffbeb; color: #b45309; border: 1px solid #fcd34d; }
+.status-chip.chip-printed { background: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; }
+.status-chip.chip-photo-ready { background: #ecfdf5; color: #047857; border: 1px solid #6ee7b7; }
+.status-chip.chip-photo-missing { background: #ffedd5; color: #9a3412; border: 1px solid #fdba74; }
+
+.list-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px;
+  border-top: 1px solid #e2e8f0;
+  flex-shrink: 0;
+}
+.page-label { font-size: 0.85rem; color: #64748b; font-weight: 600; }
+
+.queue-footer {
+  flex-shrink: 0;
+  padding: 10px 12px 12px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8faf9;
+}
+
+.print-selected-btn {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  background: #1a4731;
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 4px 12px rgba(26, 71, 49, 0.28);
+  transition: background 0.15s ease, transform 0.12s ease, opacity 0.15s ease;
+}
+
+.print-selected-btn ion-icon { font-size: 22px; }
+
+.print-selected-btn:hover:not(:disabled) {
+  background: #143a28;
+}
+
+.print-selected-btn:active:not(:disabled) {
+  transform: scale(0.98);
+}
+
+.print-selected-btn:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+  box-shadow: none;
+}
 
 /* ═══════════════════════════════════════════════════════════════════
-   SCREEN: Hide print container
+   PREVIEW PANEL
    ═══════════════════════════════════════════════════════════════════ */
+.preview-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  background: #ffffff;
+  border-radius: 14px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+}
+
+.preview-head {
+  flex-shrink: 0;
+  padding: 12px 16px;
+  background: linear-gradient(90deg, #1a4731 0%, #245a3f 100%);
+}
+
+.preview-head h2 {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: 0.01em;
+}
+
+.preview-head p {
+  margin: 2px 0 0;
+  font-size: 0.74rem;
+  color: #d1e0d6;
+}
+
+.preview-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background:
+    radial-gradient(circle, #e2ece6 1px, transparent 1px) 0 0 / 18px 18px,
+    #f7faf8;
+  padding: 1.25rem;
+}
+
+.empty-preview {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 240px;
+  color: #64748b;
+  gap: 1rem;
+  width: 100%;
+  text-align: center;
+}
+
+.empty-icon {
+  font-size: 4.5rem;
+  color: #a9bcb2;
+}
+
+.empty-preview p {
+  margin: 0;
+  max-width: 320px;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: #64748b;
+}
+
+.id-preview-wrapper {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.1rem;
+}
+
+.action-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: min(100%, 520px);
+  gap: 8px;
+}
+
+.action-bar-left { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+.id-card-stage {
+  display: flex;
+  justify-content: center;
+}
+
 .print-only { display: none; }
 .print-container { display: none; }
 
-/* ═══════════════════════════════════════════════════════════════════
-   @MEDIA PRINT — A4 GRID LAYOUT
-   2-column layout, IDs sized at CR80, with cut guides
-   ═══════════════════════════════════════════════════════════════════ */
 @media print {
   @page {
     size: A4 portrait;
     margin: 15mm;
   }
 
-  /* Hide all interactive chrome */
   .no-print,
-  .no-print-bg > .issuance-container > .header-section,
-  .no-print-bg > .issuance-container > ion-grid,
-  .bulk-print-bar,
   ion-header,
   ion-fab,
   ion-menu,
@@ -916,7 +1008,6 @@ onMounted(() => {
     display: none !important;
   }
 
-  /* Unlock Ionic scroll containers */
   html, body, ion-app, ion-router-outlet, ion-split-pane,
   .responsive-split, ion-page, .ion-page, ion-content,
   ion-content::part(scroll), ion-content::part(background),
@@ -949,13 +1040,11 @@ onMounted(() => {
     display: block !important;
   }
 
-  /* Show the print container */
   .print-only,
   .print-container {
     display: grid !important;
   }
 
-  /* A4 Grid: 2 columns of ID cards */
   .print-container {
     grid-template-columns: repeat(2, 1fr);
     grid-auto-rows: 54mm;
@@ -967,7 +1056,6 @@ onMounted(() => {
     margin: 0;
   }
 
-  /* Each ID wrapper */
   .id-card-print-wrapper {
     page-break-inside: avoid;
     break-inside: avoid;
@@ -978,38 +1066,52 @@ onMounted(() => {
     height: 53.98mm;
   }
 
-  /* ID card inside print */
-  .print-container .id-card {
+  .id-card-print-wrapper :deep(.id-card) {
     width: 85.6mm;
     height: 53.98mm;
-    border-radius: 4px;
+    aspect-ratio: auto;
     box-shadow: none;
-    border: 0.5px solid #cccccc;
-    font-size: inherit;
-  }
-
-  /* Ensure colors print */
-  .id-header,
-  .id-footer,
-  .footer-regular,
-  .footer-priority,
-  .badge-role {
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-
-  .issuance-container {
-    padding: 0 !important;
-    margin: 0 !important;
-    max-width: none !important;
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   RESPONSIVE
-   ═══════════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
-  .id-card-preview-frame { overflow-x: auto; }
-  .action-bar { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .auth-bg {
+    --overflow: auto;
+  }
+
+  .auth-bg::part(scroll) {
+    height: auto;
+  }
+
+  .workspace-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .issuance-workspace {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: 0;
+  }
+
+  .queue-panel {
+    height: auto;
+    max-height: none;
+  }
+
+  .table-wrap {
+    max-height: 50vh;
+  }
+
+  .preview-panel {
+    height: auto;
+    min-height: 360px;
+  }
+
+  .action-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
 }
 </style>

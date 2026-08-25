@@ -66,7 +66,7 @@
               </ion-card>
             </ion-col>
             <ion-col size="6">
-              <ion-card button class="tool-card" @click="go('/tech/geo-tag')">
+              <ion-card button class="tool-card" @click="go('/tech/geo-tag-queue')">
                 <ion-ripple-effect type="bounded"></ion-ripple-effect>
                 <ion-card-content class="tool-content">
                   <div class="tool-icon geotag">
