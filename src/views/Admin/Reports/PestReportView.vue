@@ -242,7 +242,7 @@ const viewingPhoto = ref<string | null>(null);
 const filters = reactive({
   barangay: '',
   cropType: '',
-  status: 'Validated',
+  status: 'All',
   dateFrom: '',
   dateTo: '',
 });
@@ -320,15 +320,14 @@ async function fetchRows() {
   loading.value = true;
   loadError.value = '';
   try {
-    const res = await apiClient.get('/reports/pest-surveillance', {
-      params: {
-        barangay:  filters.barangay  || undefined,
-        crop_type: filters.cropType  || undefined,
-        status:    filters.status    || 'Validated',
-        date_from: filters.dateFrom  || undefined,
-        date_to:   filters.dateTo    || undefined,
-      },
-    });
+    const params = {
+      barangay:  filters.barangay  || undefined,
+      crop_type: filters.cropType  || undefined,
+      status:    filters.status    || 'All',
+      date_from: filters.dateFrom  || undefined,
+      date_to:   filters.dateTo    || undefined,
+    };
+    const res = await apiClient.get('/reports/pest-surveillance', { params });
     rows.value = res.data?.data?.rows ?? [];
   } catch (e: any) {
     rows.value = [];
@@ -341,7 +340,7 @@ async function fetchRows() {
 function clearFilters() {
   filters.barangay = lockedBarangay.value || '';
   filters.cropType = '';
-  filters.status   = 'Validated';
+  filters.status   = 'All';
   filters.dateFrom = '';
   filters.dateTo   = '';
   searchQuery.value = '';

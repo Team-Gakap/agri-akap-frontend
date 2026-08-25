@@ -188,6 +188,7 @@ import apiClient from '@/utils/axios';
 import { toast } from '@/utils/toast';
 import { capInputToPlot, plotSizeHa } from '@/utils/plotArea';
 import { loadPestCatalog, threatsForCrop } from '@/utils/pestCatalog';
+import { storageUrl } from '@/utils/storageUrl';
 const PestMonitoringPrint = defineAsyncComponent(() => import('@/components/PestMonitoringPrint.vue'));
 
 withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
@@ -338,7 +339,6 @@ const loadLedger = async () => {
         per_page: 200,
         crop_type: crop.value || undefined,
         barangay: effectiveBarangay.value,
-        pending_field: true,
       },
     });
     const rows = res.data?.data?.data ?? [];
