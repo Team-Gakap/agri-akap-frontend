@@ -216,7 +216,7 @@ export const useAuthStore = defineStore('auth', () => {
       // that is a different problem than wrong credentials, so say so.
       const message = error.response?.data?.message
         ?? (error.request
-          ? 'Cannot reach the server. Check your Wi-Fi connection and that the backend is running.'
+          ? 'Cannot reach the server. Check your internet connection.'
           : 'Login failed.');
       return {
         success: false,
