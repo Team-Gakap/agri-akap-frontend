@@ -3,9 +3,8 @@ import { useAuthStore } from '../stores/authStore';
 import { apiBaseUrl } from './apiBase';
 
 const apiClient = axios.create({
-  // Native Android uses 127.0.0.1 (USB adb reverse); browser uses VITE_API_URL.
   baseURL: apiBaseUrl(),
-  timeout: 15000,
+  timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
