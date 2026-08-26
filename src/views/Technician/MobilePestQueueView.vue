@@ -32,6 +32,11 @@
         {{ loading ? 'Loading…' : `${filteredReports.length} report(s) waiting to be checked` }}
       </p>
 
+      <div v-if="showingCache" class="cache-banner ion-padding-horizontal">
+        <ion-icon :icon="cloudOfflineOutline"></ion-icon>
+        Showing cached data from {{ formatQueueDate(cachedAt) }}
+      </div>
+
       <div v-if="loading" class="empty ion-padding">
         <ion-spinner name="crescent" color="primary"></ion-spinner>
         <p>Loading barangay pest reports…</p>
@@ -80,13 +85,14 @@ import {
   IonSearchbar, IonSelect, IonSelectOption, IonList, IonCard, IonCardContent,
   IonBadge, IonIcon, IonRippleEffect, IonSpinner, IonButton,
 } from '@ionic/vue';
-import { bugOutline } from 'ionicons/icons';
+import { bugOutline, cloudOfflineOutline } from 'ionicons/icons';
 import apiClient from '@/utils/axios';
 import {
   formatFarmerName,
   formatQueueDate,
   type PendingPestReport,
 } from '@/data/technicianDispatchQueues';
+import { isOnline, isNetworkError, cacheQueueList, getCachedQueueList } from '@/services/syncService';
 
 const router = useRouter();
 const searchTerm = ref('');
@@ -94,6 +100,8 @@ const barangayFilter = ref('');
 const reports = ref<PendingPestReport[]>([]);
 const loading = ref(false);
 const error = ref('');
+const showingCache = ref(false);
+const cachedAt = ref('');
 
 const mapReport = (r: any): PendingPestReport => {
   const farmer = r.farmer || {};
@@ -112,16 +120,42 @@ const mapReport = (r: any): PendingPestReport => {
   };
 };
 
+const loadFromCache = async () => {
+  const cached = await getCachedQueueList('pest');
+  if (cached?.rows.length) {
+    reports.value = cached.rows.map(mapReport);
+    showingCache.value = true;
+    cachedAt.value = cached.cachedAt;
+    error.value = '';
+    return true;
+  }
+  return false;
+};
+
 const loadReports = async () => {
   loading.value = true;
   error.value = '';
+  showingCache.value = false;
+
+  if (!isOnline()) {
+    loading.value = false;
+    if (!(await loadFromCache())) {
+      reports.value = [];
+      error.value = 'Offline and no cached pest reports on this device yet.';
+    }
+    return;
+  }
+
   try {
     const res = await apiClient.get('/pest-monitoring', {
       params: { pending_field: 1, per_page: 200 },
     });
     const rows = res.data?.data?.data ?? res.data?.data ?? [];
-    reports.value = (Array.isArray(rows) ? rows : []).map(mapReport);
+    const list = Array.isArray(rows) ? rows : [];
+    await cacheQueueList('pest', list);
+    reports.value = list.map(mapReport);
   } catch (e: any) {
+    if (isNetworkError(e) && (await loadFromCache())) return;
     reports.value = [];
     error.value = e?.response?.data?.message || 'Could not load pest reports.';
   } finally {
@@ -205,6 +239,20 @@ onMounted(loadReports);
 }
 
 .queue-list { padding-bottom: 2rem; }
+
+.cache-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: #fff7e6;
+  border: 1px solid #ffe0a3;
+  border-radius: 10px;
+  color: #92600a;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
 
 .queue-card {
   margin: 0 0 0.85rem;

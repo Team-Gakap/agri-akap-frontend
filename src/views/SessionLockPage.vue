@@ -31,11 +31,20 @@
           </ion-button>
         </ion-item>
 
+        <TurnstileWidget
+          v-if="showCaptcha"
+          ref="captcha"
+          v-model="turnstileToken"
+          action="unlock"
+          size="flexible"
+          class="turnstile-slot"
+        />
+
         <ion-button
           expand="block"
           shape="round"
           class="unlock-btn"
-          :disabled="isSubmitting || !password"
+          :disabled="isSubmitting || !password || (showCaptcha && !turnstileToken)"
           @click="unlock"
         >
           {{ isSubmitting ? 'Verifying…' : 'Unlock & Resume' }}
@@ -57,11 +66,14 @@
 import { ref } from 'vue';
 import {
   IonPage, IonContent, IonItem, IonInput, IonButton, IonIcon, toastController,
+  onIonViewDidEnter,
 } from '@ionic/vue';
 import { lockClosed, lockClosedOutline, eye, eyeOff } from 'ionicons/icons';
+import { Capacitor } from '@capacitor/core';
 import { useAuthStore } from '@/stores/authStore';
 import { useSyncStore } from '@/stores/syncStore';
 import { useRouter } from 'vue-router';
+import TurnstileWidget from '@/components/TurnstileWidget.vue';
 
 const authStore = useAuthStore();
 const syncStore = useSyncStore();
@@ -70,13 +82,38 @@ const router = useRouter();
 const password = ref('');
 const showPassword = ref(false);
 const isSubmitting = ref(false);
+const turnstileToken = ref('');
+const captcha = ref<{ reset: () => Promise<void> } | null>(null);
+const showCaptcha = !Capacitor.isNativePlatform();
+let didEnterOnce = false;
+
+onIonViewDidEnter(() => {
+  if (didEnterOnce && showCaptcha) {
+    void captcha.value?.reset();
+  }
+  didEnterOnce = true;
+});
 
 const unlock = async () => {
   if (!password.value || isSubmitting.value) return;
+  if (showCaptcha && !turnstileToken.value) {
+    const t = await toastController.create({
+      message: 'Please complete the captcha.',
+      color: 'warning',
+      duration: 2200,
+      position: 'top',
+    });
+    await t.present();
+    return;
+  }
   isSubmitting.value = true;
   try {
-    const result = await authStore.reauthenticate(password.value);
+    const result = await authStore.reauthenticate(
+      password.value,
+      showCaptcha ? turnstileToken.value : undefined,
+    );
     if (!result.success) {
+      if (showCaptcha) await captcha.value?.reset();
       const t = await toastController.create({
         message: result.message || 'Re-authentication failed.',
         color: 'danger',
@@ -87,6 +124,7 @@ const unlock = async () => {
       return;
     }
     password.value = '';
+    turnstileToken.value = '';
     // Resume sync if we came back online with a fresh token.
     if (syncStore.online && syncStore.pending > 0) {
       await syncStore.sync();
@@ -156,6 +194,9 @@ const goLogin = async () => {
   border: 1px solid #e2e8f0;
   border-radius: 10px;
   margin-bottom: 1rem;
+}
+.turnstile-slot {
+  margin: 0 0 1rem;
 }
 .input-icon { color: #1a4731; }
 .unlock-btn {

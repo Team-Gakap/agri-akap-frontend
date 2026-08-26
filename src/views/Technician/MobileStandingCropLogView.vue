@@ -84,12 +84,15 @@ import { useBarangayFarmerSearch, type FarmerOption } from '@/composables/useBar
 import { presentToast } from '@/utils/toast';
 import { capInputToPlot, plotSizeHa } from '@/utils/plotArea';
 import apiClient from '@/utils/axios';
+import { isOnline, isNetworkError, queueStandingCropLog, syncAllPendingData } from '@/services/syncService';
+import { useSyncStore } from '@/stores/syncStore';
 
 const farmerSearch = useBarangayFarmerSearch(() => null, {
   requireBarangay: false,
   commodity: () => form.cropType,
 });
 const router = useRouter();
+const syncStore = useSyncStore();
 const submitting = ref(false);
 
 const form = reactive({
@@ -153,23 +156,52 @@ const onPlotChange = (e: CustomEvent) => {
   }
 };
 
+const queueThisStandingCrop = () => queueStandingCropLog({
+  farmer_id: form.farmerId,
+  farm_plot_id: form.plotId,
+  farmer_name: form.farmerName,
+  crop_type: form.cropType,
+  variety: form.variety.trim(),
+  area_ha: Number(form.areaHa),
+  growth_stage: form.growthStage,
+  est_harvest_date: form.estHarvestDate,
+  farm_location: form.farmLocation,
+});
+
 const submit = async () => {
   if (!canSubmit.value) return;
   submitting.value = true;
   try {
-    await apiClient.post('/standing-crop-logs', {
-      id: crypto.randomUUID(),
-      farmer_id: form.farmerId,
-      farm_plot_id: form.plotId,
-      crop_type: form.cropType,
-      variety: form.variety.trim(),
-      area_ha: Number(form.areaHa),
-      growth_stage: form.growthStage,
-      est_harvest_date: form.estHarvestDate,
-      farm_location: form.farmLocation,
-    });
-    await presentToast('Standing crop saved.');
-    await router.replace('/tech/dashboard');
+    if (!isOnline()) {
+      await queueThisStandingCrop();
+      await syncStore.refreshCount();
+      await presentToast('Saved locally. Will sync automatically when back online.');
+      await router.replace('/tech/dashboard');
+      return;
+    }
+
+    try {
+      await apiClient.post('/standing-crop-logs', {
+        id: crypto.randomUUID(),
+        farmer_id: form.farmerId,
+        farm_plot_id: form.plotId,
+        crop_type: form.cropType,
+        variety: form.variety.trim(),
+        area_ha: Number(form.areaHa),
+        growth_stage: form.growthStage,
+        est_harvest_date: form.estHarvestDate,
+        farm_location: form.farmLocation,
+      });
+      await presentToast('Standing crop saved.');
+      await router.replace('/tech/dashboard');
+    } catch (err: any) {
+      if (!isNetworkError(err)) throw err;
+      await queueThisStandingCrop();
+      await syncStore.refreshCount();
+      void syncAllPendingData().then(() => syncStore.refreshCount());
+      await presentToast('Connection lost. Saved locally — will sync automatically.', 'warning');
+      await router.replace('/tech/dashboard');
+    }
   } catch (e: any) {
     await presentToast(e?.response?.data?.message || 'Could not save standing crop.', 'danger');
   } finally {

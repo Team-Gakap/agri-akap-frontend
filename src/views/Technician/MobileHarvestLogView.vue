@@ -79,12 +79,15 @@ import { useBarangayFarmerSearch, type FarmerOption } from '@/composables/useBar
 import { presentToast } from '@/utils/toast';
 import { capInputToPlot, plotSizeHa } from '@/utils/plotArea';
 import apiClient from '@/utils/axios';
+import { isOnline, isNetworkError, queueHarvestLog, syncAllPendingData } from '@/services/syncService';
+import { useSyncStore } from '@/stores/syncStore';
 
 const farmerSearch = useBarangayFarmerSearch(() => null, {
   requireBarangay: false,
   commodity: () => form.cropType,
 });
 const router = useRouter();
+const syncStore = useSyncStore();
 const submitting = ref(false);
 
 const form = reactive({
@@ -148,24 +151,54 @@ const onPlotChange = (e: CustomEvent) => {
   }
 };
 
+const queueThisHarvest = () => queueHarvestLog({
+  farmer_id: form.farmerId,
+  farm_plot_id: form.plotId,
+  farmer_name: form.farmerName,
+  crop_type: form.cropType,
+  variety: form.variety.trim(),
+  area_harvested: Number(form.areaHarvested),
+  total_yield: Number(form.totalYield),
+  yield_unit: 'Metric Tons',
+  date_harvested: form.dateHarvested,
+  farm_location: form.farmLocation,
+});
+
 const submit = async () => {
   if (!canSubmit.value) return;
   submitting.value = true;
   try {
-    await apiClient.post('/harvest-logs', {
-      id: crypto.randomUUID(),
-      farmer_id: form.farmerId,
-      farm_plot_id: form.plotId,
-      crop_type: form.cropType,
-      variety: form.variety.trim(),
-      area_harvested: Number(form.areaHarvested),
-      total_yield: Number(form.totalYield),
-      yield_unit: 'Metric Tons',
-      date_harvested: form.dateHarvested,
-      farm_location: form.farmLocation,
-    });
-    await presentToast('Harvest saved.');
-    await router.replace('/tech/dashboard');
+    if (!isOnline()) {
+      await queueThisHarvest();
+      await syncStore.refreshCount();
+      await presentToast('Saved locally. Will sync automatically when back online.');
+      await router.replace('/tech/dashboard');
+      return;
+    }
+
+    try {
+      await apiClient.post('/harvest-logs', {
+        id: crypto.randomUUID(),
+        farmer_id: form.farmerId,
+        farm_plot_id: form.plotId,
+        crop_type: form.cropType,
+        variety: form.variety.trim(),
+        area_harvested: Number(form.areaHarvested),
+        total_yield: Number(form.totalYield),
+        yield_unit: 'Metric Tons',
+        date_harvested: form.dateHarvested,
+        farm_location: form.farmLocation,
+      });
+      await presentToast('Harvest saved.');
+      await router.replace('/tech/dashboard');
+    } catch (err: any) {
+      if (!isNetworkError(err)) throw err;
+      await queueThisHarvest();
+      await syncStore.refreshCount();
+      void syncAllPendingData().then(() => syncStore.refreshCount());
+      await presentToast('Connection lost. Saved locally — will sync automatically.', 'warning');
+      await router.replace('/tech/dashboard');
+    }
   } catch (e: any) {
     await presentToast(e?.response?.data?.message || 'Could not save harvest log.', 'danger');
   } finally {

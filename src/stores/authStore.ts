@@ -193,7 +193,12 @@ export const useAuthStore = defineStore('auth', () => {
     }
   };
 
-  const login = async (credentials: { email: string; password: string; device_name: string }) => {
+  const login = async (credentials: {
+    email: string;
+    password: string;
+    device_name: string;
+    turnstile_token?: string;
+  }) => {
     try {
       apiClient.defaults.baseURL = await ensureApiBaseUrl();
       const response = await apiClient.post('/login', credentials);
@@ -226,7 +231,7 @@ export const useAuthStore = defineStore('auth', () => {
   };
 
   /** Re-auth from the session lock screen — preserves IndexedDB and resumes home. */
-  const reauthenticate = async (password: string) => {
+  const reauthenticate = async (password: string, turnstileToken?: string) => {
     const email = user.value?.email;
     if (!email) {
       return { success: false, message: 'No cached user. Please sign in from the login page.' };
@@ -235,6 +240,7 @@ export const useAuthStore = defineStore('auth', () => {
       email,
       password,
       device_name: getDeviceId(),
+      turnstile_token: turnstileToken,
     });
     return result;
   };

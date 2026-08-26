@@ -35,6 +35,11 @@
         {{ loading ? 'Loading…' : `${filteredPlots.length} parcel(s) waiting for a field walk` }}
       </p>
 
+      <div v-if="showingCache" class="cache-banner ion-padding-horizontal">
+        <ion-icon :icon="cloudOfflineOutline"></ion-icon>
+        Showing cached data from {{ formatQueueDate(cachedAt) }}
+      </div>
+
       <div v-if="loading" class="empty ion-padding">
         <ion-spinner name="crescent" color="primary"></ion-spinner>
         <p>Loading assigned parcels…</p>
@@ -87,9 +92,10 @@ import {
   IonSearchbar, IonSelect, IonSelectOption, IonList, IonCard, IonCardContent,
   IonBadge, IonIcon, IonRippleEffect, IonSpinner, IonButton,
 } from '@ionic/vue';
-import { locationOutline } from 'ionicons/icons';
+import { locationOutline, cloudOfflineOutline } from 'ionicons/icons';
 import apiClient from '@/utils/axios';
 import { formatFarmerName, formatQueueDate } from '@/data/technicianDispatchQueues';
+import { isOnline, isNetworkError, cacheQueueList, getCachedQueueList } from '@/services/syncService';
 
 interface QueuePlot {
   id: string;
@@ -113,6 +119,8 @@ const barangayFilter = ref('');
 const plots = ref<QueuePlot[]>([]);
 const loading = ref(false);
 const error = ref('');
+const showingCache = ref(false);
+const cachedAt = ref('');
 
 const mapPlot = (p: any): QueuePlot => {
   const farmer = p.farmer || {};
@@ -133,14 +141,40 @@ const mapPlot = (p: any): QueuePlot => {
   };
 };
 
+const loadFromCache = async () => {
+  const cached = await getCachedQueueList('geotag');
+  if (cached?.rows.length) {
+    plots.value = cached.rows.map(mapPlot);
+    showingCache.value = true;
+    cachedAt.value = cached.cachedAt;
+    error.value = '';
+    return true;
+  }
+  return false;
+};
+
 const loadPlots = async () => {
   loading.value = true;
   error.value = '';
+  showingCache.value = false;
+
+  if (!isOnline()) {
+    loading.value = false;
+    if (!(await loadFromCache())) {
+      plots.value = [];
+      error.value = 'Offline and no cached geo-tag queue on this device yet.';
+    }
+    return;
+  }
+
   try {
     const res = await apiClient.get('/farm-plots', { params: { geotag_queue: 1 } });
     const rows = res.data?.data ?? [];
-    plots.value = (Array.isArray(rows) ? rows : []).map(mapPlot);
+    const list = Array.isArray(rows) ? rows : [];
+    await cacheQueueList('geotag', list);
+    plots.value = list.map(mapPlot);
   } catch (e: any) {
+    if (isNetworkError(e) && (await loadFromCache())) return;
     plots.value = [];
     error.value = e?.response?.data?.message || 'Could not load the geo-tag queue.';
   } finally {
@@ -228,6 +262,20 @@ onMounted(loadPlots);
 }
 
 .queue-list { padding-bottom: 2rem; }
+
+.cache-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background: #fff7e6;
+  border: 1px solid #ffe0a3;
+  border-radius: 10px;
+  color: #92600a;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
 
 .queue-card {
   margin: 0 0 0.85rem;

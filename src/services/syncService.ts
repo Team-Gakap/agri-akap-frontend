@@ -12,7 +12,11 @@ import {
   type OfflineFarmProfile,
   type OfflineGeoTag,
   type OfflineGeoRefusal,
+  type OfflineHarvestLog,
+  type OfflineStandingCropLog,
+  type OfflineSyncStatus,
 } from '@/database/db';
+import { isOnline as connectivityIsOnline, isNetworkError, markReachable, markUnreachable } from './connectivity';
 
 export interface SyncOutcome {
   client_id: string | null;
@@ -20,9 +24,12 @@ export interface SyncOutcome {
   message: string;
 }
 
+/** True only when the device has a network interface up AND the backend recently answered. */
 export function isOnline(): boolean {
-  return typeof navigator === 'undefined' ? true : navigator.onLine;
+  return connectivityIsOnline();
 }
+
+export { isNetworkError };
 
 /* ----------------------------- Read caching ----------------------------- */
 
@@ -57,7 +64,7 @@ function mapSubsidyProgram(p: any) {
   };
 }
 
-async function cacheFarmer(farmer: any) {
+export async function cacheFarmer(farmer: any) {
   if (!farmer?.id) return;
   await db.cachedFarmers.put({ id: farmer.id, payload: farmer, cached_at: new Date().toISOString() });
   for (const plot of farmer.farm_plots ?? farmer.farmPlots ?? []) {
@@ -105,13 +112,43 @@ export async function getPrograms(): Promise<any[]> {
   return (await db.cachedPrograms.toArray()).map((r) => r.payload);
 }
 
+/** Search farmers by name/RSBSA. Caches every result and falls back to that
+ *  cache (filtered locally) when offline or the request can't reach the server. */
 export async function searchFarmers(term: string): Promise<any[]> {
   const value = term.trim();
   if (value.length < 2) return [];
-  const res = await apiClient.get('/farmers', {
-    params: { search: value, per_page: 20, page: 1 },
-  });
-  return res.data?.data?.data ?? [];
+
+  if (isOnline()) {
+    try {
+      const res = await apiClient.get('/farmers', {
+        params: { search: value, per_page: 20, page: 1 },
+      });
+      const rows = res.data?.data?.data ?? [];
+      for (const f of rows) await cacheFarmer(f);
+      return rows;
+    } catch (err) {
+      if (!isNetworkError(err)) throw err;
+      /* fall through to cache below */
+    }
+  }
+
+  return searchCachedFarmers(value);
+}
+
+/** Filter previously-cached farmers by name/RSBSA/barangay — used offline. */
+export async function searchCachedFarmers(term: string): Promise<any[]> {
+  const value = term.trim().toLowerCase();
+  if (value.length < 2) return [];
+  const cached = await db.cachedFarmers.toArray();
+  return cached
+    .map((r) => r.payload)
+    .filter((f: any) => {
+      const name = `${f.surname || ''}, ${f.first_name || ''} ${f.middle_name || ''}`.toLowerCase();
+      return name.includes(value)
+        || String(f.rsbsa_no || '').toLowerCase().includes(value)
+        || String(f.permanent_brgy || f.barangay || '').toLowerCase().includes(value);
+    })
+    .slice(0, 20);
 }
 
 /** Resolve a scanned farmer QR / RSBSA / typed name to their profile. */
@@ -162,20 +199,26 @@ export async function lookupFarmer(qr: string): Promise<any | null> {
 /* ------------------------------- Queueing ------------------------------- */
 
 export async function queueDistribution(input: {
+  source?: 'subsidy' | 'program';
   farmer_id: string;
   farmer_name?: string;
   program_id: string;
   program_name?: string;
+  rsbsa_no?: string | null;
+  beneficiary_id?: string | null;
   geo_tag_lat?: number | null;
   geo_tag_long?: number | null;
   photo_proof_base64?: string;
 }): Promise<PendingDistribution> {
   const record: PendingDistribution = {
     client_id: newUuid(),
+    source: input.source ?? 'program',
     farmer_id: input.farmer_id,
     farmer_name: input.farmer_name,
     program_id: input.program_id,
     program_name: input.program_name,
+    rsbsa_no: input.rsbsa_no ?? null,
+    beneficiary_id: input.beneficiary_id ?? null,
     geo_tag_lat: input.geo_tag_lat ?? null,
     geo_tag_long: input.geo_tag_long ?? null,
     photo_proof_base64: input.photo_proof_base64,
@@ -283,6 +326,48 @@ export async function queueOfflineDistribution(
   return { ...record, id };
 }
 
+export async function queueHarvestLog(
+  input: Omit<OfflineHarvestLog, 'id' | 'client_id' | 'sync_status' | 'created_at'>,
+): Promise<OfflineHarvestLog> {
+  const record: OfflineHarvestLog = {
+    ...input,
+    client_id: newUuid(),
+    sync_status: 'pending',
+    created_at: new Date().toISOString(),
+  };
+  const id = await db.offline_harvest_logs.add(record);
+  return { ...record, id };
+}
+
+export async function queueStandingCropLog(
+  input: Omit<OfflineStandingCropLog, 'id' | 'client_id' | 'sync_status' | 'created_at'>,
+): Promise<OfflineStandingCropLog> {
+  const record: OfflineStandingCropLog = {
+    ...input,
+    client_id: newUuid(),
+    sync_status: 'pending',
+    created_at: new Date().toISOString(),
+  };
+  const id = await db.offline_standing_crop_logs.add(record);
+  return { ...record, id };
+}
+
+/* --------------------------- Queue list caching -------------------------- */
+
+/** Cache a dispatch queue list (pest/calamity/geo-tag) for offline browsing. */
+export async function cacheQueueList(kind: 'pest' | 'calamity' | 'geotag', rows: any[]): Promise<void> {
+  await db.cachedQueueLists.put({ kind, rows, cached_at: new Date().toISOString() });
+}
+
+/** Read back the last cached dispatch queue list; null if never cached. */
+export async function getCachedQueueList(
+  kind: 'pest' | 'calamity' | 'geotag',
+): Promise<{ rows: any[]; cachedAt: string } | null> {
+  const row = await db.cachedQueueLists.get(kind);
+  if (!row) return null;
+  return { rows: row.rows, cachedAt: row.cached_at };
+}
+
 export async function pendingCount(): Promise<number> {
   return pendingQueueCount();
 }
@@ -293,18 +378,24 @@ export interface PendingQueueItem {
   title: string;
   detail: string;
   createdAt?: string;
+  status: 'pending' | 'failed';
+  error?: string;
 }
 
+const PENDING_OR_FAILED: OfflineSyncStatus[] = ['pending', 'failed'];
+
 export async function listPendingQueueItems(): Promise<PendingQueueItem[]> {
-  const [assessments, planting, pests, farms, fieldDist, geoTags, geoRefusals, distributions] = await Promise.all([
+  const [assessments, planting, pests, farms, fieldDist, geoTags, geoRefusals, distributions, harvest, standing] = await Promise.all([
     db.pendingAssessments.toArray(),
-    db.offline_planting_logs.where('sync_status').equals('pending').toArray(),
-    db.offline_pest_reports.where('sync_status').equals('pending').toArray(),
-    db.offline_farm_profiles.where('sync_status').equals('pending').toArray(),
-    db.offline_distributions.where('sync_status').equals('pending').toArray(),
-    db.offline_geo_tags.where('sync_status').equals('pending').toArray(),
-    db.offline_geo_refusals.where('sync_status').equals('pending').toArray(),
+    db.offline_planting_logs.where('sync_status').anyOf(PENDING_OR_FAILED).toArray(),
+    db.offline_pest_reports.where('sync_status').anyOf(PENDING_OR_FAILED).toArray(),
+    db.offline_farm_profiles.where('sync_status').anyOf(PENDING_OR_FAILED).toArray(),
+    db.offline_distributions.where('sync_status').anyOf(PENDING_OR_FAILED).toArray(),
+    db.offline_geo_tags.where('sync_status').anyOf(PENDING_OR_FAILED).toArray(),
+    db.offline_geo_refusals.where('sync_status').anyOf(PENDING_OR_FAILED).toArray(),
     db.pendingDistributions.toArray(),
+    db.offline_harvest_logs.where('sync_status').anyOf(PENDING_OR_FAILED).toArray(),
+    db.offline_standing_crop_logs.where('sync_status').anyOf(PENDING_OR_FAILED).toArray(),
   ]);
 
   const items: PendingQueueItem[] = [
@@ -314,6 +405,8 @@ export async function listPendingQueueItems(): Promise<PendingQueueItem[]> {
       title: r.farmer_name || r.calamity_name || r.calamity_type,
       detail: `${r.calamity_type} · ${r.damage_percentage}%`,
       createdAt: r.created_at,
+      status: (r.status === 'failed' ? 'failed' : 'pending') as 'pending' | 'failed',
+      error: r.error,
     })),
     ...planting.map((r) => ({
       key: `planting-${r.id}`,
@@ -321,6 +414,8 @@ export async function listPendingQueueItems(): Promise<PendingQueueItem[]> {
       title: r.farmer_name || r.crop_type,
       detail: `${r.crop_type} · ${r.variety}`,
       createdAt: r.created_at,
+      status: (r.sync_status === 'failed' ? 'failed' : 'pending') as 'pending' | 'failed',
+      error: r.error,
     })),
     ...pests.map((r) => ({
       key: `pest-${r.id}`,
@@ -328,6 +423,8 @@ export async function listPendingQueueItems(): Promise<PendingQueueItem[]> {
       title: r.pest_name || r.crop || 'Pest report',
       detail: `${r.crop || 'Crop'} · ${r.severity}`,
       createdAt: r.created_at,
+      status: (r.sync_status === 'failed' ? 'failed' : 'pending') as 'pending' | 'failed',
+      error: r.error,
     })),
     ...farms.map((r) => ({
       key: `farm-${r.id}`,
@@ -335,6 +432,8 @@ export async function listPendingQueueItems(): Promise<PendingQueueItem[]> {
       title: 'Farm perimeter',
       detail: `${r.total_area} ha`,
       createdAt: r.created_at,
+      status: (r.sync_status === 'failed' ? 'failed' : 'pending') as 'pending' | 'failed',
+      error: r.error,
     })),
     ...fieldDist.map((r) => ({
       key: `dist-${r.id}`,
@@ -342,6 +441,8 @@ export async function listPendingQueueItems(): Promise<PendingQueueItem[]> {
       title: r.item_dispensed,
       detail: `${r.rsbsa_id} · ${r.quantity}`,
       createdAt: r.timestamp,
+      status: (r.sync_status === 'failed' ? 'failed' : 'pending') as 'pending' | 'failed',
+      error: r.error,
     })),
     ...geoTags.map((r) => ({
       key: `geo-${r.id}`,
@@ -349,6 +450,8 @@ export async function listPendingQueueItems(): Promise<PendingQueueItem[]> {
       title: r.farmer_name || r.parcel_name || r.crop_planted,
       detail: `${r.crop_planted}${r.crop_variety ? ` · ${r.crop_variety}` : ''}`,
       createdAt: r.created_at,
+      status: (r.sync_status === 'failed' ? 'failed' : 'pending') as 'pending' | 'failed',
+      error: r.error,
     })),
     ...geoRefusals.map((r) => ({
       key: `refusal-${r.id}`,
@@ -356,6 +459,8 @@ export async function listPendingQueueItems(): Promise<PendingQueueItem[]> {
       title: r.farmer_name || 'Refusal',
       detail: `Attempt ${r.attempt_number ?? 1}`,
       createdAt: r.created_at,
+      status: (r.sync_status === 'failed' ? 'failed' : 'pending') as 'pending' | 'failed',
+      error: r.error,
     })),
     ...distributions.map((r) => ({
       key: `claim-${r.client_id}`,
@@ -363,10 +468,33 @@ export async function listPendingQueueItems(): Promise<PendingQueueItem[]> {
       title: r.farmer_name || r.program_name || 'Distribution',
       detail: r.program_name || r.farmer_id,
       createdAt: r.created_at,
+      status: (r.status === 'failed' ? 'failed' : 'pending') as 'pending' | 'failed',
+      error: r.error,
+    })),
+    ...harvest.map((r) => ({
+      key: `harvest-${r.id}`,
+      type: 'Harvest',
+      title: r.farmer_name || r.crop_type,
+      detail: `${r.crop_type} · ${r.total_yield} ${r.yield_unit}`,
+      createdAt: r.created_at,
+      status: (r.sync_status === 'failed' ? 'failed' : 'pending') as 'pending' | 'failed',
+      error: r.error,
+    })),
+    ...standing.map((r) => ({
+      key: `standing-${r.id}`,
+      type: 'Standing crop',
+      title: r.farmer_name || r.crop_type,
+      detail: `${r.crop_type} · ${r.growth_stage}`,
+      createdAt: r.created_at,
+      status: (r.sync_status === 'failed' ? 'failed' : 'pending') as 'pending' | 'failed',
+      error: r.error,
     })),
   ];
 
-  return items.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  return items.sort((a, b) => {
+    if (a.status !== b.status) return a.status === 'failed' ? -1 : 1;
+    return String(b.createdAt || '').localeCompare(String(a.createdAt || ''));
+  });
 }
 
 /* ------------------------------- Flushing ------------------------------- */
@@ -379,7 +507,9 @@ type AutoIncTable =
   | 'offline_farm_profiles'
   | 'offline_distributions'
   | 'offline_geo_tags'
-  | 'offline_geo_refusals';
+  | 'offline_geo_refusals'
+  | 'offline_harvest_logs'
+  | 'offline_standing_crop_logs';
 
 async function clearSyncedRows(
   table: AutoIncTable,
@@ -395,7 +525,9 @@ async function clearSyncedRows(
       counters.synced++;
     } else {
       counters.failed++;
-      if (row.id != null) await db[table].update(row.id, { sync_status: 'failed' });
+      if (row.id != null) {
+        await db[table].update(row.id, { sync_status: 'failed', error: outcome.message });
+      }
     }
   }
 }
@@ -407,7 +539,7 @@ async function clearSyncedRows(
  * 3. POST master payload to `/sync/bulk`
  * 4. On HTTP 200, delete (or mark synced) local rows to avoid duplicates
  */
-export async function syncAllPendingData(): Promise<{ synced: number; failed: number }> {
+export async function syncAllPendingData(): Promise<{ synced: number; failed: number; errored?: boolean }> {
   if (syncingAll || !isOnline()) {
     return { synced: 0, failed: 0 };
   }
@@ -421,15 +553,19 @@ export async function syncAllPendingData(): Promise<{ synced: number; failed: nu
     field_distributions,
     geo_tags,
     geo_refusals,
+    harvest_logs,
+    standing_crop_logs,
   ] = await Promise.all([
     db.pendingDistributions.toArray(),
     db.pendingAssessments.toArray(),
-    db.offline_planting_logs.where('sync_status').equals('pending').toArray(),
-    db.offline_pest_reports.where('sync_status').equals('pending').toArray(),
-    db.offline_farm_profiles.where('sync_status').equals('pending').toArray(),
-    db.offline_distributions.where('sync_status').equals('pending').toArray(),
-    db.offline_geo_tags.where('sync_status').equals('pending').toArray(),
-    db.offline_geo_refusals.where('sync_status').equals('pending').toArray(),
+    db.offline_planting_logs.where('sync_status').anyOf(PENDING_OR_FAILED).toArray(),
+    db.offline_pest_reports.where('sync_status').anyOf(PENDING_OR_FAILED).toArray(),
+    db.offline_farm_profiles.where('sync_status').anyOf(PENDING_OR_FAILED).toArray(),
+    db.offline_distributions.where('sync_status').anyOf(PENDING_OR_FAILED).toArray(),
+    db.offline_geo_tags.where('sync_status').anyOf(PENDING_OR_FAILED).toArray(),
+    db.offline_geo_refusals.where('sync_status').anyOf(PENDING_OR_FAILED).toArray(),
+    db.offline_harvest_logs.where('sync_status').anyOf(PENDING_OR_FAILED).toArray(),
+    db.offline_standing_crop_logs.where('sync_status').anyOf(PENDING_OR_FAILED).toArray(),
   ]);
 
   const hasWork =
@@ -440,7 +576,9 @@ export async function syncAllPendingData(): Promise<{ synced: number; failed: nu
     || farm_profiles.length
     || field_distributions.length
     || geo_tags.length
-    || geo_refusals.length;
+    || geo_refusals.length
+    || harvest_logs.length
+    || standing_crop_logs.length;
 
   if (!hasWork) {
     return { synced: 0, failed: 0 };
@@ -459,6 +597,8 @@ export async function syncAllPendingData(): Promise<{ synced: number; failed: nu
     const fieldIds = field_distributions.map((r) => r.id!).filter(Boolean);
     const geoTagIds = geo_tags.map((r) => r.id!).filter(Boolean);
     const geoRefusalIds = geo_refusals.map((r) => r.id!).filter(Boolean);
+    const harvestIds = harvest_logs.map((r) => r.id!).filter(Boolean);
+    const standingIds = standing_crop_logs.map((r) => r.id!).filter(Boolean);
 
     if (plantingIds.length) {
       await db.offline_planting_logs.where('id').anyOf(plantingIds).modify({ sync_status: 'syncing' });
@@ -478,13 +618,22 @@ export async function syncAllPendingData(): Promise<{ synced: number; failed: nu
     if (geoRefusalIds.length) {
       await db.offline_geo_refusals.where('id').anyOf(geoRefusalIds).modify({ sync_status: 'syncing' });
     }
+    if (harvestIds.length) {
+      await db.offline_harvest_logs.where('id').anyOf(harvestIds).modify({ sync_status: 'syncing' });
+    }
+    if (standingIds.length) {
+      await db.offline_standing_crop_logs.where('id').anyOf(standingIds).modify({ sync_status: 'syncing' });
+    }
 
     const payload = {
       device_id: getDeviceId(),
       distributions: claimDistributions.map((d) => ({
         client_id: d.client_id,
+        source: d.source ?? 'program',
         farmer_id: d.farmer_id,
         program_id: d.program_id,
+        rsbsa_no: d.rsbsa_no,
+        beneficiary_id: d.beneficiary_id,
         device_id: d.device_id,
         claimed_at: d.claimed_at,
         geo_tag_lat: d.geo_tag_lat,
@@ -493,11 +642,15 @@ export async function syncAllPendingData(): Promise<{ synced: number; failed: nu
       })),
       assessments: assessments.map((a) => ({
         id: a.client_id,
+        assessment_id: a.assessment_id,
         farm_plot_id: a.farm_plot_id,
         farmer_id: a.farmer_id,
+        farmer_name: a.farmer_name,
         calamity_type: a.calamity_type,
         calamity_name: a.calamity_name,
         crop_stage: a.crop_stage,
+        variety: a.variety,
+        area_planted_ha: a.area_planted_ha,
         area_destroyed_ha: a.area_destroyed_ha,
         date_of_calamity: a.date_of_calamity,
         damage_percentage: a.damage_percentage,
@@ -585,12 +738,36 @@ export async function syncAllPendingData(): Promise<{ synced: number; failed: nu
         attempt_number: r.attempt_number,
         reason: r.reason,
       })),
+      harvest_logs: harvest_logs.map((r) => ({
+        client_id: r.client_id,
+        farmer_id: r.farmer_id,
+        farm_plot_id: r.farm_plot_id,
+        crop_type: r.crop_type,
+        variety: r.variety,
+        area_harvested: r.area_harvested,
+        total_yield: r.total_yield,
+        yield_unit: r.yield_unit,
+        date_harvested: r.date_harvested,
+        farm_location: r.farm_location,
+      })),
+      standing_crop_logs: standing_crop_logs.map((r) => ({
+        client_id: r.client_id,
+        farmer_id: r.farmer_id,
+        farm_plot_id: r.farm_plot_id,
+        crop_type: r.crop_type,
+        variety: r.variety,
+        area_ha: r.area_ha,
+        growth_stage: r.growth_stage,
+        est_harvest_date: r.est_harvest_date,
+        farm_location: r.farm_location,
+      })),
     };
 
     const res = await apiClient.post('/sync/bulk', payload);
     if (res.status !== 200) {
       throw new Error(`Sync HTTP ${res.status}`);
     }
+    markReachable();
 
     const results = res.data?.results ?? {};
 
@@ -639,9 +816,15 @@ export async function syncAllPendingData(): Promise<{ synced: number; failed: nu
     );
     await clearSyncedRows('offline_geo_tags', geo_tags, results.geo_tags, counters);
     await clearSyncedRows('offline_geo_refusals', geo_refusals, results.geo_tag_refusals, counters);
+    await clearSyncedRows('offline_harvest_logs', harvest_logs, results.harvest_logs, counters);
+    await clearSyncedRows('offline_standing_crop_logs', standing_crop_logs, results.standing_crop_logs, counters);
 
     return counters;
-  } catch {
+  } catch (err) {
+    if (isNetworkError(err)) {
+      markUnreachable();
+    }
+    console.warn('[AGRI-AKAP] Bulk sync failed, will retry:', err);
     await db.pendingDistributions.where('status').equals('syncing').modify({ status: 'pending' });
     await db.pendingAssessments.where('status').equals('syncing').modify({ status: 'pending' });
     await db.offline_planting_logs.where('sync_status').equals('syncing').modify({ sync_status: 'pending' });
@@ -650,7 +833,9 @@ export async function syncAllPendingData(): Promise<{ synced: number; failed: nu
     await db.offline_distributions.where('sync_status').equals('syncing').modify({ sync_status: 'pending' });
     await db.offline_geo_tags.where('sync_status').equals('syncing').modify({ sync_status: 'pending' });
     await db.offline_geo_refusals.where('sync_status').equals('syncing').modify({ sync_status: 'pending' });
-    return { synced: 0, failed: 0 };
+    await db.offline_harvest_logs.where('sync_status').equals('syncing').modify({ sync_status: 'pending' });
+    await db.offline_standing_crop_logs.where('sync_status').equals('syncing').modify({ sync_status: 'pending' });
+    return { synced: 0, failed: 0, errored: true };
   } finally {
     syncingAll = false;
   }
