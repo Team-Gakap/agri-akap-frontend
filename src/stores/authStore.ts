@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import apiClient from '../utils/axios';
+import { ensureApiBaseUrl } from '../utils/apiBase';
 import router, { homeForRole } from '../router';
 import { pendingQueueCount, getDeviceId } from '@/services/db';
 
@@ -194,6 +195,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   const login = async (credentials: { email: string; password: string; device_name: string }) => {
     try {
+      apiClient.defaults.baseURL = await ensureApiBaseUrl();
       const response = await apiClient.post('/login', credentials);
       const data = response.data.data;
 
@@ -209,9 +211,16 @@ export const useAuthStore = defineStore('auth', () => {
 
       return { success: true };
     } catch (error: any) {
+      // No response at all means the request never reached the backend
+      // (offline, wrong LAN IP, firewall, or blocked cleartext HTTP) —
+      // that is a different problem than wrong credentials, so say so.
+      const message = error.response?.data?.message
+        ?? (error.request
+          ? 'Cannot reach the server. Check your Wi-Fi connection and that the backend is running.'
+          : 'Login failed.');
       return {
         success: false,
-        message: error.response?.data?.message ?? 'Login failed.',
+        message,
       };
     }
   };

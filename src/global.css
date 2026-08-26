@@ -4,8 +4,10 @@
 /* Transparent WebView so native camera feed shows through during QR scan */
 body.scanner-active,
 body.barcode-scanner-active {
+  visibility: hidden;
   background: transparent !important;
   --background: transparent !important;
+  --ion-background-color: transparent !important;
 }
 body.scanner-active ion-app,
 body.scanner-active ion-content,
@@ -15,6 +17,10 @@ body.barcode-scanner-active ion-content,
 body.barcode-scanner-active .ion-page {
   background: transparent !important;
   --background: transparent !important;
+}
+body.scanner-active .scan-overlay,
+body.barcode-scanner-active .scan-overlay {
+  visibility: visible;
 }
 
 /* ── Base typography ─────────────────────────────────────────────── */

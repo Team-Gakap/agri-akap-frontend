@@ -389,13 +389,11 @@ import {
   IonTextarea, IonCheckbox, IonLabel, toastController, alertController, onIonViewDidEnter,
 } from '@ionic/vue';
 import { cameraOutline, qrCodeOutline } from 'ionicons/icons';
-import { Capacitor } from '@capacitor/core';
-import { BarcodeScanner } from '@capacitor-mlkit/barcode-scanning';
-import { Geolocation } from '@capacitor/geolocation';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { Geolocation } from '@capacitor/geolocation';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { ensureLocationPermission } from '@/composables/useNativeHardware';
+import { ensureLocationPermission, scanFarmerQr, showScannerBackground, stopLiveQrScan } from '@/composables/useNativeHardware';
 import { db, newUuid, type GeoTagIncidentType, type GeoTagGeometryType, type GeoTagRefusalAttempt } from '@/database/db';
 import { useSyncStore } from '@/stores/syncStore';
 import { queueGeoTagRefusal, lookupFarmer, searchFarmers } from '@/services/syncService';
@@ -682,55 +680,33 @@ const fetchFarmerByQr = async (raw: string) => {
   }
 };
 
-/** ML Kit `scan()` uses a native camera UI — do not clear the WebView background. */
-const clearScannerBackground = () => {
-  document.body.classList.remove('scanner-active', 'barcode-scanner-active');
-};
-
 const stopScan = async () => {
-  try {
-    await BarcodeScanner.stopScan?.();
-  } catch {
-    // ignore
-  }
-  clearScannerBackground();
+  await stopLiveQrScan();
   isScanning.value = false;
 };
 
 const startScan = async () => {
-  if (isScanning.value) return;
+  if (isScanning.value || lookingUp.value) return;
 
-  if (!Capacitor.isNativePlatform()) {
-    await toast('Camera scanner needs a native build. Search by name or RSBSA below.', 'warning');
+  const result = await scanFarmerQr({
+    onLiveScanStart: () => { isScanning.value = true; },
+    onLiveScanEnd: () => { isScanning.value = false; },
+  });
+
+  if (!result.ok) {
+    if (result.reason === 'cancelled') return;
+    const messages = {
+      not_native: 'Camera scanner needs a native build. Search by name or RSBSA below.',
+      permission: 'Camera permission denied. Search by name or RSBSA below.',
+      empty: 'No QR code detected. Try again or search manually.',
+      unavailable: 'Scanner unavailable. Search by name or RSBSA below.',
+    } as const;
+    await toast(messages[result.reason], result.reason === 'unavailable' ? 'danger' : 'warning');
     return;
   }
 
-  try {
-    const { camera } = await BarcodeScanner.requestPermissions();
-    if (camera !== 'granted' && camera !== 'limited') {
-      await toast('Camera permission denied. Search by name or RSBSA below.', 'warning');
-      return;
-    }
-
-    isScanning.value = true;
-    clearScannerBackground();
-
-    const { barcodes } = await BarcodeScanner.scan();
-    const raw = barcodes[0]?.rawValue?.trim();
-    await stopScan();
-
-    if (!raw) {
-      await toast('No QR code detected. Try again or search manually.', 'warning');
-      return;
-    }
-
-    searchQuery.value = raw;
-    await fetchFarmerByQr(raw);
-  } catch (err) {
-    console.warn('[AGRI-AKAP] QR scanner failed (web/native):', err);
-    await stopScan();
-    await toast('Scanner unavailable. Search by name or RSBSA below.', 'danger');
-  }
+  searchQuery.value = result.value;
+  await fetchFarmerByQr(result.value);
 };
 
 const meta = reactive({
@@ -1397,7 +1373,7 @@ watch(
 );
 
 onMounted(async () => {
-  clearScannerBackground();
+  showScannerBackground();
   await initMap();
   await startLiveTracking();
   if (farmerId.value) {
@@ -1410,7 +1386,7 @@ onMounted(async () => {
 
 /** Ionic keeps pages cached — resize when this tab becomes visible again. */
 onIonViewDidEnter(() => {
-  clearScannerBackground();
+  showScannerBackground();
   refreshMapSize();
   setTimeout(refreshMapSize, 200);
   const pid = String(route.query.plot_id || route.query.plot || '').trim();
@@ -1431,7 +1407,7 @@ watch(farmerId, (id) => {
 onBeforeUnmount(async () => {
   if (searchTimer) clearTimeout(searchTimer);
   await stopScan();
-  clearScannerBackground();
+  showScannerBackground();
   await stopLiveTracking();
   clearDraftLayers();
   committedLayers.forEach((l) => map?.removeLayer(l));

@@ -592,6 +592,7 @@ import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 
 import { reactive, ref, onMounted, computed } from "vue";
 import axiosInstance from "@/utils/axios";
+import { apiOrigin } from "@/utils/apiBase";
 import { useRouter, useRoute } from "vue-router";
 import SearchableSelect from "@/components/SearchableSelect.vue";
 import { useOfficialBarangays } from "@/composables/useOfficialBarangays";
@@ -834,7 +835,7 @@ const generateTransactionCode = () => {
   return `ECH-${year}${month}-${randomStr}`; // e.g., ECH-202606-A1B2
 };
 
-const API_BASE = import.meta.env.VITE_API_URL?.replace('/api', '') ?? 'http://127.0.0.1:8000';
+const API_BASE = apiOrigin();
 
 const applyFarmerRecord = (data: any) => {
   const skip = new Set(['farm_plots', 'farmPlots', 'distributions', 'photo_base64']);

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Permits plaintext (HTTP) traffic for the LAN Laravel dev backend.
+  Some OEM WebViews (e.g. TECNO) ignore the usesCleartextTraffic manifest
+  attribute alone, so this explicit network security config is needed too.
+  Remove/tighten this once the backend is served over HTTPS in production.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

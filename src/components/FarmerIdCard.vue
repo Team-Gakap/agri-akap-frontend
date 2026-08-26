@@ -74,6 +74,7 @@ import { computed, ref } from 'vue';
 import { IonIcon } from '@ionic/vue';
 import { personOutline } from 'ionicons/icons';
 import QrcodeVue from 'qrcode.vue';
+import { apiOrigin } from '@/utils/apiBase';
 
 const props = withDefaults(
   defineProps<{
@@ -83,7 +84,7 @@ const props = withDefaults(
   { printMode: false },
 );
 
-const API_BASE = import.meta.env.VITE_API_URL?.replace('/api', '') ?? 'http://127.0.0.1:8000';
+const API_BASE = apiOrigin();
 const logoFailed = ref(false);
 
 const ageOf = (farmer: Record<string, any>): number | null => {

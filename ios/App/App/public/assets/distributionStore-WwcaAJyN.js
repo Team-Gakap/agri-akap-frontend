@@ -1,1 +1,0 @@
-import{u as e}from"./axios-C2pVvRiR.js";import{K as t}from"./runtime-core.esm-bundler-CB0wQ3LW.js";var n=e(`distribution`,()=>{let e=t(null);function n(t){e.value=t}function r(){e.value=null}return{context:e,setContext:n,clear:r}});export{n as t};

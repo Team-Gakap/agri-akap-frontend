@@ -534,15 +534,15 @@ const tickClock = () => {
 watch(
   [selectedBarangays, () => form.target_commodity],
   () => {
-    window.clearTimeout(previewTimer);
-    previewTimer = window.setTimeout(() => { void refreshAudience(); }, 350);
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(() => { void refreshAudience(); }, 350);
   },
   { deep: true },
 );
 
 onMounted(async () => {
   tickClock();
-  clockTimer = window.setInterval(tickClock, 30000);
+  clockTimer = setInterval(tickClock, 30000);
   await Promise.all([fetchLogs(), fetchFilters(), fetchAdvisory()]);
   applyQueryPrefill();
   if (!selectedBarangays.value.length && barangays.value.length) {
@@ -552,8 +552,8 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
-  window.clearTimeout(previewTimer);
-  if (clockTimer) window.clearInterval(clockTimer);
+  clearTimeout(previewTimer);
+  if (clockTimer) clearInterval(clockTimer);
 });
 </script>
 

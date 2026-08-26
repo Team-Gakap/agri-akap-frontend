@@ -1,0 +1,1 @@
+function e(e){return e?/^https?:\/\//i.test(e)||e.startsWith(`data:`)?e:`${`http://192.168.1.190:8000/api`.replace(/\/api\/?$/,``)}/storage/${String(e).replace(/^\/+/,``)}`:null}export{e as t};

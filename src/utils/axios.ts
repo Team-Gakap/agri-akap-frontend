@@ -1,9 +1,11 @@
 import axios from 'axios';
 import { useAuthStore } from '../stores/authStore';
+import { apiBaseUrl } from './apiBase';
 
 const apiClient = axios.create({
-  // Point this to your Laravel backend URL (e.g., http://localhost:8000/api)
-  baseURL: import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000/api',
+  // Native Android uses 127.0.0.1 (USB adb reverse); browser uses VITE_API_URL.
+  baseURL: apiBaseUrl(),
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',

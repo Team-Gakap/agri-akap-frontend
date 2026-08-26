@@ -520,8 +520,8 @@ const loadBarangays = async () => {
 
 const onSearchInput = (ev: Event) => {
   searchQuery.value = (ev.target as HTMLInputElement).value ?? '';
-  window.clearTimeout(searchTimer);
-  searchTimer = window.setTimeout(() => fetchFarmers(1, searchQuery.value), 400);
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => fetchFarmers(1, searchQuery.value), 400);
 };
 
 const onBarangayChange = (ev: Event) => {
@@ -688,7 +688,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('afterprint', onAfterPrint);
-  window.clearTimeout(searchTimer);
+  clearTimeout(searchTimer);
 });
 </script>
 
