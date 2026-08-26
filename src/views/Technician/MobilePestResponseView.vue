@@ -215,7 +215,7 @@ import apiClient from '@/utils/axios';
 import { formatFarmerName } from '@/data/technicianDispatchQueues';
 import { fetchRealLocation } from '@/composables/useNativeHardware';
 import { db, newUuid } from '@/database/db';
-import { syncAllPendingData } from '@/services/syncService';
+import { syncAllPendingData, isOnline, isNetworkError } from '@/services/syncService';
 import { loadPestCatalog, threatsForCrop } from '@/utils/pestCatalog';
 import { useSyncStore } from '@/stores/syncStore';
 import { presentToast } from '@/utils/toast';
@@ -406,6 +406,28 @@ const lockGpsCoordinates = async () => {
   }
 };
 
+const queueThisReport = async (rsbsaId: string) => {
+  await db.offline_pest_reports.add({
+    client_id: newUuid(),
+    rsbsa_id: rsbsaId,
+    farmer_id: state.target.farmerId || undefined,
+    crop: state.target.crop,
+    pest_name: state.confirmedPest,
+    incidence: state.incidencePct,
+    severity: state.severity,
+    advisory: state.advisories.join(', '),
+    is_outbreak: state.escalateOutbreak,
+    photo_base64: state.photoBase64,
+    lat: state.latitude,
+    lng: state.longitude,
+    report_id: state.target.reportId,
+    server_id: state.serverRecordId || undefined,
+    sync_status: 'pending',
+    created_at: new Date().toISOString(),
+  });
+  await syncStore.refreshCount();
+};
+
 const submitReport = async () => {
   if (!canSubmit.value || submitting.value) return;
   submitting.value = true;
@@ -415,45 +437,35 @@ const submitReport = async () => {
       ? state.photoBase64
       : `data:image/jpeg;base64,${state.photoBase64}`;
 
-    if (state.serverRecordId && navigator.onLine) {
-      await apiClient.patch(`/pest-monitoring/${state.serverRecordId}/field-validate`, {
-        latitude: state.latitude,
-        longitude: state.longitude,
-        photo_base64: photo,
-        pest_name: state.confirmedPest,
-        incidence: state.incidencePct,
-        severity: state.severity,
-        advisory: state.advisories.join(', '),
-        is_outbreak: state.escalateOutbreak,
-      });
-    } else {
-      await db.offline_pest_reports.add({
-        client_id: newUuid(),
-        rsbsa_id: rsbsaId,
-        farmer_id: state.target.farmerId || undefined,
-        crop: state.target.crop,
-        pest_name: state.confirmedPest,
-        incidence: state.incidencePct,
-        severity: state.severity,
-        advisory: state.advisories.join(', '),
-        is_outbreak: state.escalateOutbreak,
-        photo_base64: state.photoBase64,
-        lat: state.latitude,
-        lng: state.longitude,
-        report_id: state.target.reportId,
-        server_id: state.serverRecordId || undefined,
-        sync_status: 'pending',
-        created_at: new Date().toISOString(),
-      });
+    let savedOnline = false;
 
-      await syncStore.refreshCount();
-      if (navigator.onLine) {
+    if (state.serverRecordId && isOnline()) {
+      try {
+        await apiClient.patch(`/pest-monitoring/${state.serverRecordId}/field-validate`, {
+          latitude: state.latitude,
+          longitude: state.longitude,
+          photo_base64: photo,
+          pest_name: state.confirmedPest,
+          incidence: state.incidencePct,
+          severity: state.severity,
+          advisory: state.advisories.join(', '),
+          is_outbreak: state.escalateOutbreak,
+        });
+        savedOnline = true;
+      } catch (err: any) {
+        if (!isNetworkError(err)) throw err;
+        // Connection dropped mid-submit even though the device looked online — queue instead of losing the report.
+        await queueThisReport(rsbsaId);
+      }
+    } else {
+      await queueThisReport(rsbsaId);
+      if (isOnline()) {
         void syncAllPendingData().then(() => syncStore.refreshCount());
       }
     }
 
     await presentToast(
-      state.serverRecordId && navigator.onLine
+      savedOnline
         ? 'Field validation saved. Status updated on the pest report.'
         : 'Saved locally. Will sync when online.',
       state.escalateOutbreak ? 'warning' : 'success',

@@ -48,6 +48,24 @@ ion-content {
   --background: var(--mao-surface);
 }
 
+/* Native status bar: keep toolbars and headers below the notification tray.
+   --ion-safe-area-top is also written from StatusBar.getInfo() on device. */
+html {
+  --agri-status-bar-height: env(safe-area-inset-top, 0px);
+}
+
+html.is-native {
+  --agri-status-bar-height: env(safe-area-inset-top, 0px);
+}
+
+html.is-native.is-native-overlay {
+  --agri-status-bar-height: max(env(safe-area-inset-top, 0px), 24px);
+}
+
+ion-header ion-toolbar:first-of-type {
+  padding-top: var(--ion-safe-area-top, var(--agri-status-bar-height));
+}
+
 /* ── Toolbars / headers ──────────────────────────────────────────── */
 ion-header ion-toolbar {
   --background: var(--ion-color-primary);

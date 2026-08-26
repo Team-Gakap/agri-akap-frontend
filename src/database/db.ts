@@ -10,10 +10,14 @@ export type OfflineSyncStatus = 'pending' | 'syncing' | 'synced' | 'failed';
  */
 export interface PendingDistribution {
   client_id: string;
+  /** 'subsidy' claims re-verify against tbl_subsidy_beneficiaries on sync; 'program' uses the legacy programs table. */
+  source?: 'subsidy' | 'program';
   farmer_id: string;
   farmer_name?: string;
   program_id: string;
   program_name?: string;
+  rsbsa_no?: string | null;
+  beneficiary_id?: string | null;
   device_id: string;
   claimed_at: string;
   geo_tag_lat?: number | null;
@@ -29,12 +33,18 @@ export interface PendingDistribution {
  */
 export interface PendingAssessment {
   client_id: string;
+  /** Set when field-validating an assessment that already exists on the server
+   *  (dispatched from the barangay queue); sync updates that record instead of
+   *  creating a new one. Absent for brand-new field assessments. */
+  assessment_id?: string;
   farm_plot_id: string;
   farmer_id?: string;
   farmer_name?: string;
   calamity_type: string;
   calamity_name?: string;
   crop_stage?: string | null;
+  variety?: string | null;
+  area_planted_ha?: number | null;
   area_destroyed_ha?: number | null;
   date_of_calamity: string;
   damage_percentage: number;
@@ -59,6 +69,7 @@ export interface OfflineDistribution {
   farmer_id?: string;
   program_id?: string;
   sync_status: OfflineSyncStatus;
+  error?: string;
 }
 
 /** Offline planting log queued for `/sync/bulk`. */
@@ -78,6 +89,7 @@ export interface OfflinePlantingLog {
   rsbsa_no?: string;
   farmer_name?: string;
   sync_status: OfflineSyncStatus;
+  error?: string;
   created_at: string;
 }
 
@@ -102,6 +114,7 @@ export interface OfflinePestReport {
   item_distributed?: string;
   quantity?: string;
   sync_status: OfflineSyncStatus;
+  error?: string;
   created_at?: string;
 }
 
@@ -114,6 +127,7 @@ export interface OfflineFarmProfile {
   coordinates: string;
   total_area: number;
   sync_status: OfflineSyncStatus;
+  error?: string;
   created_at: string;
 }
 
@@ -182,6 +196,7 @@ export interface OfflineGeoTag {
   /** Base64 PNG — AEW/technician validator signature. */
   aew_signature_base64?: string | null;
   sync_status: OfflineSyncStatus;
+  error?: string;
   created_at: string;
 }
 
@@ -202,6 +217,44 @@ export interface OfflineGeoRefusal {
   attempt_number: GeoTagRefusalAttempt;
   reason: string;
   sync_status: OfflineSyncStatus;
+  error?: string;
+  created_at: string;
+}
+
+/** Offline harvest log queued for `/sync/bulk`. */
+export interface OfflineHarvestLog {
+  id?: number;
+  client_id: string;
+  farmer_id: string;
+  farm_plot_id?: string;
+  farmer_name?: string;
+  crop_type: string;
+  variety: string;
+  area_harvested: number;
+  total_yield: number;
+  yield_unit: string;
+  date_harvested: string;
+  farm_location?: string;
+  sync_status: OfflineSyncStatus;
+  error?: string;
+  created_at: string;
+}
+
+/** Offline standing crop log queued for `/sync/bulk`. */
+export interface OfflineStandingCropLog {
+  id?: number;
+  client_id: string;
+  farmer_id: string;
+  farm_plot_id?: string;
+  farmer_name?: string;
+  crop_type: string;
+  variety: string;
+  area_ha: number;
+  growth_stage: string;
+  est_harvest_date: string;
+  farm_location?: string;
+  sync_status: OfflineSyncStatus;
+  error?: string;
   created_at: string;
 }
 
@@ -209,6 +262,16 @@ export interface OfflineGeoRefusal {
 export interface CachedRecord {
   id: string;
   payload: any;
+  cached_at: string;
+}
+
+/** Dispatch queue kinds cached wholesale so technicians can browse them offline. */
+export type CachedQueueKind = 'pest' | 'calamity' | 'geotag';
+
+/** Last-known snapshot of a dispatch queue list (pest / calamity / geo-tag). */
+export interface CachedQueueList {
+  kind: CachedQueueKind;
+  rows: any[];
   cached_at: string;
 }
 
@@ -227,6 +290,9 @@ class AgriAkapDB extends Dexie {
   offline_distributions!: Table<OfflineDistribution, number>;
   offline_geo_tags!: Table<OfflineGeoTag, number>;
   offline_geo_refusals!: Table<OfflineGeoRefusal, number>;
+  offline_harvest_logs!: Table<OfflineHarvestLog, number>;
+  offline_standing_crop_logs!: Table<OfflineStandingCropLog, number>;
+  cachedQueueLists!: Table<CachedQueueList, string>;
 
   constructor() {
     // IndexedDB name kept as `agri-akap` so existing queued rows survive upgrades.
@@ -303,24 +369,46 @@ class AgriAkapDB extends Dexie {
       offline_geo_tags: '++id, farmer_id, geometry_type, incident_type, sync_status, client_id, created_at',
       offline_geo_refusals: '++id, farmer_id, attempt_number, sync_status, client_id, created_at',
     });
+    // v8 — harvest / standing-crop offline queues, and cached dispatch queue
+    // lists (pest/calamity/geo-tag) so technicians can browse offline.
+    this.version(8).stores({
+      pendingDistributions: 'client_id, status, created_at',
+      pendingAssessments: 'client_id, status, created_at',
+      cachedPrograms: 'id, cached_at',
+      cachedFarmers: 'id, cached_at',
+      cachedFarmPlots: 'id, cached_at',
+      offline_planting_logs: '++id, farmer_id, crop_type, sync_status, client_id',
+      offline_pest_reports: '++id, rsbsa_id, incidence, severity, photo_base64, lat, lng, sync_status, client_id',
+      offline_farm_profiles: '++id, farmer_id, coordinates, total_area, sync_status, client_id',
+      offline_distributions: '++id, rsbsa_id, item_dispensed, quantity, timestamp, sync_status, client_id',
+      offline_geo_tags: '++id, farmer_id, geometry_type, incident_type, sync_status, client_id, created_at',
+      offline_geo_refusals: '++id, farmer_id, attempt_number, sync_status, client_id, created_at',
+      offline_harvest_logs: '++id, farmer_id, crop_type, sync_status, client_id, created_at',
+      offline_standing_crop_logs: '++id, farmer_id, crop_type, sync_status, client_id, created_at',
+      cachedQueueLists: 'kind, cached_at',
+    });
   }
 }
 
 export const db = new AgriAkapDB();
 
 /** Count unsynced field records across all offline queues. */
+const PENDING_OR_FAILED_STATUSES: OfflineSyncStatus[] = ['pending', 'failed'];
+
 export async function pendingQueueCount(): Promise<number> {
-  const [distributions, assessments, planting, pests, farms, fieldDist, geoTags, geoRefusals] = await Promise.all([
+  const [distributions, assessments, planting, pests, farms, fieldDist, geoTags, geoRefusals, harvest, standing] = await Promise.all([
     db.pendingDistributions.count(),
     db.pendingAssessments.count(),
-    db.offline_planting_logs.where('sync_status').equals('pending').count(),
-    db.offline_pest_reports.where('sync_status').equals('pending').count(),
-    db.offline_farm_profiles.where('sync_status').equals('pending').count(),
-    db.offline_distributions.where('sync_status').equals('pending').count(),
-    db.offline_geo_tags.where('sync_status').equals('pending').count(),
-    db.offline_geo_refusals.where('sync_status').equals('pending').count(),
+    db.offline_planting_logs.where('sync_status').anyOf(PENDING_OR_FAILED_STATUSES).count(),
+    db.offline_pest_reports.where('sync_status').anyOf(PENDING_OR_FAILED_STATUSES).count(),
+    db.offline_farm_profiles.where('sync_status').anyOf(PENDING_OR_FAILED_STATUSES).count(),
+    db.offline_distributions.where('sync_status').anyOf(PENDING_OR_FAILED_STATUSES).count(),
+    db.offline_geo_tags.where('sync_status').anyOf(PENDING_OR_FAILED_STATUSES).count(),
+    db.offline_geo_refusals.where('sync_status').anyOf(PENDING_OR_FAILED_STATUSES).count(),
+    db.offline_harvest_logs.where('sync_status').anyOf(PENDING_OR_FAILED_STATUSES).count(),
+    db.offline_standing_crop_logs.where('sync_status').anyOf(PENDING_OR_FAILED_STATUSES).count(),
   ]);
-  return distributions + assessments + planting + pests + farms + fieldDist + geoTags + geoRefusals;
+  return distributions + assessments + planting + pests + farms + fieldDist + geoTags + geoRefusals + harvest + standing;
 }
 
 /** Generate a client-side UUID (used as the eventual server PK). */

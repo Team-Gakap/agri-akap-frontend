@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { Capacitor } from '@capacitor/core';
 import { useAuthStore } from '../stores/authStore';
 import { apiBaseUrl } from './apiBase';
 
@@ -16,6 +17,9 @@ apiClient.interceptors.request.use((config) => {
   const authStore = useAuthStore();
   if (authStore.token && config.headers) {
     config.headers.Authorization = `Bearer ${authStore.token}`;
+  }
+  if (Capacitor.isNativePlatform()) {
+    config.headers['X-Agri-Platform'] = 'native';
   }
   // Successful intentional API use counts as activity (online sessions).
   if (authStore.token && !authStore.sessionLocked) {

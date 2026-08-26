@@ -168,7 +168,7 @@ import { useRouter } from 'vue-router';
 import apiClient from '@/utils/axios';
 import { useSyncStore } from '@/stores/syncStore';
 import { useDistributionStore } from '@/stores/distributionStore';
-import { isOnline, queueDistribution } from '@/services/syncService';
+import { isOnline, isNetworkError, queueDistribution, syncAllPendingData } from '@/services/syncService';
 
 const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
 const emit = defineEmits<{ saved: []; back: [] }>();
@@ -257,13 +257,8 @@ const authorizeRelease = async () => {
   const lat = geo.value.source === 'none' ? null : geo.value.lat;
   const long = geo.value.source === 'none' ? null : geo.value.long;
 
-  // OFFLINE: queue for bulk sync (server verifies eligibility on upload).
+  // OFFLINE: queue for bulk sync (server re-verifies eligibility/stock on upload).
   if (!isOnline()) {
-    if (ctx.value.source === 'subsidy') {
-      await toast('Connect to the internet to release this subsidy.', 'warning');
-      isSubmitting.value = false;
-      return;
-    }
     await queueRelease(lat, long);
     return;
   }
@@ -292,7 +287,7 @@ const authorizeRelease = async () => {
     releaseResult.value = response.data;
     if (props.embedded) emit('saved');
   } catch (err: any) {
-    if (!err.response) {
+    if (isNetworkError(err)) {
       // Network dropped: fall back to the offline queue.
       await queueRelease(lat, long);
       return;
@@ -305,15 +300,19 @@ const authorizeRelease = async () => {
 const queueRelease = async (lat: number | null, long: number | null) => {
   if (!ctx.value) return;
   await queueDistribution({
+    source: ctx.value.source ?? 'program',
     farmer_id: ctx.value.farmer_id,
     farmer_name: ctx.value.farmer_name,
     program_id: ctx.value.program_id,
     program_name: ctx.value.item_released,
+    rsbsa_no: ctx.value.rsbsa_no,
+    beneficiary_id: ctx.value.beneficiary_id,
     geo_tag_lat: lat,
     geo_tag_long: long,
     photo_proof_base64: photoBase64.value,
   });
   await syncStore.refreshCount();
+  void syncAllPendingData().then(() => syncStore.refreshCount());
   releaseResult.value = { offline: true };
   isSubmitting.value = false;
 };

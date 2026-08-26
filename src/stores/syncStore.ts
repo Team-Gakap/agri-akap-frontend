@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import { isOnline, syncAllPendingData, pendingCount } from '@/services/syncService';
+import { initConnectivity, onConnectivityChange, refreshConnectivity } from '@/services/connectivity';
 
 export const useSyncStore = defineStore('sync', () => {
   const online = ref(isOnline());
@@ -8,6 +9,7 @@ export const useSyncStore = defineStore('sync', () => {
   const isSyncing = ref(false);
   const lastSyncAt = ref<string | null>(null);
   const lastMessage = ref<string | null>(null);
+  const lastSyncFailed = ref(false);
 
   const hasPending = computed(() => pending.value > 0);
 
@@ -19,9 +21,12 @@ export const useSyncStore = defineStore('sync', () => {
     if (isSyncing.value || !online.value) return;
     isSyncing.value = true;
     try {
-      const { synced, failed } = await syncAllPendingData();
+      const { synced, failed, errored } = await syncAllPendingData();
       lastSyncAt.value = new Date().toISOString();
-      if (synced || failed) {
+      lastSyncFailed.value = !!errored;
+      if (errored) {
+        lastMessage.value = 'Sync failed — will retry automatically.';
+      } else if (synced || failed) {
         lastMessage.value = `Synced ${synced} record(s)` + (failed ? `, ${failed} failed` : '');
       }
     } finally {
@@ -30,21 +35,24 @@ export const useSyncStore = defineStore('sync', () => {
     }
   }
 
-  /** Wire browser/webview connectivity events. Call once on app start. */
+  /** Wire native/web connectivity events + periodic reachability probe. Call once on app start. */
   function init() {
-    const goOnline = async () => {
-      online.value = true;
-      await sync();
-    };
-    const goOffline = () => {
-      online.value = false;
-    };
-
-    window.addEventListener('online', goOnline);
-    window.addEventListener('offline', goOffline);
+    initConnectivity();
+    onConnectivityChange((next) => {
+      const cameOnline = next && !online.value;
+      online.value = next;
+      if (cameOnline) void sync();
+    });
 
     refreshCount();
     if (online.value) sync();
+  }
+
+  /** Re-check connectivity (e.g. on app resume) and sync if reachable. */
+  async function recheck() {
+    const next = await refreshConnectivity();
+    online.value = next;
+    if (next) await sync();
   }
 
   return {
@@ -53,9 +61,11 @@ export const useSyncStore = defineStore('sync', () => {
     isSyncing,
     lastSyncAt,
     lastMessage,
+    lastSyncFailed,
     hasPending,
     refreshCount,
     sync,
     init,
+    recheck,
   };
 });

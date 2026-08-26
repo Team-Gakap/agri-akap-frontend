@@ -145,7 +145,7 @@ import {
   IonCardContent, IonItem, IonSelect, IonSelectOption,
 } from '@ionic/vue';
 import { qrCodeOutline, alertCircleOutline } from 'ionicons/icons';
-import { getPrograms, lookupFarmer, searchFarmers } from '@/services/syncService';
+import { getPrograms, lookupFarmer, searchFarmers, isOnline, isNetworkError } from '@/services/syncService';
 import { scanFarmerQr, showScannerBackground, stopLiveQrScan } from '@/composables/useNativeHardware';
 import { useDistributionStore } from '@/stores/distributionStore';
 import { useAuthStore } from '@/stores/authStore';
@@ -294,13 +294,54 @@ const startScan = async () => {
   await fetchFarmerByQr(result.value);
 };
 
+/** Best-effort context built from cached program/farmer data when there's no
+ *  connectivity to run the live eligibility check. The server re-verifies
+ *  everything (eligibility, allocation, stock) when the queued claim syncs. */
+const buildOfflineContext = (program: any, source: 'subsidy' | 'program') => {
+  const rsbsaNo = farmer.value.rsbsa_no || farmer.value.rsbsaNo;
+  distributionStore.setContext({
+    farmer_id: farmer.value.id,
+    program_id: selectedProgramId.value,
+    farmer_name: farmerDisplayName.value,
+    mobile_number: farmer.value.mobile_number,
+    item_released: program?.name || program?.program_name || 'Subsidy item',
+    unit: program?.unit_of_measurement || '',
+    total_farm_size: 0,
+    eligible_size: 0,
+    quantity: 0,
+    inventory_remaining: program?.remaining_quantity ?? 0,
+    plot_lat: farmer.value.farm_plots?.[0]?.latitude ?? farmer.value.farmPlots?.[0]?.latitude,
+    plot_long: farmer.value.farm_plots?.[0]?.longitude ?? farmer.value.farmPlots?.[0]?.longitude,
+    rsbsa_no: rsbsaNo,
+    source,
+    offline: true,
+  });
+};
+
+const goToRelease = () => {
+  if (props.embedded) {
+    emit('verified');
+    return;
+  }
+  router.push('/tech/release');
+};
+
 const continueToRelease = async () => {
   if (!farmer.value || !selectedProgramId.value) return;
   const program = selectedProgram.value;
+  const source: 'subsidy' | 'program' = program?.source === 'subsidy' ? 'subsidy' : 'program';
   verifying.value = true;
 
+  if (!isOnline()) {
+    buildOfflineContext(program, source);
+    verifying.value = false;
+    await toast('Offline: exact allocation will be confirmed by the server on sync.', 'warning');
+    goToRelease();
+    return;
+  }
+
   try {
-    if (program?.source === 'subsidy') {
+    if (source === 'subsidy') {
       const response = await apiClient.post(`/subsidies/${selectedProgramId.value}/verify-farmer`, {
         farmer_id: farmer.value.id,
         rsbsa_no: farmer.value.rsbsa_no || farmer.value.rsbsaNo,
@@ -324,11 +365,7 @@ const continueToRelease = async () => {
         source: 'subsidy',
         offline: false,
       });
-      if (props.embedded) {
-        emit('verified');
-        return;
-      }
-      router.push('/tech/release');
+      goToRelease();
       return;
     }
 
@@ -354,12 +391,15 @@ const continueToRelease = async () => {
       source: 'program',
       offline: false,
     });
-    if (props.embedded) {
-      emit('verified');
+    goToRelease();
+  } catch (err: any) {
+    if (isNetworkError(err)) {
+      // The device looked online but the eligibility check couldn't reach the server.
+      buildOfflineContext(program, source);
+      await toast('Connection lost. Continuing offline — will confirm on sync.', 'warning');
+      goToRelease();
       return;
     }
-    router.push('/tech/release');
-  } catch (err: any) {
     await toast(err?.response?.data?.message || 'Could not verify eligibility.', 'danger');
   } finally {
     verifying.value = false;

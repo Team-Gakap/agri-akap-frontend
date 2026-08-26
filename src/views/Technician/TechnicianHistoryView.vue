@@ -1,11 +1,14 @@
 <template>
   <ion-page>
+    <ion-header>
+      <ion-toolbar color="primary">
+        <ion-title>Sync</ion-title>
+      </ion-toolbar>
+    </ion-header>
+
     <ion-content class="ion-padding page-bg">
       <header class="page-head">
-        <div>
-          <h1>History & Sync</h1>
-          <p>Pending uploads and recent field work in one place.</p>
-        </div>
+        <p>Pending uploads and recent field work in one place.</p>
         <ion-button
           class="sync-btn"
           :disabled="!syncStore.online || syncStore.isSyncing || !syncStore.hasPending"
@@ -21,15 +24,27 @@
           <ion-badge v-if="syncStore.pending" color="warning">{{ syncStore.pending }}</ion-badge>
         </div>
         <p v-if="!syncStore.online" class="hint">Offline. Records stay on this device until you reconnect.</p>
-        <p v-if="syncStore.lastMessage" class="hint">{{ syncStore.lastMessage }}</p>
+        <p v-if="syncStore.lastMessage" class="hint" :class="{ 'hint-error': syncStore.lastSyncFailed }">{{ syncStore.lastMessage }}</p>
+        <p v-if="failedCount" class="hint hint-error">
+          {{ failedCount }} record(s) were rejected by the server. Fix and resubmit, or tap Sync Now to retry.
+        </p>
 
         <div v-if="pendingItems.length" class="list">
-          <article v-for="item in pendingItems" :key="item.key" class="row pending">
+          <article
+            v-for="item in pendingItems"
+            :key="item.key"
+            class="row"
+            :class="item.status === 'failed' ? 'failed' : 'pending'"
+          >
             <div>
               <strong>{{ item.title }}</strong>
               <p>{{ item.type }} · {{ item.detail }}</p>
+              <p v-if="item.status === 'failed' && item.error" class="error-detail">{{ item.error }}</p>
             </div>
-            <span>{{ formatWhen(item.createdAt) }}</span>
+            <span class="row-side">
+              <ion-badge v-if="item.status === 'failed'" color="danger">Failed</ion-badge>
+              <span>{{ formatWhen(item.createdAt) }}</span>
+            </span>
           </article>
         </div>
         <div v-else class="empty-mini">Nothing waiting to sync.</div>
@@ -63,8 +78,8 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
-import { IonPage, IonContent, IonButton, IonBadge, alertController } from '@ionic/vue';
+import { computed, onMounted, ref } from 'vue';
+import { IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButton, IonBadge, alertController, onIonViewWillEnter } from '@ionic/vue';
 import { useSyncStore } from '@/stores/syncStore';
 import { listPendingQueueItems, type PendingQueueItem } from '@/services/syncService';
 import { presentToast } from '@/utils/toast';
@@ -88,6 +103,7 @@ const syncStore = useSyncStore();
 const pendingItems = ref<PendingQueueItem[]>([]);
 const historyItems = ref<HistoryItem[]>([]);
 const loadingHistory = ref(false);
+const failedCount = computed(() => pendingItems.value.filter((i) => i.status === 'failed').length);
 
 const formatWhen = (iso?: string) => {
   if (!iso) return '';
@@ -158,6 +174,10 @@ onMounted(async () => {
   await loadPending();
   await loadHistory();
 });
+
+onIonViewWillEnter(async () => {
+  await loadPending();
+});
 </script>
 
 <style scoped>
@@ -169,18 +189,10 @@ onMounted(async () => {
   justify-content: space-between;
   gap: 0.75rem;
   margin-bottom: 1.25rem;
-  padding-top: 0.5rem;
-}
-
-.page-head h1 {
-  margin: 0;
-  font-size: 1.45rem;
-  font-weight: 800;
-  color: #1a4731;
 }
 
 .page-head p {
-  margin: 0.35rem 0 0;
+  margin: 0;
   font-size: 0.9rem;
   color: #64748b;
 }
@@ -216,6 +228,11 @@ onMounted(async () => {
   color: #64748b;
 }
 
+.hint-error {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
 .list {
   display: flex;
   flex-direction: column;
@@ -245,16 +262,33 @@ onMounted(async () => {
   background: #fff7ed;
 }
 
+.row.failed {
+  border-color: #fca5a5;
+  background: #fef2f2;
+}
+
 .row p {
   margin: 0.2rem 0 0;
   font-size: 0.8rem;
   color: #64748b;
 }
 
+.row .error-detail {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
 .row span {
   font-size: 0.75rem;
   color: #94a3b8;
   white-space: nowrap;
+}
+
+.row-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.3rem;
 }
 
 .empty-mini {

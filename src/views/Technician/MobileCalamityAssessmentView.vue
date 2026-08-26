@@ -241,6 +241,8 @@ import { damageSeverityFromPct } from '@/constants/cropVarieties';
 import { presentToast } from '@/utils/toast';
 import apiClient from '@/utils/axios';
 import { formatFarmerName } from '@/data/technicianDispatchQueues';
+import { isOnline, isNetworkError, queueAssessment, syncAllPendingData } from '@/services/syncService';
+import { useSyncStore } from '@/stores/syncStore';
 
 interface CalamityAssessmentState {
   assessmentId: string;
@@ -273,6 +275,7 @@ const activeCalamities = [
 
 const route = useRoute();
 const router = useRouter();
+const syncStore = useSyncStore();
 const farmerSearch = useBarangayFarmerSearch(() => null, {
   requireBarangay: false,
   commodity: () => state.cropType,
@@ -489,45 +492,83 @@ const capturePhoto = async () => {
 
 const submitAssessment = async () => {
   if (!canSubmit.value || submitting.value) return;
+  if (!state.assessmentId && !state.farmPlotId) {
+    await presentToast('This farmer needs a farm plot before calamity assessment can be saved.', 'warning', 2800);
+    return;
+  }
   submitting.value = true;
   try {
     const photo = state.photoDataUrl || '';
-    if (state.assessmentId) {
-      await apiClient.patch(`/damage-assessments/${state.assessmentId}/field-validate`, {
-        latitude: state.latitude,
-        longitude: state.longitude,
-        photo_base64: photo,
-        area_destroyed_ha: Number(state.areaDamaged) || 0,
-        damage_percentage: state.yieldLossPct,
-        crop_stage: state.cropStage || undefined,
-        variety: state.variety || undefined,
-        estimated_value_lost: Number(state.valueLost) || 0,
-      });
-    } else {
-      if (!state.farmPlotId) {
-        await presentToast('This farmer needs a farm plot before calamity assessment can be saved.', 'warning', 2800);
-        return;
-      }
-      await apiClient.post('/damage-assessments', {
-        id: crypto.randomUUID(),
-        farm_plot_id: state.farmPlotId,
-        farmer_id: state.farmerId,
-        calamity_type: inferCalamityType(state.calamityEvent),
-        calamity_name: state.calamityEvent,
-        crop_stage: state.cropStage || undefined,
-        variety: state.variety || undefined,
-        area_destroyed_ha: Number(state.areaDamaged) || 0,
-        area_planted_ha: Number(state.areaPlanted) || 0,
-        date_of_calamity: new Date().toISOString().slice(0, 10),
-        damage_percentage: state.yieldLossPct,
-        estimated_value_lost: Number(state.valueLost) || 0,
-        latitude: state.latitude,
-        longitude: state.longitude,
-        photo_base64: photo,
-      });
+
+    const queueThisAssessment = () => queueAssessment({
+      assessment_id: state.assessmentId || undefined,
+      farm_plot_id: state.farmPlotId,
+      farmer_id: state.farmerId || undefined,
+      farmer_name: state.farmerName || undefined,
+      calamity_type: inferCalamityType(state.calamityEvent),
+      calamity_name: state.calamityEvent,
+      crop_stage: state.cropStage || undefined,
+      variety: state.variety || undefined,
+      area_planted_ha: Number(state.areaPlanted) || 0,
+      area_destroyed_ha: Number(state.areaDamaged) || 0,
+      date_of_calamity: new Date().toISOString().slice(0, 10),
+      damage_percentage: state.yieldLossPct,
+      estimated_value_lost: Number(state.valueLost) || 0,
+      latitude: state.latitude,
+      longitude: state.longitude,
+      photo_base64: photo,
+    });
+
+    if (!isOnline()) {
+      await queueThisAssessment();
+      await syncStore.refreshCount();
+      await presentToast('Saved locally. Will sync automatically when back online.', 'success', 3200);
+      await router.replace(backHref.value);
+      return;
     }
-    await presentToast('Assessment saved. Added to the MAO rehabilitation masterlist.', 'success', 3200);
-    await router.replace(backHref.value);
+
+    try {
+      if (state.assessmentId) {
+        await apiClient.patch(`/damage-assessments/${state.assessmentId}/field-validate`, {
+          latitude: state.latitude,
+          longitude: state.longitude,
+          photo_base64: photo,
+          area_destroyed_ha: Number(state.areaDamaged) || 0,
+          damage_percentage: state.yieldLossPct,
+          crop_stage: state.cropStage || undefined,
+          variety: state.variety || undefined,
+          estimated_value_lost: Number(state.valueLost) || 0,
+        });
+      } else {
+        await apiClient.post('/damage-assessments', {
+          id: crypto.randomUUID(),
+          farm_plot_id: state.farmPlotId,
+          farmer_id: state.farmerId,
+          calamity_type: inferCalamityType(state.calamityEvent),
+          calamity_name: state.calamityEvent,
+          crop_stage: state.cropStage || undefined,
+          variety: state.variety || undefined,
+          area_destroyed_ha: Number(state.areaDamaged) || 0,
+          area_planted_ha: Number(state.areaPlanted) || 0,
+          date_of_calamity: new Date().toISOString().slice(0, 10),
+          damage_percentage: state.yieldLossPct,
+          estimated_value_lost: Number(state.valueLost) || 0,
+          latitude: state.latitude,
+          longitude: state.longitude,
+          photo_base64: photo,
+        });
+      }
+      await presentToast('Assessment saved. Added to the MAO rehabilitation masterlist.', 'success', 3200);
+      await router.replace(backHref.value);
+    } catch (err: any) {
+      if (!isNetworkError(err)) throw err;
+      // Connection dropped mid-submit even though the device looked online — queue instead of losing the report.
+      await queueThisAssessment();
+      await syncStore.refreshCount();
+      void syncAllPendingData().then(() => syncStore.refreshCount());
+      await presentToast('Connection lost. Saved locally — will sync automatically.', 'warning', 3200);
+      await router.replace(backHref.value);
+    }
   } catch (e: any) {
     await presentToast(e?.response?.data?.message || 'Could not save assessment.', 'danger', 2800);
   } finally {
