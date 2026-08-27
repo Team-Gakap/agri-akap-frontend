@@ -28,6 +28,12 @@
               <p class="kpi-label">Staff accounts</p>
             </ion-card-content>
           </ion-card>
+          <ion-card class="kpi" button @click="go('/superadmin/security')">
+            <ion-card-content>
+              <p class="kpi-value">MFA</p>
+              <p class="kpi-label">Security settings</p>
+            </ion-card-content>
+          </ion-card>
           <ion-card class="kpi">
             <ion-card-content>
               <p class="kpi-value">{{ summary.by_role.admin || 0 }}</p>

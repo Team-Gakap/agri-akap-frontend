@@ -17,9 +17,20 @@ interface User {
   is_active?: boolean;
 }
 
+export interface MfaChallengePayload {
+  mfa_required: boolean;
+  mfa_challenge_id: string;
+  mfa_setup_required: boolean;
+  mfa_methods: string[];
+  masked_mobile: string | null;
+  stored_at?: number;
+}
+
 const INACTIVITY_MS = 60 * 60 * 1000; // 60 minutes — matches Sanctum token expiry
 const ACTIVITY_KEY = 'agri_last_activity';
 const LOCKED_KEY = 'agri_session_locked';
+const MFA_KEY = 'agri_mfa_challenge';
+const MFA_TTL_MS = 5 * 60 * 1000;
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(JSON.parse(localStorage.getItem('user') || 'null'));
@@ -27,6 +38,8 @@ export const useAuthStore = defineStore('auth', () => {
   const sessionLocked = ref(localStorage.getItem(LOCKED_KEY) === '1');
   const lockReason = ref<string | null>(null);
   const lastActivityAt = ref<number>(Number(localStorage.getItem(ACTIVITY_KEY) || Date.now()));
+  const mfaChallenge = ref<MfaChallengePayload | null>(null);
+  const pendingMfaSession = ref<{ access_token: string; user: User } | null>(null);
 
   let inactivityTimer: ReturnType<typeof setInterval> | null = null;
   let activityWired = false;
@@ -84,6 +97,9 @@ export const useAuthStore = defineStore('auth', () => {
     token.value = null;
     user.value = null;
     clearLockFlags();
+    mfaChallenge.value = null;
+    pendingMfaSession.value = null;
+    sessionStorage.removeItem(MFA_KEY);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
   };
@@ -138,7 +154,7 @@ export const useAuthStore = defineStore('auth', () => {
     handlingUnauthorized = true;
     try {
       const url = requestUrl.toLowerCase();
-      if (url.includes('/login')) return;
+      if (url.includes('/login') || url.includes('/auth/mfa')) return;
 
       const pending = await pendingQueueCount();
       const isSyncAttempt = url.includes('/sync');
@@ -198,6 +214,54 @@ export const useAuthStore = defineStore('auth', () => {
     }
   };
 
+  const rememberMfaChallenge = (data: MfaChallengePayload) => {
+    const payload: MfaChallengePayload = { ...data, stored_at: Date.now() };
+    mfaChallenge.value = payload;
+    sessionStorage.setItem(MFA_KEY, JSON.stringify(payload));
+  };
+
+  const clearMfaChallenge = () => {
+    mfaChallenge.value = null;
+    pendingMfaSession.value = null;
+    sessionStorage.removeItem(MFA_KEY);
+  };
+
+  const restoreMfaChallenge = () => {
+    try {
+      const raw = sessionStorage.getItem(MFA_KEY);
+      if (!raw) {
+        mfaChallenge.value = null;
+        return;
+      }
+      const parsed = JSON.parse(raw) as MfaChallengePayload;
+      if (!parsed?.mfa_challenge_id || Date.now() - (parsed.stored_at ?? 0) > MFA_TTL_MS) {
+        clearMfaChallenge();
+        return;
+      }
+      mfaChallenge.value = parsed;
+    } catch {
+      clearMfaChallenge();
+    }
+  };
+
+  restoreMfaChallenge();
+
+  const hydrateSession = (data: { access_token: string; user: User }, navigate = true) => {
+    token.value = data.access_token;
+    user.value = data.user;
+    localStorage.setItem('token', data.access_token);
+    localStorage.setItem('user', JSON.stringify(data.user));
+    clearLockFlags();
+    persistActivity(Date.now());
+    startInactivityWatcher();
+    if (navigate) {
+      clearMfaChallenge();
+      router.replace(
+        user.value?.must_change_password ? '/change-password' : homeForRole(user.value?.role ?? null),
+      );
+    }
+  };
+
   const login = async (credentials: {
     email: string;
     password: string;
@@ -209,31 +273,112 @@ export const useAuthStore = defineStore('auth', () => {
       const response = await apiClient.post('/login', credentials);
       const data = response.data.data;
 
-      token.value = data.access_token;
-      user.value = data.user;
-      localStorage.setItem('token', data.access_token);
-      localStorage.setItem('user', JSON.stringify(data.user));
-      clearLockFlags();
-      persistActivity(Date.now());
-      startInactivityWatcher();
+      if (data?.mfa_required) {
+        rememberMfaChallenge(data);
+        return { success: true as const, mfa_required: true as const };
+      }
 
-      router.replace(
-        user.value?.must_change_password ? '/change-password' : homeForRole(user.value?.role ?? null),
-      );
-
-      return { success: true };
+      hydrateSession(data);
+      return { success: true as const, mfa_required: false as const };
     } catch (error: any) {
-      // No response at all means the request never reached the backend
-      // (offline, wrong LAN IP, firewall, or blocked cleartext HTTP) —
-      // that is a different problem than wrong credentials, so say so.
       const message = error.response?.data?.message
         ?? (error.request
           ? 'Cannot reach the server. Check your internet connection.'
           : 'Login failed.');
       return {
-        success: false,
+        success: false as const,
+        mfa_required: false as const,
         message,
       };
+    }
+  };
+
+  const mfaError = (error: any, fallback: string) =>
+    error?.response?.data?.message ?? fallback;
+
+  const fetchMfaSetupQr = async () => {
+    const id = mfaChallenge.value?.mfa_challenge_id;
+    if (!id) return { success: false as const, message: 'MFA challenge expired. Please sign in again.' };
+    try {
+      const response = await apiClient.get('/auth/mfa/setup-qr', { params: { mfa_challenge_id: id } });
+      return {
+        success: true as const,
+        otpauth_uri: String(response.data?.data?.otpauth_uri ?? ''),
+        qr_data_uri: String(response.data?.data?.qr_data_uri ?? ''),
+      };
+    } catch (error: any) {
+      return { success: false as const, message: mfaError(error, 'Could not load the authenticator QR code.') };
+    }
+  };
+
+  const confirmMfaSetup = async (code: string) => {
+    const id = mfaChallenge.value?.mfa_challenge_id;
+    if (!id) return { success: false as const, message: 'MFA challenge expired. Please sign in again.' };
+    try {
+      const response = await apiClient.post('/auth/mfa/setup', { mfa_challenge_id: id, code });
+      const data = response.data.data;
+      pendingMfaSession.value = { access_token: data.access_token, user: data.user };
+      hydrateSession(pendingMfaSession.value, false);
+      return {
+        success: true as const,
+        recovery_codes: (data.recovery_codes ?? []) as string[],
+      };
+    } catch (error: any) {
+      return { success: false as const, message: mfaError(error, 'Invalid authenticator code.') };
+    }
+  };
+
+  const finishMfaSession = () => {
+    if (pendingMfaSession.value && !token.value) {
+      hydrateSession(pendingMfaSession.value, false);
+    }
+    clearMfaChallenge();
+    router.replace(
+      user.value?.must_change_password ? '/change-password' : homeForRole(user.value?.role ?? null),
+    );
+  };
+
+  const verifyMfa = async (code: string) => {
+    const id = mfaChallenge.value?.mfa_challenge_id;
+    if (!id) return { success: false as const, message: 'MFA challenge expired. Please sign in again.' };
+    try {
+      const response = await apiClient.post('/auth/mfa/verify', { mfa_challenge_id: id, code: code.trim() });
+      hydrateSession(response.data.data);
+      return { success: true as const };
+    } catch (error: any) {
+      return { success: false as const, message: mfaError(error, 'Invalid MFA code.') };
+    }
+  };
+
+  const sendMfaSms = async () => {
+    const id = mfaChallenge.value?.mfa_challenge_id;
+    if (!id) return { success: false as const, message: 'MFA challenge expired. Please sign in again.' };
+    try {
+      const response = await apiClient.post('/auth/mfa/sms/send', { mfa_challenge_id: id });
+      if (mfaChallenge.value && response.data?.data?.masked_mobile) {
+        rememberMfaChallenge({
+          ...mfaChallenge.value,
+          masked_mobile: response.data.data.masked_mobile,
+        });
+      }
+      return {
+        success: true as const,
+        resend_after_seconds: Number(response.data?.data?.resend_after_seconds ?? 60),
+      };
+    } catch (error: any) {
+      return { success: false as const, message: mfaError(error, 'Could not send an SMS code.') };
+    }
+  };
+
+  const verifyMfaSms = async (code: string) => {
+    const id = mfaChallenge.value?.mfa_challenge_id;
+    if (!id) return { success: false as const, message: 'MFA challenge expired. Please sign in again.' };
+    try {
+      const response = await apiClient.post('/auth/mfa/sms/verify', { mfa_challenge_id: id, code });
+      hydrateSession(response.data.data);
+      return { success: true as const };
+    } catch (error: any) {
+      return { success: false as const, message: mfaError(error, 'Invalid SMS code.') };
     }
   };
 
@@ -302,6 +447,7 @@ export const useAuthStore = defineStore('auth', () => {
     sessionLocked,
     lockReason,
     lastActivityAt,
+    mfaChallenge,
     isAuthenticated,
     userRole,
     userName,
@@ -313,6 +459,14 @@ export const useAuthStore = defineStore('auth', () => {
     logout,
     changePassword,
     restoreSession,
+    restoreMfaChallenge,
+    clearMfaChallenge,
+    fetchMfaSetupQr,
+    confirmMfaSetup,
+    finishMfaSession,
+    verifyMfa,
+    sendMfaSms,
+    verifyMfaSms,
     touchActivity,
     checkInactivity,
     startInactivityWatcher,

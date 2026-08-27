@@ -32,10 +32,23 @@
 
         <section class="auth-pane">
           <div class="auth-inner">
-            <h2>Welcome Back</h2>
-            <p class="auth-sub">{{ isNative ? 'Enter your credentials to continue' : 'Sign in with your official account' }}</p>
+            <h2>{{ authStore.mfaChallenge ? 'Verify identity' : 'Welcome Back' }}</h2>
+            <p class="auth-sub">
+              {{
+                authStore.mfaChallenge
+                  ? 'Complete two-factor authentication to continue'
+                  : (isNative ? 'Enter your credentials to continue' : 'Sign in with your official account')
+              }}
+            </p>
 
-            <form class="auth-form" @submit.prevent="login">
+            <MfaChallengePanel
+              v-if="authStore.mfaChallenge"
+              :challenge="authStore.mfaChallenge"
+              @completed="onMfaCompleted"
+              @cancel="cancelMfa"
+            />
+
+            <form v-else class="auth-form" @submit.prevent="login">
               <ion-item class="custom-input" lines="none">
                 <ion-icon :icon="person" slot="start" class="input-icon"></ion-icon>
                 <ion-input
@@ -128,6 +141,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { useSyncStore } from "@/stores/syncStore";
 import { presentToast } from "@/utils/toast";
 import TurnstileWidget from "@/components/TurnstileWidget.vue";
+import MfaChallengePanel from "@/components/MfaChallengePanel.vue";
 
 const authStore = useAuthStore();
 const syncStore = useSyncStore();
@@ -152,7 +166,8 @@ const togglePassword = () => {
 };
 
 onIonViewDidEnter(() => {
-  if (didEnterOnce && showCaptcha) {
+  authStore.restoreMfaChallenge();
+  if (didEnterOnce && showCaptcha && !authStore.mfaChallenge) {
     void captcha.value?.reset();
   }
   didEnterOnce = true;
@@ -183,15 +198,30 @@ const login = async () => {
   });
 
   if (result.success) {
-    credentials.email = "";
-    credentials.password = "";
-    turnstileToken.value = "";
+    if (result.mfa_required) {
+      credentials.password = "";
+      turnstileToken.value = "";
+    } else {
+      credentials.email = "";
+      credentials.password = "";
+      turnstileToken.value = "";
+    }
   } else {
     if (showCaptcha) await captcha.value?.reset();
     await presentToast(result.message || "Invalid email or password.", "danger");
   }
 
   isSubmitting.value = false;
+};
+
+const cancelMfa = () => {
+  authStore.clearMfaChallenge();
+};
+
+const onMfaCompleted = () => {
+  credentials.email = "";
+  credentials.password = "";
+  turnstileToken.value = "";
 };
 </script>
 

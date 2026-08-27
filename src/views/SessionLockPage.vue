@@ -5,50 +5,63 @@
         <div class="lock-icon-wrap">
           <ion-icon :icon="lockClosedOutline"></ion-icon>
         </div>
-        <h1>Session Locked</h1>
+        <h1>{{ authStore.mfaChallenge ? 'Verify identity' : 'Session Locked' }}</h1>
         <p class="lock-msg">
-          {{ authStore.lockReason
-            || 'Your session has expired, but you have unsynced field data. Please re-authenticate to safely upload your records.' }}
+          {{
+            authStore.mfaChallenge
+              ? 'Enter your authenticator code to resume this SuperAdmin session.'
+              : (authStore.lockReason
+                || 'Your session has expired, but you have unsynced field data. Please re-authenticate to safely upload your records.')
+          }}
         </p>
 
         <div class="email-chip" v-if="authStore.lockedEmail">
           {{ authStore.lockedEmail }}
         </div>
 
-        <ion-item class="custom-input" lines="none">
-          <ion-icon :icon="lockClosed" slot="start" class="input-icon"></ion-icon>
-          <ion-input
-            v-model="password"
-            :type="showPassword ? 'text' : 'password'"
-            label="Password"
-            label-placement="floating"
-            placeholder="Enter your password"
-            autocomplete="current-password"
-            @keyup.enter="unlock"
-          ></ion-input>
-          <ion-button fill="clear" slot="end" @click="showPassword = !showPassword">
-            <ion-icon :icon="showPassword ? eyeOff : eye" color="medium"></ion-icon>
-          </ion-button>
-        </ion-item>
-
-        <TurnstileWidget
-          v-if="showCaptcha"
-          ref="captcha"
-          v-model="turnstileToken"
-          action="unlock"
-          size="flexible"
-          class="turnstile-slot"
+        <MfaChallengePanel
+          v-if="authStore.mfaChallenge"
+          :challenge="authStore.mfaChallenge"
+          @completed="onMfaCompleted"
+          @cancel="cancelMfa"
         />
 
-        <ion-button
-          expand="block"
-          shape="round"
-          class="unlock-btn"
-          :disabled="isSubmitting || !password || (showCaptcha && !turnstileToken)"
-          @click="unlock"
-        >
-          {{ isSubmitting ? 'Verifying…' : 'Unlock & Resume' }}
-        </ion-button>
+        <template v-else>
+          <ion-item class="custom-input" lines="none">
+            <ion-icon :icon="lockClosed" slot="start" class="input-icon"></ion-icon>
+            <ion-input
+              v-model="password"
+              :type="showPassword ? 'text' : 'password'"
+              label="Password"
+              label-placement="floating"
+              placeholder="Enter your password"
+              autocomplete="current-password"
+              @keyup.enter="unlock"
+            ></ion-input>
+            <ion-button fill="clear" slot="end" @click="showPassword = !showPassword">
+              <ion-icon :icon="showPassword ? eyeOff : eye" color="medium"></ion-icon>
+            </ion-button>
+          </ion-item>
+
+          <TurnstileWidget
+            v-if="showCaptcha"
+            ref="captcha"
+            v-model="turnstileToken"
+            action="unlock"
+            size="flexible"
+            class="turnstile-slot"
+          />
+
+          <ion-button
+            expand="block"
+            shape="round"
+            class="unlock-btn"
+            :disabled="isSubmitting || !password || (showCaptcha && !turnstileToken)"
+            @click="unlock"
+          >
+            {{ isSubmitting ? 'Verifying…' : 'Unlock & Resume' }}
+          </ion-button>
+        </template>
 
         <ion-button fill="clear" color="medium" class="switch-user" @click="goLogin">
           Sign in as a different user
@@ -74,6 +87,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useSyncStore } from '@/stores/syncStore';
 import { useRouter } from 'vue-router';
 import TurnstileWidget from '@/components/TurnstileWidget.vue';
+import MfaChallengePanel from '@/components/MfaChallengePanel.vue';
 
 const authStore = useAuthStore();
 const syncStore = useSyncStore();
@@ -88,11 +102,20 @@ const showCaptcha = !Capacitor.isNativePlatform();
 let didEnterOnce = false;
 
 onIonViewDidEnter(() => {
-  if (didEnterOnce && showCaptcha) {
+  authStore.restoreMfaChallenge();
+  if (didEnterOnce && showCaptcha && !authStore.mfaChallenge) {
     void captcha.value?.reset();
   }
   didEnterOnce = true;
 });
+
+const resumeAfterAuth = async () => {
+  password.value = '';
+  turnstileToken.value = '';
+  if (syncStore.online && syncStore.pending > 0) {
+    await syncStore.sync();
+  }
+};
 
 const unlock = async () => {
   if (!password.value || isSubmitting.value) return;
@@ -123,15 +146,23 @@ const unlock = async () => {
       await t.present();
       return;
     }
-    password.value = '';
-    turnstileToken.value = '';
-    // Resume sync if we came back online with a fresh token.
-    if (syncStore.online && syncStore.pending > 0) {
-      await syncStore.sync();
+    if (result.mfa_required) {
+      password.value = '';
+      turnstileToken.value = '';
+      return;
     }
+    await resumeAfterAuth();
   } finally {
     isSubmitting.value = false;
   }
+};
+
+const cancelMfa = () => {
+  authStore.clearMfaChallenge();
+};
+
+const onMfaCompleted = () => {
+  void resumeAfterAuth();
 };
 
 const goLogin = async () => {
@@ -216,5 +247,8 @@ const goLogin = async () => {
   font-size: 0.75rem;
   color: #94a3b8;
   line-height: 1.4;
+}
+.lock-card :deep(.mfa-panel) {
+  text-align: left;
 }
 </style>

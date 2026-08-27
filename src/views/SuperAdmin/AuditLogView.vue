@@ -83,6 +83,7 @@ import apiClient from '@/utils/axios';
 const actions = [
   'auth.login.success', 'auth.login.failed', 'user.created', 'user.updated',
   'user.deactivated', 'user.unlocked', 'password.reset', 'password.changed', 'session.revoked',
+  'mfa.setup', 'mfa.verify.success', 'mfa.verify.failed', 'mfa.sms.sent', 'mfa.recovery.regenerated',
 ];
 
 const search = ref('');
