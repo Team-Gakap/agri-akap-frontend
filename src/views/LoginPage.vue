@@ -27,11 +27,6 @@
             <p class="hero-value">
               Empowering MAO operations with secure digital governance and field intelligence
             </p>
-            <ul class="hero-bullets">
-              <li>Unified RSBSA Master Registry</li>
-              <li>High-Density Subsidy Allocations</li>
-              <li>Offline-First Field Operations</li>
-            </ul>
           </div>
         </aside>
 
@@ -102,7 +97,7 @@
               </ion-button>
             </form>
 
-            <p class="auth-footer">© 2026 MAO Echague · ISO/IEC 25010 Compliant System</p>
+            <p class="auth-footer">© 2026 MAO Echague</p>
           </div>
 
           <p class="mobile-status" role="status">
@@ -513,7 +508,10 @@ const login = async () => {
     padding: 2.5rem 3rem;
   }
 
-  .auth-inner { margin: 0; }
+  .auth-inner {
+    flex: 0 1 420px;
+    margin: 0;
+  }
 
   .mobile-status { display: none; }
 }
