@@ -97,6 +97,7 @@ const initials = computed(() => {
 
 const roleBadge = computed(() => {
   const role = authStore.userRole;
+  if (role === 'super_admin') return 'System SuperAdmin';
   if (role === 'admin') return 'MAO Administrator';
   if (role === 'barangay_official') return 'Barangay Official';
   return 'Field Technician';

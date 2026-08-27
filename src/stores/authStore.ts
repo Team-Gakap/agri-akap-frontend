@@ -5,7 +5,7 @@ import { ensureApiBaseUrl } from '../utils/apiBase';
 import router, { homeForRole } from '../router';
 import { pendingQueueCount, getDeviceId } from '@/services/db';
 
-export type UserRole = 'admin' | 'technician' | 'barangay_official';
+export type UserRole = 'super_admin' | 'admin' | 'technician' | 'barangay_official';
 
 interface User {
   id: string;
@@ -13,6 +13,8 @@ interface User {
   email: string;
   role: UserRole;
   assigned_barangay?: string | null;
+  must_change_password?: boolean;
+  is_active?: boolean;
 }
 
 const INACTIVITY_MS = 60 * 60 * 1000; // 60 minutes — matches Sanctum token expiry
@@ -34,6 +36,9 @@ export const useAuthStore = defineStore('auth', () => {
   const userRole = computed(() => user.value?.role ?? null);
   const userName = computed(() => user.value?.name ?? null);
   const lockedEmail = computed(() => user.value?.email ?? '');
+  const isSuperAdmin = computed(() => userRole.value === 'super_admin');
+  const isMunicipalAdmin = computed(() => userRole.value === 'admin' || userRole.value === 'super_admin');
+  const mustChangePassword = computed(() => !!user.value?.must_change_password);
 
   const persistActivity = (ts: number) => {
     lastActivityAt.value = ts;
@@ -212,7 +217,9 @@ export const useAuthStore = defineStore('auth', () => {
       persistActivity(Date.now());
       startInactivityWatcher();
 
-      router.replace(homeForRole(user.value?.role ?? null));
+      router.replace(
+        user.value?.must_change_password ? '/change-password' : homeForRole(user.value?.role ?? null),
+      );
 
       return { success: true };
     } catch (error: any) {
@@ -245,6 +252,35 @@ export const useAuthStore = defineStore('auth', () => {
     return result;
   };
 
+  const applyUser = (next: User | null) => {
+    user.value = next;
+    if (next) {
+      localStorage.setItem('user', JSON.stringify(next));
+    } else {
+      localStorage.removeItem('user');
+    }
+  };
+
+  const changePassword = async (payload: {
+    current_password: string;
+    password: string;
+    password_confirmation: string;
+  }) => {
+    try {
+      const response = await apiClient.post('/auth/change-password', payload);
+      const next = response.data?.data?.user as User | undefined;
+      if (next) applyUser(next);
+      else if (user.value) applyUser({ ...user.value, must_change_password: false });
+      router.replace(homeForRole(user.value?.role ?? null));
+      return { success: true as const };
+    } catch (error: any) {
+      return {
+        success: false as const,
+        message: error.response?.data?.message ?? 'Could not update password.',
+      };
+    }
+  };
+
   const logout = async () => {
     if (token.value) {
       try {
@@ -270,8 +306,12 @@ export const useAuthStore = defineStore('auth', () => {
     userRole,
     userName,
     lockedEmail,
+    isSuperAdmin,
+    isMunicipalAdmin,
+    mustChangePassword,
     login,
     logout,
+    changePassword,
     restoreSession,
     touchActivity,
     checkInactivity,

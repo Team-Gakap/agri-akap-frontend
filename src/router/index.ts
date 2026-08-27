@@ -4,6 +4,7 @@ import { useAuthStore } from "../stores/authStore";
 
 // ── Role home helper ──────────────────────────────────────────────────────────
 export const homeForRole = (role: string | null): string => {
+  if (role === "super_admin") return "/superadmin/dashboard";
   if (role === "admin") return "/admin/dashboard";
   if (role === "technician") return "/tech/dashboard";
   if (role === "barangay_official") return "/brgy/dashboard";
@@ -33,16 +34,36 @@ const routes: Array<RouteRecordRaw> = [
     component: () => import("@/views/SessionLockPage.vue"),
     meta: { requiresAuth: false },
   },
+  {
+    path: "/change-password",
+    name: "ChangePassword",
+    component: () => import("@/views/ChangePasswordPage.vue"),
+    meta: { requiresAuth: true },
+  },
+
+  // ── SuperAdmin governance portal ──────────────────────────────────────────
+  {
+    path: "/superadmin",
+    component: () => import("@/layouts/SuperAdminLayout.vue"),
+    meta: { requiresAuth: true, role: "super_admin" },
+    children: [
+      { path: "", redirect: "/superadmin/dashboard" },
+      { path: "dashboard", name: "SuperAdminDashboard", component: () => import("@/views/SuperAdmin/SuperAdminDashboardView.vue") },
+      { path: "users", name: "SuperAdminUsers", component: () => import("@/views/Staff/UserManagementView.vue") },
+      { path: "audit-logs", name: "SuperAdminAuditLogs", component: () => import("@/views/SuperAdmin/AuditLogView.vue") },
+    ],
+  },
 
   // ── Admin environment (web / desktop, sidebar) ────────────────────────────
   {
     path: "/admin",
     component: () => import("@/layouts/AdminLayout.vue"),
-    meta: { requiresAuth: true, role: "admin" },
+    meta: { requiresAuth: true, role: ["admin", "super_admin"] },
     children: [
       { path: "", redirect: "/admin/dashboard" },
       { path: "dashboard", name: "Dashboard", component: () => import("@/views/Admin/AdminDashboardView.vue") },
       { path: "analytics", redirect: "/admin/dashboard" },
+      { path: "staff", name: "AdminStaff", component: () => import("@/views/Staff/UserManagementView.vue") },
       { path: "farmers", name: "FarmersList", component: () => import("@/views/Admin/FarmerRegistryView.vue") },
       { path: "farmers/register", name: "FarmersRegister", component: () => import("@/views/Farmers/Registration_Form.vue") },
       { path: "farmers/legacy", redirect: "/admin/farmers" },
@@ -184,10 +205,8 @@ router.beforeEach((to, _from, next) => {
   const isAuthenticated = authStore.isAuthenticated;
   const userRole = authStore.userRole;
   const home = homeForRole(userRole);
-  // A session is only usable when we have a token AND a role we can route to.
   const hasValidSession = isAuthenticated && home !== "/login";
 
-  // Soft-locked sessions (expired token / inactivity) must re-auth without losing queue.
   if (authStore.sessionLocked && to.name !== "SessionLock" && to.name !== "Login") {
     return next({ name: "SessionLock" });
   }
@@ -196,11 +215,16 @@ router.beforeEach((to, _from, next) => {
   }
 
   if (to.meta.requiresAuth && !hasValidSession) {
-    // Avoid redirecting to Login if we're already heading there (prevents loops).
     return to.name === "Login" ? next() : next({ name: "Login" });
   }
 
-  // Prevent cross-role access via manual URL entry.
+  if (hasValidSession && authStore.mustChangePassword && to.name !== "ChangePassword") {
+    return next({ name: "ChangePassword" });
+  }
+  if (to.name === "ChangePassword" && hasValidSession && !authStore.mustChangePassword) {
+    return next(home);
+  }
+
   if (to.meta.requiresAuth && !roleAllowed(to.meta.role, userRole)) {
     return to.path === home ? next() : next(home);
   }

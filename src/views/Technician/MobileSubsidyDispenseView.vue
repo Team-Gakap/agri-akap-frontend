@@ -160,7 +160,7 @@ const route = useRoute();
 const authStore = useAuthStore();
 const distributionStore = useDistributionStore();
 
-const isAdminOverride = computed(() => authStore.userRole === 'admin');
+const isAdminOverride = computed(() => authStore.isMunicipalAdmin);
 const backHref = computed(() =>
   route.path.startsWith('/admin') ? '/admin/dashboard' : '/tech/dashboard'
 );

@@ -9,7 +9,7 @@ import { ECHAGUE_BARANGAYS } from '@/data/echagueBarangays';
  */
 export function useEncodingBarangay() {
   const authStore = useAuthStore();
-  const isAdminOverride = computed(() => authStore.userRole === 'admin');
+  const isAdminOverride = computed(() => authStore.isMunicipalAdmin);
   const selectedBarangay = ref('');
   const barangayOptions = ref<string[]>([]);
   const loadingBarangays = ref(false);

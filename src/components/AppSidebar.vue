@@ -14,7 +14,7 @@
     <ion-content>
       <ion-list id="admin-nav-list">
         <!-- Regular nav items (all except Reports) -->
-        <ion-menu-toggle :auto-hide="false" v-for="(p, i) in mainPages" :key="i">
+        <ion-menu-toggle :auto-hide="false" v-for="(p, i) in mainPages" :key="p.url">
           <ion-item
             @click="selectedIndex = i"
             router-direction="root"
@@ -88,6 +88,8 @@ import {
   cloudyOutline,
   chevronForwardOutline,
   logOutOutline,
+  personAddOutline,
+  shieldOutline,
 } from "ionicons/icons";
 
 import { useAuthStore } from "@/stores/authStore";
@@ -107,14 +109,27 @@ interface NavPage {
   badge?: boolean;
 }
 
-const mainPages: NavPage[] = [
-  { title: "Dashboard",          url: "/admin/dashboard",   iosIcon: homeOutline,                  mdIcon: homeSharp },
-  { title: "Farmer Registry",    url: "/admin/farmers",     iosIcon: peopleOutline,                mdIcon: peopleSharp },
-  { title: "ID Card Production", url: "/admin/id-issuance", iosIcon: idCardOutline,                mdIcon: idCardOutline },
-  { title: "Subsidy Campaigns",  url: "/admin/subsidies",   iosIcon: cubeOutline,                  mdIcon: cubeOutline },
-  { title: "Text Notifications", url: "/admin/broadcasts",  iosIcon: chatbubbleEllipsesOutline,    mdIcon: chatbubbleEllipsesOutline },
-  { title: "Weather",            url: "/admin/weather",     iosIcon: cloudyOutline,                mdIcon: cloudyOutline },
-];
+const mainPages = computed<NavPage[]>(() => {
+  const pages: NavPage[] = [];
+  if (authStore.isSuperAdmin) {
+    pages.push({
+      title: "System Console",
+      url: "/superadmin/dashboard",
+      iosIcon: shieldOutline,
+      mdIcon: shieldOutline,
+    });
+  }
+  pages.push(
+    { title: "Dashboard",          url: "/admin/dashboard",   iosIcon: homeOutline,                  mdIcon: homeSharp },
+    { title: "Staff Accounts",     url: "/admin/staff",       iosIcon: personAddOutline,             mdIcon: personAddOutline },
+    { title: "Farmer Registry",    url: "/admin/farmers",     iosIcon: peopleOutline,                mdIcon: peopleSharp },
+    { title: "ID Card Production", url: "/admin/id-issuance", iosIcon: idCardOutline,                mdIcon: idCardOutline },
+    { title: "Subsidy Campaigns",  url: "/admin/subsidies",   iosIcon: cubeOutline,                  mdIcon: cubeOutline },
+    { title: "Text Notifications", url: "/admin/broadcasts",  iosIcon: chatbubbleEllipsesOutline,    mdIcon: chatbubbleEllipsesOutline },
+    { title: "Weather",            url: "/admin/weather",     iosIcon: cloudyOutline,                mdIcon: cloudyOutline },
+  );
+  return pages;
+});
 
 const reportPages = [
   { title: "Subsidy Distribution",  url: "/admin/reports/subsidies" },
