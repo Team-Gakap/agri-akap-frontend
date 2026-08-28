@@ -386,7 +386,7 @@ export const useAuthStore = defineStore('auth', () => {
   const reauthenticate = async (password: string, turnstileToken?: string) => {
     const email = user.value?.email;
     if (!email) {
-      return { success: false, message: 'No cached user. Please sign in from the login page.' };
+      return { success: false as const, mfa_required: false as const, message: 'No cached user. Please sign in from the login page.' };
     }
     const result = await login({
       email,

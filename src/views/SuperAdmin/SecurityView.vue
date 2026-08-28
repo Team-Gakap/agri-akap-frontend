@@ -67,7 +67,7 @@
                 <ion-input v-model="currentPassword" type="password" label="Current password" label-placement="stacked"></ion-input>
               </ion-item>
               <ion-item class="field" lines="none">
-                <ion-input v-model="totp" inputmode="numeric" maxlength="6" label="Authenticator code" label-placement="stacked"></ion-input>
+                <ion-input v-model="totp" inputmode="numeric" :maxlength="6" label="Authenticator code" label-placement="stacked"></ion-input>
               </ion-item>
               <ion-button class="save" :disabled="savingCodes" @click="regenerate">
                 {{ savingCodes ? 'Generating…' : 'Generate new codes' }}

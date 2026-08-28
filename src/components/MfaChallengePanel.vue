@@ -21,7 +21,7 @@
           label-placement="floating"
           inputmode="numeric"
           autocomplete="one-time-code"
-          maxlength="6"
+          :maxlength="6"
           @keyup.enter="submitSetup"
         ></ion-input>
       </ion-item>
@@ -55,7 +55,7 @@
           label-placement="floating"
           inputmode="numeric"
           autocomplete="one-time-code"
-          maxlength="6"
+          :maxlength="6"
           @keyup.enter="submitSms"
         ></ion-input>
       </ion-item>
@@ -76,7 +76,7 @@
           label-placement="floating"
           inputmode="numeric"
           autocomplete="one-time-code"
-          maxlength="8"
+          :maxlength="8"
           @keyup.enter="submitVerify"
         ></ion-input>
       </ion-item>
