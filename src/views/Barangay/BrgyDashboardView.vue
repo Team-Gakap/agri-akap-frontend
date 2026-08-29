@@ -5,7 +5,7 @@
         <ion-buttons slot="start">
           <ion-menu-button></ion-menu-button>
         </ion-buttons>
-        <ion-title>Dashboard</ion-title>
+        <ion-title>Command Center</ion-title>
         <ion-buttons slot="end">
           <ion-button :disabled="loading" @click="fetchDashboard">
             <ion-icon slot="icon-only" :icon="refreshOutline"></ion-icon>
@@ -32,151 +32,196 @@
       </div>
 
       <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 p-4">
-        <!-- ── KPI strip ─────────────────────────────────────────────── -->
-        <ion-card class="dense-card kpi-card lg:col-span-2" button @click="go('/brgy/farmers')">
-          <ion-card-content class="kpi-body">
-            <span class="kpi-label">Registered Farmers</span>
-            <span class="kpi-value">{{ fmt(dashboardData.total_farmers) }}</span>
-            <span class="kpi-sub">{{ fmt(dashboardData.verified_farmers) }} Verified | {{ fmt(dashboardData.pending_farmers) }} Pending RSBSA</span>
-          </ion-card-content>
-        </ion-card>
+        <header class="page-intro lg:col-span-12">
+          <div>
+            <p class="eyebrow">Barangay Portal · LGU Echague</p>
+            <h1>Barangay {{ barangayName }} · Command Center</h1>
+          </div>
+          <p class="officer">Assigned officer: {{ officerName }}</p>
+        </header>
 
-        <ion-card class="dense-card kpi-card lg:col-span-2" button @click="go('/brgy/planting-ledger')">
-          <ion-card-content class="kpi-body">
-            <span class="kpi-label">Rice Hectares</span>
-            <span class="kpi-value">{{ fmtHa(dashboardData.rice_hectares) }}<small>ha</small></span>
-            <span class="kpi-sub">Registered rice parcels</span>
-          </ion-card-content>
-        </ion-card>
+        <!-- ── 1. Descriptive KPI belt (4 cards) ──────────────────────── -->
+        <button class="kpi-card lg:col-span-3" type="button" @click="go('/brgy/farmers')">
+          <div class="kpi-icon kpi-tone-green">
+            <ion-icon :icon="peopleOutline"></ion-icon>
+          </div>
+          <p class="kpi-value">{{ fmt(dashboardData.total_farmers) }}</p>
+          <p class="kpi-label">Registered Farmers</p>
+          <p class="kpi-sub">
+            {{ fmt(dashboardData.verified_farmers) }} Verified · {{ fmt(dashboardData.pending_farmers) }} Pending RSBSA
+          </p>
+        </button>
 
-        <ion-card class="dense-card kpi-card lg:col-span-2" button @click="go('/brgy/planting-ledger')">
-          <ion-card-content class="kpi-body">
-            <span class="kpi-label">Corn Hectares</span>
-            <span class="kpi-value">{{ fmtHa(dashboardData.corn_hectares) }}<small>ha</small></span>
-            <span class="kpi-sub">Registered corn parcels</span>
-          </ion-card-content>
-        </ion-card>
+        <button class="kpi-card lg:col-span-3" type="button" @click="go('/brgy/planting-ledger')">
+          <div class="kpi-icon kpi-tone-gold">
+            <ion-icon :icon="leafOutline"></ion-icon>
+          </div>
+          <p class="kpi-value">{{ fmtHa(dashboardData.total_hectares) }} <small>ha</small></p>
+          <p class="kpi-label">Cultivated Land</p>
+          <p class="kpi-sub">
+            {{ fmtHa(dashboardData.rice_hectares) }} ha Rice · {{ fmtHa(dashboardData.corn_hectares) }} ha Corn
+          </p>
+        </button>
 
-        <ion-card class="dense-card kpi-card lg:col-span-2" button @click="go('/brgy/farmers')">
-          <ion-card-content class="kpi-body">
-            <span class="kpi-label">Subsidy Logistics</span>
-            <span class="kpi-value gold">{{ fmt(dashboardData.claimed_subsidies + dashboardData.unclaimed_subsidies) }}</span>
-            <span class="kpi-sub">{{ fmt(dashboardData.claimed_subsidies) }} Claimed | {{ fmt(dashboardData.unclaimed_subsidies) }} Unclaimed</span>
-          </ion-card-content>
-        </ion-card>
+        <button class="kpi-card lg:col-span-3" type="button" @click="go('/brgy/reports/subsidies')">
+          <div class="kpi-icon kpi-tone-slate">
+            <ion-icon :icon="cubeOutline"></ion-icon>
+          </div>
+          <p class="kpi-value">
+            {{ fmt(dashboardData.claimed_subsidies) }}
+            <small>/ {{ fmt(subsidyTotal) }}</small>
+          </p>
+          <p class="kpi-label">Subsidy Uptake</p>
+          <div class="micro-bar" aria-hidden="true">
+            <span :style="{ width: subsidyPercent + '%' }"></span>
+          </div>
+          <p class="kpi-hint">{{ subsidyPercent }}% release progress</p>
+        </button>
 
-        <ion-card class="dense-card kpi-card lg:col-span-2" button @click="go('/brgy/calamity-assessment')">
-          <ion-card-content class="kpi-body">
-            <span class="kpi-label">Active Calamities</span>
-            <span class="kpi-value">{{ fmt(dashboardData.active_calamities) }}</span>
-            <span class="kpi-sub">Pending damage reports</span>
-          </ion-card-content>
-        </ion-card>
+        <button class="kpi-card lg:col-span-3" type="button" @click="go('/brgy/pest-monitoring')">
+          <div class="kpi-icon kpi-tone-danger">
+            <ion-icon :icon="warningOutline"></ion-icon>
+          </div>
+          <p class="kpi-value">{{ fmt(dashboardData.active_threats) }}</p>
+          <p class="kpi-label">Threat Triage</p>
+          <p class="kpi-sub">
+            {{ fmt(dashboardData.active_calamities) }} Calamity · {{ fmt(dashboardData.active_pests) }} Unverified Pests
+          </p>
+        </button>
 
-        <ion-card class="dense-card kpi-card lg:col-span-2" button @click="go('/brgy/pest-monitoring')">
-          <ion-card-content class="kpi-body">
-            <span class="kpi-label">Active Pests</span>
-            <span class="kpi-value">{{ fmt(dashboardData.active_pests) }}</span>
-            <span class="kpi-sub">Unverified pest reports</span>
-          </ion-card-content>
-        </ion-card>
-
-        <!-- ── Diagnostic analytics ──────────────────────────────────── -->
-        <ion-card class="dense-card lg:col-span-8">
-          <ion-card-header class="dense-head">
-            <ion-card-title>{{ barangayName }} · crop stages and 6-month yield vs damage</ion-card-title>
-          </ion-card-header>
-          <ion-card-content class="chart-row">
-            <div class="chart-pane">
-              <p class="chart-caption">Active Crop Stages</p>
-              <div v-if="hasStageData(dashboardData.crop_stages)" class="chart-box">
-                <Doughnut :data="cropStageChartData" :options="doughnutOptions" />
+        <!-- ── 2. Diagnostic charts (8) ───────────────────────────────── -->
+        <div class="lg:col-span-8 diag-col">
+          <section class="panel-card">
+            <header class="panel-head">
+              <div>
+                <h2>Active Crop Stages</h2>
+                <p>Seasonal vulnerability for {{ barangayName }}</p>
               </div>
-              <p v-else class="empty-inline">No standing crop recorded yet.</p>
+            </header>
+            <div v-if="hasStageData(dashboardData.crop_stages)" class="chart-box">
+              <Doughnut :data="cropStageChartData" :options="doughnutOptions" />
             </div>
-            <div class="chart-pane">
-              <p class="chart-caption">Harvest Yields vs Calamity Damage</p>
-              <div v-if="hasMonthlyData(dashboardData.monthly_yield_damage)" class="chart-box">
-                <Bar :data="yieldDamageChartData" :options="barOptions" />
-              </div>
-              <p v-else class="empty-inline">No harvest or damage recorded yet.</p>
-            </div>
-          </ion-card-content>
-        </ion-card>
+            <p v-else class="empty-inline">No standing crop recorded yet.</p>
+            <p v-if="hasStageData(dashboardData.crop_stages)" class="stage-legend">
+              Seedling {{ stagePct('seedling') }}% · Vegetative {{ stagePct('vegetative') }}% ·
+              Reproductive {{ stagePct('reproductive') }}% · Maturity {{ stagePct('maturity') }}%
+            </p>
+          </section>
 
-        <!-- ── Local micro-climate ───────────────────────────────────── -->
-        <ion-card class="dense-card lg:col-span-4">
-          <ion-card-header class="dense-head">
-            <ion-card-title>Weather</ion-card-title>
-            <ion-card-subtitle>6-hour action window</ion-card-subtitle>
-          </ion-card-header>
-          <ion-card-content class="climate-body">
+          <section class="panel-card">
+            <header class="panel-head">
+              <div>
+                <h2>6-Month Yield vs Loss</h2>
+                <p>Harvest (MT) vs calamity damage (ha)</p>
+              </div>
+            </header>
+            <div v-if="hasMonthlyData(dashboardData.monthly_yield_damage)" class="chart-box tall">
+              <Bar :data="yieldDamageChartData" :options="barOptions" />
+            </div>
+            <p v-else class="empty-inline">No harvest or damage recorded yet.</p>
+            <p v-if="hasMonthlyData(dashboardData.monthly_yield_damage)" class="stage-legend">
+              Period total · Harvested {{ fmtHa(harvestPeriodTotal) }} MT · Damaged {{ fmtHa(damagePeriodTotal) }} ha
+            </p>
+          </section>
+        </div>
+
+        <!-- ── 3. Micro-climate (4) ───────────────────────────────────── -->
+        <section class="panel-card lg:col-span-4 climate-card">
+          <header class="panel-head">
+            <div>
+              <h2>Local Micro-Climate</h2>
+              <p>{{ barangayName }} · Open-Meteo cache</p>
+            </div>
+          </header>
+
+          <div v-if="loading && !hasWeather" class="wx-skeleton">
+            <ion-skeleton-text animated style="width: 42%; height: 2.4rem;"></ion-skeleton-text>
+            <ion-skeleton-text animated style="width: 70%;"></ion-skeleton-text>
+            <ion-skeleton-text animated style="width: 100%; height: 3rem;"></ion-skeleton-text>
+            <ion-skeleton-text animated style="width: 100%; height: 4.5rem;"></ion-skeleton-text>
+          </div>
+
+          <template v-else-if="hasWeather">
             <div class="climate-now">
               <ion-icon :icon="weatherIcon(currentWeather?.weather_code)" class="wx-icon"></ion-icon>
               <div>
                 <span class="temp-readout">{{ currentTemp }}&deg;C</span>
-                <span class="wx-status">{{ currentWeather?.status || 'No cache' }}</span>
+                <span class="wx-status">{{ currentWeather?.status || 'Current conditions' }}</span>
+                <span v-if="currentWind != null" class="wx-wind">Wind {{ fmtNum(currentWind, 0) }} km/h</span>
               </div>
             </div>
 
             <div class="soil-indicator" :class="soilStatus.tone">
-              <span class="soil-label">Soil Moisture</span>
-              <span class="soil-value">{{ deepSoilMoisture }}</span>
+              <span class="soil-label">Root-zone soil moisture</span>
+              <span class="soil-value">{{ soilDisplay }}</span>
               <span class="soil-badge">{{ soilStatus.label }}</span>
             </div>
 
-            <ul v-if="hourlyForecast.length" class="hour-list">
-              <li v-for="hour in hourlyForecast" :key="hour.id || hour.forecast_datetime" class="hour-row">
+            <p class="hour-caption">6-hour agricultural advisory window</p>
+            <div v-if="hourlyForecast.length" class="hour-pills">
+              <div
+                v-for="hour in hourlyForecast"
+                :key="hour.id || hour.forecast_datetime"
+                class="hour-pill"
+                :class="hourTone(hour)"
+              >
                 <span class="hour-time">{{ formatHour(hour.forecast_datetime) }}</span>
-                <span class="hour-rain" :class="{ high: (hour.precipitation_probability ?? 0) > 70 }">
-                  {{ hour.precipitation_probability ?? 0 }}% rain
-                </span>
+                <span class="hour-temp">{{ fmtNum(hour.temperature, 0) }}&deg;</span>
+                <span class="hour-rain">{{ hour.precipitation_probability ?? 0 }}% rain</span>
                 <span class="hour-wind">{{ fmtNum(hour.wind_speed, 0) }} km/h</span>
-              </li>
-            </ul>
-            <p v-else class="empty-inline">No hourly forecast cached.</p>
-          </ion-card-content>
-        </ion-card>
-
-        <!-- ── Prescriptive action center ────────────────────────────── -->
-        <ion-card class="dense-card lg:col-span-12">
-          <ion-card-header class="dense-head">
-            <ion-card-title>Automated Intelligence &amp; Required Actions</ion-card-title>
-            <ion-card-subtitle>Weather, pest, and field triggers · {{ displayAlerts.length }} active</ion-card-subtitle>
-          </ion-card-header>
-          <ion-card-content class="action-body">
-            <div class="alert-list">
-              <div v-for="(alert, i) in displayAlerts" :key="i" class="alert-row">
-                <ion-badge :color="alertBadge(alert.type)">{{ alertTypeLabel(alert.type) }}</ion-badge>
-                <p class="alert-copy">{{ alert.message }}</p>
-                <ion-button
-                  fill="outline"
-                  size="small"
-                  class="action-btn"
-                  @click="handleAlert(alert)"
-                >
-                  {{ alert.action || 'Take Action' }}
-                </ion-button>
-              </div>
-              <div v-if="!displayAlerts.length" class="alert-row empty">
-                <p class="alert-copy">No automated actions required. All indicators nominal.</p>
+                <span class="hour-flag">{{ hourFlag(hour) }}</span>
               </div>
             </div>
-          </ion-card-content>
-        </ion-card>
+            <p v-else class="empty-inline">Hourly slots not cached yet. Daily snapshot is shown above.</p>
+          </template>
+
+          <div v-else class="wx-empty">
+            <ion-icon :icon="cloudyOutline" class="wx-empty-icon"></ion-icon>
+            <p><strong>No Open-Meteo cache for {{ barangayName }}.</strong></p>
+            <p>The municipal climate sync has not stored a 6-hour window for this barangay yet.</p>
+          </div>
+        </section>
+
+        <!-- ── 4. Prescriptive Action Center ──────────────────────────── -->
+        <section class="panel-card lg:col-span-12 action-card">
+          <header class="panel-head">
+            <div>
+              <h2>Prescriptive Action Center</h2>
+              <p>Weather, pest, and field triggers · {{ displayAlerts.length }} active</p>
+            </div>
+          </header>
+          <div class="alert-list">
+            <div v-for="(alert, i) in displayAlerts" :key="i" class="alert-row">
+              <span class="sev-badge" :class="alert.severity || alert.type">{{ alert.label || alertTypeLabel(alert.type) }}</span>
+              <p class="alert-copy">{{ alert.message }}</p>
+              <ion-button
+                fill="outline"
+                size="small"
+                class="action-btn"
+                @click="handleAlert(alert)"
+              >
+                {{ alert.action || 'Take Action' }}
+              </ion-button>
+            </div>
+            <div v-if="!displayAlerts.length" class="alert-row empty">
+              <p class="alert-copy">No automated actions required. All indicators nominal.</p>
+            </div>
+          </div>
+        </section>
       </div>
     </ion-content>
 
     <ion-modal :is-open="smsOpen" @didDismiss="smsOpen = false">
       <ion-header>
         <ion-toolbar color="primary">
-          <ion-title>Draft SMS</ion-title>
+          <ion-title>Barangay SMS Advisory</ion-title>
           <ion-buttons slot="end">
             <ion-button @click="smsOpen = false">Close</ion-button>
           </ion-buttons>
         </ion-toolbar>
       </ion-header>
       <ion-content class="ion-padding">
+        <p class="sms-hint">Barangay accounts copy this draft for the local SMS blast. MAO retains the municipal broadcast queue.</p>
         <ion-textarea
           label="Advisory"
           label-placement="stacked"
@@ -198,13 +243,13 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
-  IonButton, IonIcon, IonSpinner, IonCard, IonCardHeader, IonCardTitle, IonCardSubtitle,
-  IonCardContent, IonBadge, IonModal, IonTextarea,
+  IonButton, IonIcon, IonSpinner, IonModal, IonTextarea, IonSkeletonText,
   onIonViewWillEnter,
 } from '@ionic/vue';
 import {
   refreshOutline, sunnyOutline, cloudyOutline, rainyOutline, snowOutline,
-  partlySunnyOutline, thunderstormOutline,
+  partlySunnyOutline, thunderstormOutline, peopleOutline, leafOutline,
+  cubeOutline, warningOutline,
 } from 'ionicons/icons';
 import { Doughnut, Bar } from 'vue-chartjs';
 import {
@@ -223,14 +268,15 @@ import { useAuthStore } from '@/stores/authStore';
 
 ChartJS.register(Title, Tooltip, Legend, ArcElement, BarElement, CategoryScale, LinearScale);
 
-const LGU_GREEN = '#1a4731';
-const LGU_GOLD = '#d4af37';
+const LGU_GREEN = '#1A4731';
+const LGU_GOLD = '#D4AF37';
 
 interface CurrentWeather {
   temperature_min?: number | null;
   temperature_max?: number | null;
   soil_moisture?: number | null;
   soil_moisture_28cm?: number | null;
+  wind_speed_10m?: number | null;
   weather_code?: number | null;
   status?: string;
 }
@@ -248,6 +294,10 @@ interface ActionAlert {
   type: string;
   message: string;
   action?: string;
+  label?: string;
+  severity?: string;
+  route?: string | null;
+  sms_message?: string;
 }
 
 interface CropStages {
@@ -308,6 +358,7 @@ const authStore = useAuthStore();
 
 const assignedBarangay = computed(() => authStore.user?.assigned_barangay || null);
 const barangayName = computed(() => assignedBarangay.value || 'Barangay');
+const officerName = computed(() => authStore.user?.name || 'Barangay encoder');
 
 const loading = ref(false);
 const loaded = ref(false);
@@ -335,6 +386,14 @@ const currentWeather = ref<CurrentWeather | null>(null);
 const hourlyForecast = ref<HourlyForecast[]>([]);
 const apiAlerts = ref<ActionAlert[]>([]);
 
+const subsidyTotal = computed(
+  () => Number(dashboardData.claimed_subsidies) + Number(dashboardData.unclaimed_subsidies),
+);
+const subsidyPercent = computed(() => {
+  if (subsidyTotal.value <= 0) return 0;
+  return Math.min(100, Math.round((dashboardData.claimed_subsidies / subsidyTotal.value) * 100));
+});
+
 const currentTemp = computed(() => {
   const hourlyTemp = hourlyForecast.value[0]?.temperature;
   if (hourlyTemp != null) return Math.round(Number(hourlyTemp));
@@ -345,25 +404,43 @@ const currentTemp = computed(() => {
   return '—';
 });
 
-const soilPct = computed(() => {
+const currentWind = computed(() => {
+  const hourly = hourlyForecast.value[0]?.wind_speed;
+  if (hourly != null) return Number(hourly);
+  const daily = currentWeather.value?.wind_speed_10m;
+  return daily != null ? Number(daily) : null;
+});
+
+const soilVolumetric = computed(() => {
   const raw = currentWeather.value?.soil_moisture_28cm ?? currentWeather.value?.soil_moisture;
   if (raw == null || Number.isNaN(Number(raw))) return null;
   const n = Number(raw);
-  return n <= 1 ? n * 100 : n;
+  return n > 1 ? n / 100 : n;
 });
 
-const deepSoilMoisture = computed(() => {
-  if (soilPct.value == null) return '—';
-  return `${soilPct.value.toFixed(0)}%`;
+const soilDisplay = computed(() => {
+  if (soilVolumetric.value == null) return '—';
+  return `${soilVolumetric.value.toFixed(2)} m³/m³`;
 });
 
 const soilStatus = computed(() => {
-  const pct = soilPct.value;
-  if (pct == null) return { label: 'Unknown', tone: 'neutral' };
-  if (pct >= 55) return { label: 'Adequate', tone: 'good' };
-  if (pct >= 35) return { label: 'Moderate', tone: 'moderate' };
+  const v = soilVolumetric.value;
+  if (v == null) return { label: 'Unknown', tone: 'neutral' };
+  if (v >= 0.20 && v <= 0.40) return { label: 'Optimal', tone: 'good' };
+  if (v > 0.40) return { label: 'Saturated', tone: 'moderate' };
   return { label: 'Low', tone: 'low' };
 });
+
+const hasWeather = computed(() =>
+  Boolean(currentWeather.value) || hourlyForecast.value.length > 0,
+);
+
+const harvestPeriodTotal = computed(() =>
+  dashboardData.monthly_yield_damage.reduce((s, r) => s + Number(r.harvest ?? 0), 0),
+);
+const damagePeriodTotal = computed(() =>
+  dashboardData.monthly_yield_damage.reduce((s, r) => s + Number(r.damage ?? 0), 0),
+);
 
 const displayAlerts = computed<ActionAlert[]>(() => {
   const derived: ActionAlert[] = [];
@@ -371,12 +448,24 @@ const displayAlerts = computed<ActionAlert[]>(() => {
   if (soilStatus.value.tone === 'good' && rainLow && hourlyForecast.value.length) {
     derived.push({
       type: 'planting',
-      message: 'Optimal planting window opens tomorrow. Soil moisture is adequate with low rain risk.',
-      action: 'Schedule Planting',
+      severity: 'info',
+      label: 'Planting Window',
+      message: 'Optimal planting window: soil moisture is adequate with low rain risk.',
+      action: 'Open Planting Ledger',
+      route: '/brgy/planting-ledger',
     });
   }
   return [...apiAlerts.value, ...derived];
 });
+
+const stageTotal = computed(() =>
+  CROP_STAGE_LABELS.reduce((s, k) => s + Number(dashboardData.crop_stages[k] ?? 0), 0),
+);
+
+const stagePct = (key: keyof CropStages) => {
+  if (stageTotal.value <= 0) return '0';
+  return ((Number(dashboardData.crop_stages[key] ?? 0) / stageTotal.value) * 100).toFixed(0);
+};
 
 const cropStageChartData = computed(() => {
   const stages = dashboardData.crop_stages;
@@ -396,18 +485,20 @@ const yieldDamageChartData = computed(() => ({
   labels: dashboardData.monthly_yield_damage.map(r => r.month),
   datasets: [
     {
-      label: 'Harvest yield',
+      label: 'Harvest yield (MT)',
       data: dashboardData.monthly_yield_damage.map(r => r.harvest),
       backgroundColor: LGU_GREEN,
       borderRadius: 4,
-      maxBarThickness: 28,
+      maxBarThickness: 22,
+      yAxisID: 'y',
     },
     {
       label: 'Calamity damage (ha)',
       data: dashboardData.monthly_yield_damage.map(r => r.damage),
       backgroundColor: LGU_GOLD,
       borderRadius: 4,
-      maxBarThickness: 28,
+      maxBarThickness: 22,
+      yAxisID: 'yDamage',
     },
   ],
 }));
@@ -419,9 +510,9 @@ const doughnutOptions = {
   plugins: {
     legend: {
       position: 'bottom' as const,
-      labels: { color: LGU_GREEN, boxWidth: 10, boxHeight: 10, font: { size: 13, weight: 700 as const }, padding: 12 },
+      labels: { color: LGU_GREEN, boxWidth: 10, boxHeight: 10, font: { size: 12, weight: 700 as const }, padding: 10 },
     },
-    tooltip: { backgroundColor: LGU_GREEN, titleColor: '#fff', bodyColor: LGU_GOLD, bodyFont: { size: 13 } },
+    tooltip: { backgroundColor: LGU_GREEN, titleColor: '#fff', bodyColor: LGU_GOLD },
   },
 };
 
@@ -431,19 +522,38 @@ const barOptions = {
   plugins: {
     legend: {
       position: 'bottom' as const,
-      labels: { color: LGU_GREEN, boxWidth: 10, boxHeight: 10, font: { size: 13, weight: 700 as const }, padding: 10 },
+      labels: { color: LGU_GREEN, boxWidth: 10, boxHeight: 10, font: { size: 12, weight: 700 as const }, padding: 10 },
     },
-    tooltip: { backgroundColor: LGU_GREEN, titleColor: '#fff', bodyColor: LGU_GOLD, bodyFont: { size: 13 } },
+    tooltip: {
+      backgroundColor: LGU_GREEN,
+      titleColor: '#fff',
+      bodyColor: LGU_GOLD,
+      callbacks: {
+        label: (ctx: any) => {
+          const unit = ctx.dataset.yAxisID === 'yDamage' ? 'ha' : 'MT';
+          return `${ctx.dataset.label}: ${Number(ctx.parsed.y).toLocaleString('en-PH', { maximumFractionDigits: 1 })} ${unit}`;
+        },
+      },
+    },
   },
   scales: {
     x: {
-      ticks: { color: '#475569', font: { size: 12, weight: 600 as const } },
+      ticks: { color: '#475569', font: { size: 11, weight: 600 as const } },
       grid: { display: false },
     },
     y: {
       beginAtZero: true,
-      ticks: { color: '#64748b', font: { size: 12 } },
+      position: 'left' as const,
+      title: { display: true, text: 'MT', color: '#64748b', font: { size: 11, weight: 700 as const } },
+      ticks: { color: '#64748b', font: { size: 11 } },
       grid: { color: 'rgba(26,71,49,0.08)' },
+    },
+    yDamage: {
+      beginAtZero: true,
+      position: 'right' as const,
+      title: { display: true, text: 'ha', color: '#64748b', font: { size: 11, weight: 700 as const } },
+      ticks: { color: '#64748b', font: { size: 11 } },
+      grid: { drawOnChartArea: false },
     },
   },
 };
@@ -470,19 +580,31 @@ const weatherIcon = (code?: number | null) => {
 const formatHour = (iso: string) => {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleTimeString('en-PH', { hour: 'numeric', hour12: true }).replace(' ', '');
+  return d.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit' });
 };
 
-const alertBadge = (type: string) => {
-  if (type === 'pest') return 'warning';
-  if (type === 'planting') return 'success';
-  return 'primary';
+const hourTone = (hour: HourlyForecast) => {
+  const rain = hour.precipitation_probability ?? 0;
+  const wind = hour.wind_speed ?? 0;
+  if (rain >= 80) return 'flood';
+  if (rain >= 70 || wind > 15) return 'warn';
+  return 'safe';
+};
+
+const hourFlag = (hour: HourlyForecast) => {
+  const rain = hour.precipitation_probability ?? 0;
+  const wind = hour.wind_speed ?? 0;
+  if (rain >= 80) return 'Flood watch';
+  if (wind > 15) return 'Spray delay';
+  if (rain >= 70) return 'Spray delay';
+  return 'Safe';
 };
 
 const alertTypeLabel = (type: string) => {
-  if (type === 'pest') return 'Pest';
-  if (type === 'planting') return 'Planting';
-  return 'Weather';
+  if (type === 'pest') return 'Pest Report';
+  if (type === 'calamity') return 'Calamity Loss';
+  if (type === 'planting') return 'Planting Window';
+  return 'Weather Advisory';
 };
 
 function normalizeStages(raw: Partial<CropStages> | undefined): CropStages {
@@ -554,9 +676,17 @@ const fetchDashboard = async () => {
 
 const handleAlert = (alert: ActionAlert) => {
   const action = (alert.action || '').toLowerCase();
-  if (action.includes('sms')) {
-    smsDraft.value = alert.message;
+  if (action.includes('sms') || alert.type === 'weather') {
+    smsDraft.value = alert.sms_message || alert.message;
     smsOpen.value = true;
+    return;
+  }
+  if (alert.route) {
+    void router.push(alert.route);
+    return;
+  }
+  if (alert.type === 'calamity') {
+    void router.push('/brgy/calamity-assessment');
     return;
   }
   if (action.includes('planting') || alert.type === 'planting') {
@@ -582,33 +712,68 @@ onIonViewWillEnter(() => {
 </script>
 
 <style scoped>
-.dash-bg { --background: #eef2ef; --padding-top: 0; --padding-bottom: 0; --padding-start: 0; --padding-end: 0; }
+.dash-bg { --background: #F8FAFC; --padding-top: 0; --padding-bottom: 0; --padding-start: 0; --padding-end: 0; }
 
 .grid {
   display: grid;
   width: 100%;
-  max-width: min(1480px, 100%);
+  max-width: min(1400px, 100%);
   margin: 0 auto;
   box-sizing: border-box;
-  align-items: stretch;
+  align-items: start;
 }
 .grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
 .gap-4 { gap: 1rem; }
-.p-4 { padding: 1rem 1.1rem 1.4rem; }
+.p-4 { padding: 1rem 1.1rem 1.5rem; }
 
 @media (min-width: 640px) {
   .sm\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .p-4 { padding: 1.15rem 1.25rem 1.6rem; }
-  .gap-4 { gap: 1.1rem; }
+}
+
+@media (max-width: 1023px) {
+  .page-intro,
+  .diag-col,
+  .climate-card,
+  .action-card {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (min-width: 1024px) {
   .lg\:grid-cols-12 { grid-template-columns: repeat(12, minmax(0, 1fr)); }
-  .lg\:col-span-2 { grid-column: span 2 / span 2; }
   .lg\:col-span-3 { grid-column: span 3 / span 3; }
   .lg\:col-span-4 { grid-column: span 4 / span 4; }
   .lg\:col-span-8 { grid-column: span 8 / span 8; }
   .lg\:col-span-12 { grid-column: span 12 / span 12; }
+}
+
+.page-intro {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.eyebrow {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #D4AF37;
+}
+.page-intro h1 {
+  margin: 0.2rem 0 0;
+  font-size: clamp(1.25rem, 2.4vw, 1.7rem);
+  font-weight: 900;
+  color: #1A4731;
+  letter-spacing: -0.02em;
+}
+.officer {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #64748b;
 }
 
 .warn-banner {
@@ -620,93 +785,111 @@ onIonViewWillEnter(() => {
   font-size: 0.95rem;
   font-weight: 600;
 }
-.center-state { text-align: center; padding: 3rem 1rem; color: #64748b; font-size: 1rem; }
+.center-state { text-align: center; padding: 3rem 1rem; color: #64748b; }
 .center-state.error { color: #b91c1c; }
 
-.dense-card {
+.kpi-card {
   margin: 0;
-  border-radius: 14px;
-  border: 1px solid #d5ded8;
+  border-radius: 16px;
+  border: 1px solid #E2E8F0;
   background: #fff;
-  box-shadow: 0 2px 8px rgba(26, 71, 49, 0.06);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+  text-align: left;
+  padding: 1rem 1.05rem 0.95rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+.kpi-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+}
+.kpi-tone-green { background: rgba(26, 71, 49, 0.1); color: #1A4731; }
+.kpi-tone-gold { background: rgba(212, 175, 55, 0.16); color: #a3831f; }
+.kpi-tone-slate { background: rgba(100, 116, 139, 0.12); color: #475569; }
+.kpi-tone-danger { background: rgba(220, 38, 38, 0.1); color: #b91c1c; }
+.kpi-value {
+  margin: 0;
+  font-size: clamp(1.45rem, 2.4vw, 1.95rem);
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.05;
+}
+.kpi-value small { font-size: 0.78rem; font-weight: 700; color: #64748b; }
+.kpi-label {
+  margin: 0.28rem 0 0;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #64748b;
+}
+.kpi-sub, .kpi-hint {
+  margin: 0.28rem 0 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #1A4731;
+}
+.kpi-hint { color: #64748b; font-weight: 600; }
+.micro-bar {
+  margin-top: 0.5rem;
+  height: 6px;
+  border-radius: 99px;
+  background: #e2e8f0;
   overflow: hidden;
 }
-.kpi-card {
-  aspect-ratio: 1 / 1;
-  border-top: 4px solid #1a4731;
-}
-.kpi-card:nth-child(2),
-.kpi-card:nth-child(3) { border-top-color: #d4af37; }
-.kpi-card:nth-child(4) { border-top-color: #64748b; }
-.kpi-card:nth-child(5),
-.kpi-card:nth-child(6) { border-top-color: #b91c1c; }
-
-.dense-head { padding: 14px 16px 6px; }
-.dense-card ion-card-title {
-  font-size: 1.05rem;
-  font-weight: 800;
-  color: #1a4731;
-  letter-spacing: -0.01em;
-}
-.dense-card ion-card-subtitle {
-  font-size: 0.8rem;
-  font-weight: 650;
-  color: #64748b;
-  text-transform: none;
-  letter-spacing: 0;
+.micro-bar span {
+  display: block;
+  height: 100%;
+  background: #1A4731;
+  border-radius: 99px;
 }
 
-.kpi-body {
-  padding: 16px 18px 18px !important;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-height: 118px;
+.panel-card {
+  margin: 0;
+  border-radius: 16px;
+  border: 1px solid #E2E8F0;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+  padding: 0.9rem 1rem 1rem;
 }
-.kpi-label {
-  font-size: 0.78rem;
+.panel-head { margin-bottom: 0.65rem; }
+.panel-head h2 {
+  margin: 0;
+  color: #1A4731;
   font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: 0.98rem;
+}
+.panel-head p {
+  margin: 0.15rem 0 0;
   color: #64748b;
-}
-.kpi-value {
-  font-size: clamp(2rem, 3.4vw, 2.7rem);
-  font-weight: 900;
-  color: #1a4731;
-  line-height: 1.05;
-  letter-spacing: -0.03em;
-}
-.kpi-value small {
-  font-size: 0.95rem;
-  font-weight: 800;
-  margin-left: 4px;
-  color: #64748b;
-}
-.kpi-value.gold { color: #a3831f; }
-.kpi-sub {
-  margin-top: 4px;
-  font-size: 0.85rem;
-  font-weight: 650;
-  color: #475569;
-  line-height: 1.35;
+  font-weight: 600;
+  font-size: 0.75rem;
 }
 
-.chart-row {
+.diag-col {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 1.1rem;
-  padding: 8px 16px 18px !important;
+  gap: 1rem;
+  min-width: 0;
 }
-.chart-caption {
-  margin: 0 0 8px;
-  font-size: 0.82rem;
-  font-weight: 800;
-  color: #334155;
+@media (min-width: 900px) {
+  .diag-col { grid-template-columns: 1fr 1fr; }
 }
-.chart-box { height: 220px; position: relative; }
 
-.climate-body { padding: 8px 16px 16px !important; }
+.chart-box { height: 220px; position: relative; }
+.chart-box.tall { height: 240px; }
+.stage-legend {
+  margin: 0.45rem 0 0;
+  font-size: 0.72rem;
+  color: #64748b;
+  font-weight: 600;
+}
+.empty-inline { margin: 0.4rem 0 0; font-size: 0.85rem; color: #64748b; }
+
 .climate-now {
   display: flex;
   align-items: center;
@@ -714,16 +897,16 @@ onIonViewWillEnter(() => {
   padding: 4px 0 12px;
   border-bottom: 1px solid #e8eeea;
 }
-.wx-icon { font-size: 2.8rem; color: #d4af37; flex-shrink: 0; }
+.wx-icon { font-size: 2.6rem; color: #D4AF37; flex-shrink: 0; }
 .temp-readout {
   display: block;
-  font-size: clamp(2.1rem, 3vw, 2.6rem);
+  font-size: clamp(1.9rem, 3vw, 2.4rem);
   font-weight: 900;
-  color: #1a4731;
+  color: #0f172a;
   line-height: 1;
-  letter-spacing: -0.03em;
 }
-.wx-status { font-size: 0.95rem; font-weight: 750; color: #475569; }
+.wx-status { display: block; font-size: 0.9rem; font-weight: 750; color: #475569; }
+.wx-wind { display: block; font-size: 0.75rem; font-weight: 700; color: #64748b; margin-top: 0.15rem; }
 
 .soil-indicator {
   display: grid;
@@ -733,57 +916,74 @@ onIonViewWillEnter(() => {
   margin: 12px 0;
   padding: 10px 12px;
   border-radius: 10px;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   font-weight: 700;
-  border: 1px solid #e2e8f0;
+  border: 1px solid #E2E8F0;
 }
 .soil-indicator.good { background: #ecfdf5; border-color: #a7f3d0; }
 .soil-indicator.moderate { background: #fffbeb; border-color: #fde68a; }
 .soil-indicator.low { background: #fef2f2; border-color: #fecaca; }
 .soil-indicator.neutral { background: #f8fafc; }
-.soil-label { color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.72rem; }
-.soil-value { color: #1a4731; font-weight: 900; font-size: 1.05rem; }
+.soil-label { color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.68rem; }
+.soil-value { color: #0f172a; font-weight: 800; }
 .soil-badge {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 800;
   text-transform: uppercase;
   padding: 4px 8px;
   border-radius: 999px;
   background: rgba(26, 71, 49, 0.1);
-  color: #1a4731;
+  color: #1A4731;
 }
 
-.hour-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  max-height: 180px;
-  overflow-y: auto;
+.hour-caption {
+  margin: 0 0 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #334155;
 }
-.hour-row {
-  display: grid;
-  grid-template-columns: 64px 1fr 72px;
-  gap: 8px;
-  padding: 8px 0;
-  border-bottom: 1px solid #f1f5f3;
-  font-size: 0.88rem;
-  font-weight: 700;
+.hour-pills {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding-bottom: 0.25rem;
 }
-.hour-time { color: #64748b; }
-.hour-rain { color: #2563eb; }
-.hour-rain.high { color: #dc2626; }
-.hour-wind { color: #475569; text-align: right; }
-.empty-inline { margin: 4px 0 0; font-size: 0.9rem; color: #64748b; }
+.hour-pill {
+  min-width: 108px;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 0.5rem 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  background: #f8fafc;
+}
+.hour-pill.safe { border-color: #bbf7d0; background: #f0fdf4; }
+.hour-pill.warn { border-color: #fdba74; background: #fff7ed; }
+.hour-pill.flood { border-color: #93c5fd; background: #eff6ff; }
+.hour-time { font-size: 0.72rem; font-weight: 800; color: #1A4731; }
+.hour-temp { font-size: 0.95rem; font-weight: 800; color: #0f172a; }
+.hour-rain, .hour-wind { font-size: 0.68rem; font-weight: 700; color: #475569; }
+.hour-flag { font-size: 0.62rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; color: #64748b; }
 
-.action-body { padding: 8px 14px 16px !important; }
+.wx-skeleton { display: flex; flex-direction: column; gap: 0.55rem; padding: 0.25rem 0; }
+.wx-empty {
+  text-align: center;
+  padding: 1.4rem 0.5rem 0.6rem;
+  color: #64748b;
+}
+.wx-empty-icon { font-size: 2.4rem; color: #94a3b8; }
+.wx-empty strong { display: block; color: #334155; margin: 0.35rem 0 0.2rem; }
+.wx-empty p { margin: 0; font-size: 0.82rem; line-height: 1.4; }
+
 .alert-list { display: flex; flex-direction: column; gap: 8px; }
 .alert-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 10px 14px;
-  background: #f8faf9;
-  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border: 1px solid #E2E8F0;
   border-radius: 10px;
   padding: 12px 14px;
 }
@@ -791,42 +991,49 @@ onIonViewWillEnter(() => {
 .alert-copy {
   margin: 0;
   flex: 1 1 220px;
-  font-size: 0.98rem;
+  font-size: 0.9rem;
   font-weight: 650;
   color: #1e293b;
   line-height: 1.4;
 }
+.sev-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 0.18rem 0.55rem;
+  background: #e2e8f0;
+  color: #334155;
+}
+.sev-badge.critical, .sev-badge.pest { background: #fef2f2; color: #b91c1c; }
+.sev-badge.warning, .sev-badge.calamity { background: #fff7ed; color: #c2410c; }
+.sev-badge.weather, .sev-badge.info { background: #eff6ff; color: #1d4ed8; }
+.sev-badge.planting { background: #ecfdf5; color: #047857; }
 .action-btn {
-  --border-color: #1a4731;
-  --color: #1a4731;
-  --padding-start: 14px;
-  --padding-end: 14px;
+  --border-color: #1A4731;
+  --color: #1A4731;
+  --padding-start: 12px;
+  --padding-end: 12px;
   text-transform: none;
   font-weight: 750;
-  font-size: 0.85rem;
-  min-height: 36px;
+  font-size: 0.78rem;
+  min-height: 34px;
   margin: 0;
-  flex: 0 0 auto;
 }
 .copy-btn {
-  --background: #1a4731;
+  --background: #1A4731;
   text-transform: none;
   font-weight: 800;
   margin-top: 0.75rem;
 }
-
-@media (min-width: 900px) {
-  .chart-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); }
-  .chart-box { height: 260px; }
-}
-
-@media (min-width: 1280px) {
-  .kpi-body { min-height: 132px; padding: 18px 20px 20px !important; }
-  .chart-box { height: 290px; }
+.sms-hint {
+  margin: 0 0 0.75rem;
+  font-size: 0.82rem;
+  color: #64748b;
+  line-height: 1.4;
 }
 
 @media (max-width: 639px) {
-  .kpi-body { min-height: 0; }
   .soil-indicator { grid-template-columns: 1fr auto; }
   .soil-badge { grid-column: 1 / -1; justify-self: start; }
   .action-btn { width: 100%; }
