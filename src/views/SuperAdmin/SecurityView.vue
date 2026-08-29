@@ -12,7 +12,7 @@
     <ion-content class="rpt-content">
       <div class="rpt-shell">
         <header class="intro">
-          <p class="eyebrow">SuperAdmin</p>
+          <p class="eyebrow">{{ isSuper ? 'SuperAdmin' : 'MAO Administrator' }}</p>
           <h1>Account security</h1>
           <p class="lede">Authenticator enrollment is required. SMS is an optional fallback after TOTP is confirmed.</p>
         </header>
@@ -88,7 +88,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
   IonCard, IonCardContent, IonCardHeader, IonCardTitle, IonButton, IonSpinner,
@@ -96,6 +96,10 @@ import {
 } from '@ionic/vue';
 import apiClient from '@/utils/axios';
 import { presentToast } from '@/utils/toast';
+import { useAuthStore } from '@/stores/authStore';
+
+const auth = useAuthStore();
+const isSuper = computed(() => auth.isSuperAdmin);
 
 const loading = ref(true);
 const savingMobile = ref(false);

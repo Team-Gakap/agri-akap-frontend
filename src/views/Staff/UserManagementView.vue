@@ -48,13 +48,14 @@
                 <th>Role</th>
                 <th>Barangay</th>
                 <th>Status</th>
+                <th>MFA</th>
                 <th>Sessions</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="!rows.length">
-                <td colspan="7" class="empty-row">No staff accounts match these filters.</td>
+                <td colspan="8" class="empty-row">No staff accounts match these filters.</td>
               </tr>
               <tr v-for="row in rows" :key="row.id">
                 <td>{{ row.name }}</td>
@@ -63,6 +64,9 @@
                 <td>{{ row.assigned_barangay || '—' }}</td>
                 <td>
                   <span class="pill" :class="statusClass(row)">{{ statusText(row) }}</span>
+                </td>
+                <td>
+                  <span class="pill" :class="mfaClass(row)">{{ mfaText(row) }}</span>
                 </td>
                 <td>{{ row.tokens_count ?? 0 }}</td>
                 <td class="actions">
@@ -112,6 +116,9 @@
                 <ion-select-option v-for="b in barangays" :key="b" :value="b">{{ b }}</ion-select-option>
               </ion-select>
             </ion-item>
+            <ion-item v-if="isSuper && form.role === 'admin'">
+              <ion-toggle v-model="form.enforce_mfa">Require authenticator (MFA)</ion-toggle>
+            </ion-item>
           </ion-list>
           <ion-button expand="block" class="save-btn" :disabled="saving" @click="save">
             {{ saving ? 'Saving…' : 'Save' }}
@@ -143,6 +150,7 @@ import { computed, onMounted, reactive, ref } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
   IonButton, IonSpinner, IonModal, IonList, IonItem, IonInput, IonSelect, IonSelectOption,
+  IonToggle,
   alertController,
 } from '@ionic/vue';
 import { useAuthStore } from '@/stores/authStore';
@@ -159,6 +167,8 @@ type StaffRow = {
   is_active: boolean;
   is_locked: boolean;
   tokens_count?: number;
+  enforce_mfa?: boolean;
+  mfa_enrolled?: boolean;
 };
 
 const auth = useAuthStore();
@@ -187,7 +197,7 @@ const formOpen = ref(false);
 const secretOpen = ref(false);
 const revealedSecret = ref('');
 const editing = ref<StaffRow | null>(null);
-const form = reactive({ name: '', email: '', role: 'technician', assigned_barangay: '' });
+const form = reactive({ name: '', email: '', role: 'technician', assigned_barangay: '', enforce_mfa: false });
 
 const editingSelfSuperAdmin = computed(
   () => editing.value?.role === 'super_admin' && editing.value?.id === auth.user?.id,
@@ -207,6 +217,19 @@ const statusText = (row: StaffRow) => {
 const statusClass = (row: StaffRow) => {
   if (row.is_locked) return 'locked';
   return row.is_active ? 'ok' : 'off';
+};
+
+const mfaText = (row: StaffRow) => {
+  if (row.role === 'super_admin') return 'Required';
+  if (row.role !== 'admin') return '—';
+  if (row.mfa_enrolled) return 'Enrolled';
+  if (row.enforce_mfa) return 'Required';
+  return 'Off';
+};
+const mfaClass = (row: StaffRow) => {
+  if (row.role === 'super_admin' || row.mfa_enrolled) return 'ok';
+  if (row.enforce_mfa) return 'locked';
+  return 'off';
 };
 
 const canMutate = (row: StaffRow) => {
@@ -248,6 +271,7 @@ const openCreate = () => {
   form.email = '';
   form.role = creatableRoles.value[0];
   form.assigned_barangay = '';
+  form.enforce_mfa = false;
   formOpen.value = true;
 };
 
@@ -257,6 +281,7 @@ const openEdit = (row: StaffRow) => {
   form.email = row.email;
   form.role = row.role === 'super_admin' ? row.role : row.role;
   form.assigned_barangay = row.assigned_barangay || '';
+  form.enforce_mfa = !!row.enforce_mfa;
   formOpen.value = true;
 };
 
@@ -270,6 +295,9 @@ const save = async () => {
     if (!editingSelfSuperAdmin.value) {
       body.role = form.role;
       body.assigned_barangay = form.role === 'barangay_official' ? form.assigned_barangay : null;
+    }
+    if (isSuper.value && form.role === 'admin') {
+      body.enforce_mfa = form.enforce_mfa;
     }
     if (editing.value) {
       await apiClient.patch(`/staff/${editing.value.id}`, body);

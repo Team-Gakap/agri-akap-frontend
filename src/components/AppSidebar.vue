@@ -90,6 +90,7 @@ import {
   logOutOutline,
   personAddOutline,
   shieldOutline,
+  shieldCheckmarkOutline,
 } from "ionicons/icons";
 
 import { useAuthStore } from "@/stores/authStore";
@@ -122,6 +123,16 @@ const mainPages = computed<NavPage[]>(() => {
   pages.push(
     { title: "Dashboard",          url: "/admin/dashboard",   iosIcon: homeOutline,                  mdIcon: homeSharp },
     { title: "Staff Accounts",     url: "/admin/staff",       iosIcon: personAddOutline,             mdIcon: personAddOutline },
+  );
+  if (authStore.userRole === 'admin' && authStore.requiresMfa) {
+    pages.push({
+      title: "Security",
+      url: "/admin/security",
+      iosIcon: shieldCheckmarkOutline,
+      mdIcon: shieldCheckmarkOutline,
+    });
+  }
+  pages.push(
     { title: "Farmer Registry",    url: "/admin/farmers",     iosIcon: peopleOutline,                mdIcon: peopleSharp },
     { title: "ID Card Production", url: "/admin/id-issuance", iosIcon: idCardOutline,                mdIcon: idCardOutline },
     { title: "Subsidy Campaigns",  url: "/admin/subsidies",   iosIcon: cubeOutline,                  mdIcon: cubeOutline },

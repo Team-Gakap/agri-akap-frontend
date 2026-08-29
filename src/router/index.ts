@@ -65,6 +65,7 @@ const routes: Array<RouteRecordRaw> = [
       { path: "dashboard", name: "Dashboard", component: () => import("@/views/Admin/AdminDashboardView.vue") },
       { path: "analytics", redirect: "/admin/dashboard" },
       { path: "staff", name: "AdminStaff", component: () => import("@/views/Staff/UserManagementView.vue") },
+      { path: "security", name: "AdminSecurity", component: () => import("@/views/SuperAdmin/SecurityView.vue") },
       { path: "farmers", name: "FarmersList", component: () => import("@/views/Admin/FarmerRegistryView.vue") },
       { path: "farmers/register", name: "FarmersRegister", component: () => import("@/views/Farmers/Registration_Form.vue") },
       { path: "farmers/legacy", redirect: "/admin/farmers" },

@@ -15,7 +15,13 @@ interface User {
   assigned_barangay?: string | null;
   must_change_password?: boolean;
   is_active?: boolean;
+  requires_mfa?: boolean;
 }
+
+export type LoginResult =
+  | { success: true; mfa_required: true; message?: undefined }
+  | { success: true; mfa_required: false; message?: undefined }
+  | { success: false; mfa_required: false; message: string };
 
 export interface MfaChallengePayload {
   mfa_required: boolean;
@@ -52,6 +58,7 @@ export const useAuthStore = defineStore('auth', () => {
   const isSuperAdmin = computed(() => userRole.value === 'super_admin');
   const isMunicipalAdmin = computed(() => userRole.value === 'admin' || userRole.value === 'super_admin');
   const mustChangePassword = computed(() => !!user.value?.must_change_password);
+  const requiresMfa = computed(() => !!user.value?.requires_mfa || isSuperAdmin.value);
 
   const persistActivity = (ts: number) => {
     lastActivityAt.value = ts;
@@ -267,7 +274,7 @@ export const useAuthStore = defineStore('auth', () => {
     password: string;
     device_name: string;
     turnstile_token?: string;
-  }) => {
+  }): Promise<LoginResult> => {
     try {
       apiClient.defaults.baseURL = await ensureApiBaseUrl();
       const response = await apiClient.post('/login', credentials);
@@ -383,7 +390,7 @@ export const useAuthStore = defineStore('auth', () => {
   };
 
   /** Re-auth from the session lock screen — preserves IndexedDB and resumes home. */
-  const reauthenticate = async (password: string, turnstileToken?: string) => {
+  const reauthenticate = async (password: string, turnstileToken?: string): Promise<LoginResult> => {
     const email = user.value?.email;
     if (!email) {
       return { success: false as const, mfa_required: false as const, message: 'No cached user. Please sign in from the login page.' };
@@ -455,6 +462,7 @@ export const useAuthStore = defineStore('auth', () => {
     isSuperAdmin,
     isMunicipalAdmin,
     mustChangePassword,
+    requiresMfa,
     login,
     logout,
     changePassword,
