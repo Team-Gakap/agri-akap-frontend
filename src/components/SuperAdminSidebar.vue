@@ -59,7 +59,7 @@ import {
   IonTitle, IonToolbar, IonHeader,
 } from "@ionic/vue";
 import {
-  homeOutline, peopleOutline, documentTextOutline, briefcaseOutline, logOutOutline, shieldCheckmarkOutline,
+  homeOutline, peopleOutline, documentTextOutline, briefcaseOutline, logOutOutline, shieldCheckmarkOutline, chatbubblesOutline,
 } from "ionicons/icons";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -71,6 +71,7 @@ const pages = [
   { title: "Dashboard", url: "/superadmin/dashboard", icon: homeOutline },
   { title: "User Accounts", url: "/superadmin/users", icon: peopleOutline },
   { title: "Security", url: "/superadmin/security", icon: shieldCheckmarkOutline },
+  { title: "SMS Gateway", url: "/superadmin/sms", icon: chatbubblesOutline },
   { title: "Audit Logs", url: "/superadmin/audit-logs", icon: documentTextOutline },
 ];
 

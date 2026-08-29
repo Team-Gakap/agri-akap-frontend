@@ -724,7 +724,6 @@ export async function syncAllPendingData(): Promise<{ synced: number; failed: nu
         accuracy_m: r.accuracy_m,
         non_productive_area_sqm: r.non_productive_area_sqm,
         has_discrepancy: r.has_discrepancy,
-        notify_sms: r.notify_sms ?? true,
         planting_start_month: r.planting_start_month,
         planting_end_month: r.planting_end_month,
         farmer_signature_base64: r.farmer_signature_base64,

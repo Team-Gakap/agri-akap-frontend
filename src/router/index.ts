@@ -51,6 +51,7 @@ const routes: Array<RouteRecordRaw> = [
       { path: "dashboard", name: "SuperAdminDashboard", component: () => import("@/views/SuperAdmin/SuperAdminDashboardView.vue") },
       { path: "users", name: "SuperAdminUsers", component: () => import("@/views/Staff/UserManagementView.vue") },
       { path: "security", name: "SuperAdminSecurity", component: () => import("@/views/SuperAdmin/SecurityView.vue") },
+      { path: "sms", name: "SuperAdminSmsGateway", component: () => import("@/views/SuperAdmin/SmsGatewayView.vue") },
       { path: "audit-logs", name: "SuperAdminAuditLogs", component: () => import("@/views/SuperAdmin/AuditLogView.vue") },
     ],
   },

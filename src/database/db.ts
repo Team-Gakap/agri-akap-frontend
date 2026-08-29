@@ -147,9 +147,7 @@ export type GeoTagCommodity = 'Rice' | 'Corn' | 'High-Value Crops';
  * DA-RSBSA Georeferencing Guidelines (RCM Protocol) compliance fields:
  * `gross_area_sqm`/`non_productive_area_sqm`/`final_area_*` capture the
  * infrastructure deduction, and `has_discrepancy` flags spatial overlaps or
- * undeclared fields for MAO review. `notify_sms` tells the backend whether to
- * fire the Semaphore "Georeferencing Stub" SMS once the farm_plots record
- * (created from a completed polygon) is saved.
+ * undeclared fields for MAO review.
  *
  * DA GeoLogBook fields (replaces reliance on KoboCollect): `planting_start_month`
  * / `planting_end_month` capture the DA planting calendar window, and
@@ -185,8 +183,6 @@ export interface OfflineGeoTag {
   final_area_ha?: number | null;
   /** Technician-flagged spatial overlap / undeclared field, routed to MAO review. */
   has_discrepancy?: boolean;
-  /** When true (default), backend fires the Semaphore georeferencing SMS on save. */
-  notify_sms?: boolean;
   /** DA planting calendar: month the crop was/will be planted (e.g. "May"). */
   planting_start_month?: string | null;
   /** DA planting calendar: expected month of harvest (e.g. "October"). */

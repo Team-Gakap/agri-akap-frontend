@@ -1311,7 +1311,6 @@ const saveGeoTagRecord = async () => {
       final_area_sqm: isPolygon ? finalVerifiedAreaSqm.value : null,
       final_area_ha: isPolygon ? finalVerifiedAreaHa.value : null,
       has_discrepancy: meta.has_discrepancy,
-      notify_sms: true,
       planting_start_month: meta.planting_start_month,
       planting_end_month: meta.planting_end_month,
       farmer_signature_base64: farmerSigRef.value?.toBase64() ?? null,
