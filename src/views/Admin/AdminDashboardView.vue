@@ -82,58 +82,7 @@
 
           <!-- ── 2. Diagnostic GIS + charts (7) ─────────────────────────── -->
           <div class="span-7 diag-col">
-            <section class="panel-card map-panel">
-              <header class="panel-head">
-                <div>
-                  <h2>Diagnostic Analytics &amp; GIS Radar</h2>
-                  <p>Outbreak clusters, registered parcels, and 72h flood / lodging zones</p>
-                </div>
-              </header>
-              <div class="map-content">
-                <div class="layer-bar no-print">
-                  <button
-                    type="button"
-                    class="layer-chip"
-                    :class="{ on: layers.plots }"
-                    @click="toggleLayer('plots')"
-                  >
-                    Registered Plots
-                  </button>
-                  <button
-                    type="button"
-                    class="layer-chip"
-                    :class="{ on: layers.pests }"
-                    @click="toggleLayer('pests')"
-                  >
-                    Pest Outbreaks
-                  </button>
-                  <button
-                    type="button"
-                    class="layer-chip"
-                    :class="{ on: layers.flood }"
-                    @click="toggleLayer('flood')"
-                  >
-                    Flood Risk Zones
-                  </button>
-                </div>
-                <div v-if="mapLoadError" class="map-error">
-                  <p><strong>Map unavailable.</strong> {{ mapLoadError }}</p>
-                </div>
-                <template v-else>
-                  <div class="map-shell">
-                    <div v-if="mapLoading" class="map-loading"><ion-spinner name="crescent"></ion-spinner></div>
-                    <div ref="mapEl" class="map-canvas"></div>
-                  </div>
-                  <div class="map-legend">
-                    <span class="legend-chip"><i class="dot plot"></i>Farm parcels</span>
-                    <span class="legend-chip"><i class="dot pest"></i>Active pest outbreak</span>
-                    <span class="legend-chip"><i class="dot flood"></i>Flood / lodging risk</span>
-                    <span class="legend-chip"><i class="dot damage"></i>Severe damage (&ge;50%)</span>
-                    <span v-if="!mapMarkerCount" class="legend-chip muted">No markers on the selected layers.</span>
-                  </div>
-                </template>
-              </div>
-            </section>
+            <GisRadarMap @sms="onGisSms" />
 
             <div class="chart-pair">
               <section class="panel-card">
@@ -358,7 +307,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onBeforeUnmount, nextTick } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
@@ -380,15 +329,12 @@ import {
 } from 'chart.js';
 import apiClient from '@/utils/axios';
 import { toast } from '@/utils/toast';
-import { loadGoogleMaps } from '@/utils/googleMaps';
+import GisRadarMap from '@/components/Dashboard/GisRadarMap.vue';
 
 ChartJS.register(Title, Tooltip, Legend, ArcElement, BarElement, CategoryScale, LinearScale);
 
 const LGU_GREEN = '#1A4731';
 const LGU_GOLD = '#D4AF37';
-const ECHAGUE = { lat: 16.7053, lng: 121.6772 };
-
-type LayerKey = 'plots' | 'pests' | 'flood';
 
 const router = useRouter();
 const initialLoading = ref(true);
@@ -396,18 +342,7 @@ const loading = ref(false);
 const error = ref('');
 const sendingSms = ref(false);
 const smsOpen = ref(false);
-const mapLoading = ref(false);
-const mapMarkerCount = ref(0);
-const mapEl = ref<HTMLDivElement | null>(null);
-const mapLoadError = ref('');
 const printedAt = ref('');
-
-let map: google.maps.Map | null = null;
-let infoWindow: google.maps.InfoWindow | null = null;
-let markers: google.maps.Marker[] = [];
-let lastMapData: any = { farm_plots: [], pest_outbreaks: [], damage_points: [], flood_risk_points: [] };
-
-const layers = reactive({ plots: true, pests: true, flood: true });
 
 const descriptive = reactive<any>({});
 const diagnostic = reactive<any>({
@@ -547,129 +482,6 @@ const alertLabel = (a: any) => {
   return map[a?.type] || 'Advisory';
 };
 
-const esc = (s: any) => String(s ?? '').replace(/[&<>"]/g, (c) =>
-  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c] as string));
-
-const destroyMap = () => {
-  markers.forEach((m) => m.setMap(null));
-  markers = [];
-  infoWindow?.close();
-  map = null;
-};
-
-const initMap = async () => {
-  if (!mapEl.value || map) {
-    if (map) google.maps.event.trigger(map, 'resize');
-    return;
-  }
-  try {
-    await loadGoogleMaps();
-  } catch (err: any) {
-    mapLoadError.value = err?.message ?? 'Failed to load Google Maps.';
-    return;
-  }
-  map = new google.maps.Map(mapEl.value, {
-    center: ECHAGUE,
-    zoom: 12,
-    mapTypeControl: false,
-    streetViewControl: false,
-    fullscreenControl: false,
-  });
-  infoWindow = new google.maps.InfoWindow();
-  google.maps.event.trigger(map, 'resize');
-};
-
-const addMarker = (lat: number, lng: number, fill: string, stroke: string, radius: number, html: string) => {
-  if (!map) return;
-  const marker = new google.maps.Marker({
-    position: { lat, lng },
-    map,
-    icon: {
-      path: google.maps.SymbolPath.CIRCLE,
-      scale: radius,
-      fillColor: fill,
-      fillOpacity: 0.9,
-      strokeColor: stroke,
-      strokeWeight: 1.5,
-    },
-  });
-  marker.addListener('click', () => {
-    if (!map || !infoWindow) return;
-    infoWindow.setContent(html);
-    infoWindow.open(map, marker);
-  });
-  markers.push(marker);
-};
-
-const renderMap = (data: any) => {
-  if (!map) return;
-  markers.forEach((m) => m.setMap(null));
-  markers = [];
-
-  const plots = layers.plots ? (data.farm_plots ?? []) : [];
-  const pests = layers.pests
-    ? (data.pest_outbreaks ?? []).filter((p: any) => {
-        const status = String(p.status || '').toLowerCase();
-        return !status || status === 'active' || status === 'reported';
-      })
-    : [];
-  const flood = layers.flood ? (data.flood_risk_points ?? []) : [];
-  const damage = layers.flood
-    ? (data.damage_points ?? []).filter((d: any) => Number(d.damage_percentage || 0) >= 50)
-    : [];
-
-  mapMarkerCount.value = plots.length + pests.length + flood.length + damage.length;
-
-  plots.forEach((p: any) => {
-    addMarker(p.lat, p.lng, LGU_GREEN, '#0f2d1f', 5,
-      `<strong>${esc(p.farmer_name || 'Registered plot')}</strong><br/>` +
-      `${esc(p.commodity || 'Parcel')} · ${esc(p.size_ha ?? '-')} ha<br/>` +
-      `Brgy ${esc(p.brgy || '-')}`);
-  });
-
-  pests.forEach((p: any) => {
-    const sev = String(p.severity || '').toLowerCase();
-    const fill = sev.includes('high') || sev.includes('severe') || sev.includes('critical') ? '#b91c1c'
-      : sev.includes('med') ? '#d97706' : '#eab308';
-    addMarker(p.lat, p.lng, fill, '#422006', 8,
-      `<strong>${esc(p.pest_name || 'Pest outbreak')}</strong><br/>` +
-      `Severity: ${esc(p.severity || '-')}<br/>` +
-      `${esc(p.commodity || '')} &middot; Brgy ${esc(p.brgy || '-')}`);
-  });
-
-  flood.forEach((f: any) => {
-    addMarker(f.lat, f.lng, '#2563eb', '#1e3a8a', 9,
-      `<strong>Flood / lodging risk</strong><br/>` +
-      `Rain probability: <b>${esc(f.precipitation_probability)}%</b><br/>` +
-      `Brgy ${esc(f.brgy || '-')}`);
-  });
-
-  damage.forEach((d: any) => {
-    addMarker(d.lat, d.lng, '#ef4444', '#7f1d1d', 7,
-      `<strong>${esc(d.calamity_name || 'Damage')}</strong><br/>` +
-      `Damage: <b>${esc(d.damage_percentage)}%</b><br/>` +
-      `Brgy ${esc(d.brgy || '-')}`);
-  });
-};
-
-const toggleLayer = (key: LayerKey) => {
-  layers[key] = !layers[key];
-  renderMap(lastMapData);
-};
-
-const fetchMapData = async () => {
-  mapLoading.value = true;
-  try {
-    const res = await apiClient.get('/dashboard/map-data');
-    lastMapData = res.data?.data ?? {};
-    renderMap(lastMapData);
-  } catch {
-    // Map is a supplementary layer; failures here shouldn't block the dashboard.
-  } finally {
-    mapLoading.value = false;
-  }
-};
-
 const fetchOverview = async () => {
   loading.value = true;
   error.value = '';
@@ -702,9 +514,12 @@ const fetchOverview = async () => {
 
 const fetchAll = async () => {
   await fetchOverview();
-  await nextTick();
-  await initMap();
-  await fetchMapData();
+};
+
+const onGisSms = (payload: { barangay: string; message: string }) => {
+  smsForm.barangay = payload.barangay || '';
+  smsForm.message = payload.message || '';
+  smsOpen.value = true;
 };
 
 const openSmsModal = (alert: any) => {
@@ -774,10 +589,6 @@ const exportSummary = () => {
 };
 
 onMounted(() => fetchAll());
-
-onBeforeUnmount(() => {
-  destroyMap();
-});
 </script>
 
 <style scoped>
@@ -947,63 +758,6 @@ onBeforeUnmount(() => {
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
 }
-
-.map-content { display: flex; flex-direction: column; gap: 0.55rem; }
-.layer-bar { display: flex; flex-wrap: wrap; gap: 0.4rem; }
-.layer-chip {
-  border: 1px solid #E2E8F0;
-  background: #fff;
-  color: #475569;
-  border-radius: 999px;
-  padding: 0.28rem 0.7rem;
-  font-size: 0.72rem;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: inherit;
-}
-.layer-chip.on {
-  background: #1A4731;
-  border-color: #1A4731;
-  color: #fff;
-}
-.map-shell {
-  position: relative;
-  border-radius: 12px;
-  overflow: hidden;
-  border: 1px solid #E2E8F0;
-}
-.map-canvas { width: 100%; height: 320px; }
-.map-loading {
-  position: absolute; z-index: 500; top: 10px; right: 10px;
-  background: #fff; border-radius: 50%; padding: 6px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.2);
-}
-.map-error {
-  min-height: 320px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 2rem;
-  border-radius: 12px;
-  background: #fef2f2;
-  color: #991b1b;
-  font-size: 0.85rem;
-}
-.map-legend { display: flex; gap: 0.75rem; flex-wrap: wrap; }
-.legend-chip {
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: #475569;
-  display: inline-flex;
-  align-items: center;
-}
-.legend-chip.muted { color: #94a3b8; font-weight: 500; }
-.dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
-.dot.plot { background: #1A4731; }
-.dot.pest { background: #eab308; }
-.dot.flood { background: #2563eb; }
-.dot.damage { background: #ef4444; }
 
 .chart-box { height: 180px; position: relative; }
 .empty-note {
