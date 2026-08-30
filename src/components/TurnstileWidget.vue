@@ -1,7 +1,7 @@
 <template>
   <div class="turnstile-wrap">
     <div v-if="!siteKey" class="turnstile-error" role="alert">
-      Captcha is not configured. Add VITE_TURNSTILE_SITE_KEY and restart the app.
+      Captcha is not configured. Set VITE_TURNSTILE_SITE_KEY and redeploy.
     </div>
     <div v-else ref="host" class="turnstile-host"></div>
     <p v-if="errorMessage" class="turnstile-error" role="alert">{{ errorMessage }}</p>

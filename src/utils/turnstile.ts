@@ -1,7 +1,4 @@
-/** Cloudflare dummy key from docs — only valid on localhost, not production domains. */
-const PLACEHOLDER_SITE_KEY = '0x4AAAAAAEdHn0r5QvzgfbDb';
-
-/** Official Cloudflare test key (always passes) — localhost dev only. */
+/** Official Cloudflare test key (always passes) — localhost `npm run dev` only. */
 const LOCALHOST_TEST_SITE_KEY = '1x00000000000000000000AA';
 
 function isLocalhost(): boolean {
@@ -12,10 +9,11 @@ function isLocalhost(): boolean {
 
 function resolveSiteKey(): string {
   const configured = (import.meta.env.VITE_TURNSTILE_SITE_KEY || '').trim();
-  if (configured && configured !== PLACEHOLDER_SITE_KEY) {
+  if (configured) {
     return configured;
   }
 
+  // No env at build time: keep local login working; fail closed in production.
   if (import.meta.env.DEV && isLocalhost()) {
     return LOCALHOST_TEST_SITE_KEY;
   }
