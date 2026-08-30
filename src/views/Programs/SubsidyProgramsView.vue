@@ -4,17 +4,6 @@
 
     <ion-content class="page-bg">
       <div class="shell">
-        <div class="page-head">
-          <div>
-            <h1>Subsidy Programs</h1>
-            <p>Create a campaign, auto-generate the RSBSA masterlist, then open the spreadsheet view.</p>
-          </div>
-          <ion-button class="create-btn" @click="openCreate">
-            <ion-icon slot="start" :icon="addOutline"></ion-icon>
-            New Program
-          </ion-button>
-        </div>
-
         <div v-if="loading" class="center-state">
           <ion-spinner name="crescent" color="primary"></ion-spinner>
           <p>Loading programs&hellip;</p>
@@ -33,19 +22,25 @@
 
         <div v-else class="table-wrap">
           <div class="status-tabs" role="tablist" aria-label="Filter by program status">
-            <button
-              v-for="tab in statusTabs"
-              :key="tab.value"
-              type="button"
-              role="tab"
-              class="status-tab"
-              :class="{ active: statusFilter === tab.value }"
-              :aria-selected="statusFilter === tab.value"
-              @click="statusFilter = tab.value"
-            >
-              {{ tab.label }}
-              <span class="tab-count">{{ tab.count }}</span>
-            </button>
+            <div class="status-tab-list">
+              <button
+                v-for="tab in statusTabs"
+                :key="tab.value"
+                type="button"
+                role="tab"
+                class="status-tab"
+                :class="{ active: statusFilter === tab.value }"
+                :aria-selected="statusFilter === tab.value"
+                @click="statusFilter = tab.value"
+              >
+                {{ tab.label }}
+                <span class="tab-count">{{ tab.count }}</span>
+              </button>
+            </div>
+            <ion-button class="create-btn" @click="openCreate">
+              <ion-icon slot="start" :icon="addOutline"></ion-icon>
+              New Program
+            </ion-button>
           </div>
 
           <div class="table-tools">
@@ -775,26 +770,7 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchPrograms))
 .shell {
   max-width: 1180px;
   margin: 0 auto;
-  padding: 1rem 1rem 2rem;
-}
-.page-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1rem;
-  margin-bottom: 1.1rem;
-}
-.page-head h1 {
-  margin: 0;
-  font-size: 1.45rem;
-  font-weight: 900;
-  color: #1a4731;
-}
-.page-head p {
-  margin: 0.25rem 0 0;
-  color: #64748b;
-  font-size: 0.9rem;
-  max-width: 34rem;
+  padding: 0.75rem 1rem 2rem;
 }
 .create-btn {
   --background: #1a4731;
@@ -835,8 +811,15 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchPrograms))
 .status-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.35rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
   padding: 0.75rem 0.85rem 0;
+}
+.status-tab-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
 }
 .status-tab {
   display: inline-flex;
@@ -1083,7 +1066,6 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchPrograms))
   margin-top: 1rem;
 }
 @media (max-width: 720px) {
-  .page-head { flex-direction: column; }
   .search-wrap { max-width: none; }
   .tool-select { flex: 1; min-width: 140px; }
 }

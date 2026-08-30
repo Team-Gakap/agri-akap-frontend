@@ -4,11 +4,6 @@
 
     <ion-content class="dash-bg ion-padding">
       <div class="shell">
-        <header class="intro">
-          <h1>System Governance</h1>
-          <p class="lede">User lifecycle, session control, and immutable audit trails.</p>
-        </header>
-
         <div v-if="loading" class="center-state">
           <ion-spinner name="crescent" color="primary"></ion-spinner>
         </div>
@@ -129,9 +124,6 @@ onMounted(() => { void load(); });
 <style scoped>
 .dash-bg { --background: #f4f8f5; }
 .shell { max-width: 1100px; margin: 0 auto; }
-.intro { margin-bottom: 1.25rem; }
-h1 { margin: 0 0 0.2rem; font-size: 1.6rem; color: #1a4731; }
-.lede { margin: 0; color: #475569; }
 .center-state { display: flex; justify-content: center; padding: 3rem; }
 .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1rem; }
 .kpi { margin: 0; cursor: default; }

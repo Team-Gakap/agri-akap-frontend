@@ -169,7 +169,6 @@ const auth = useAuthStore();
 const { barangays } = useOfficialBarangays();
 
 const isSuper = computed(() => auth.isSuperAdmin);
-const pageTitle = computed(() => (isSuper.value ? 'User Accounts' : 'Staff Accounts'));
 const listableRoles = computed(() =>
   isSuper.value
     ? ['super_admin', 'admin', 'technician', 'barangay_official']

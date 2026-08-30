@@ -4,11 +4,6 @@
 
     <ion-content class="auth-bg">
       <div class="shell">
-        <div class="page-head">
-          <h1>Outreach &amp; Communications</h1>
-          <p>Broadcast SMS advisories via Semaphore to targeted farmers.</p>
-        </div>
-
         <div class="workspace">
           <section class="composer-col">
             <div
@@ -556,25 +551,14 @@ onUnmounted(() => {
 .shell {
   max-width: 1280px;
   margin: 0 auto;
-  padding: 1rem 1.1rem 2rem;
-}
-.page-head h1 {
-  margin: 0;
-  font-size: 1.35rem;
-  font-weight: 800;
-  color: #1a4731;
-}
-.page-head p {
-  margin: 0.2rem 0 0;
-  color: #5f7268;
-  font-size: 0.9rem;
+  padding: 0.75rem 1.1rem 2rem;
 }
 
 .workspace {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr);
   gap: 14px;
-  margin-top: 1rem;
+  margin-top: 0;
   align-items: start;
 }
 

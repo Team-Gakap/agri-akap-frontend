@@ -3,30 +3,6 @@
     <AppHeader />
 
     <ion-content class="auth-bg no-print-bg">
-      <div class="workspace-header no-print">
-        <div class="workspace-title">
-          <h1>ID Production</h1>
-          <p>Search the queue, verify beneficiary details, and print government ID cards.</p>
-        </div>
-        <div class="workspace-stats">
-          <div class="stat-chip">
-            <ion-icon :icon="peopleOutline"></ion-icon>
-            <strong>{{ queueStats.total }}</strong>
-            <span>Total Queue</span>
-          </div>
-          <div class="stat-chip warn">
-            <ion-icon :icon="cameraOutline"></ion-icon>
-            <strong>{{ queueStats.missingPhoto }}</strong>
-            <span>Missing Photo</span>
-          </div>
-          <div class="stat-chip ok">
-            <ion-icon :icon="printOutline"></ion-icon>
-            <strong>{{ queueStats.printed }}</strong>
-            <span>Printed</span>
-          </div>
-        </div>
-      </div>
-
       <div class="issuance-workspace no-print">
         <aside class="queue-panel">
           <div class="queue-head">
@@ -64,6 +40,23 @@
               <option value="printed">Printed</option>
               <option value="missing-photo">Missing Photo</option>
             </select>
+            <div class="workspace-stats">
+              <div class="stat-chip">
+                <ion-icon :icon="peopleOutline"></ion-icon>
+                <strong>{{ queueStats.total }}</strong>
+                <span>Total Queue</span>
+              </div>
+              <div class="stat-chip warn">
+                <ion-icon :icon="cameraOutline"></ion-icon>
+                <strong>{{ queueStats.missingPhoto }}</strong>
+                <span>Missing Photo</span>
+              </div>
+              <div class="stat-chip ok">
+                <ion-icon :icon="printOutline"></ion-icon>
+                <strong>{{ queueStats.printed }}</strong>
+                <span>Printed</span>
+              </div>
+            </div>
           </div>
 
           <div class="segmented" role="tablist" aria-label="Queue filters">
@@ -698,35 +691,12 @@ onUnmounted(() => {
   height: 100%;
 }
 
-.workspace-header {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 16px 16px 0;
-}
-
-.workspace-title h1 {
-  margin: 0;
-  font-size: 1.25rem;
-  font-weight: 800;
-  color: #1a4731;
-  letter-spacing: -0.01em;
-}
-
-.workspace-title p {
-  margin: 2px 0 0;
-  font-size: 0.82rem;
-  color: #6b7f74;
-}
-
 .workspace-stats {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  margin-left: auto;
 }
 
 .stat-chip {
@@ -753,7 +723,7 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: minmax(0, 58fr) minmax(280px, 42fr);
   gap: 14px;
-  padding: 12px 16px 16px;
+  padding: 0.75rem 16px 16px;
   flex: 1;
   min-height: 0;
   height: 100%;
@@ -1290,7 +1260,6 @@ onUnmounted(() => {
 @media (max-width: 768px) {
   .auth-bg { --overflow: auto; }
   .auth-bg::part(scroll) { height: auto; }
-  .workspace-header { flex-direction: column; align-items: flex-start; }
   .issuance-workspace {
     grid-template-columns: 1fr;
     height: auto;

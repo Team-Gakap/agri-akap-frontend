@@ -4,23 +4,6 @@
 
     <ion-content class="page-bg ion-padding">
       <div class="wrap">
-        <header class="page-head">
-          <div>
-            <h2>Climate Monitor</h2>
-            <p>
-              Climate view of Echague barangays —
-              <span v-if="forecastDate">{{ forecastDate }}</span>
-              <span v-if="usingMock"> · sample data</span>
-            </p>
-          </div>
-          <div class="legend">
-            <span class="leg safe">Safe</span>
-            <span class="leg watch">Watch</span>
-            <span class="leg warn">Warning</span>
-            <span class="leg danger">Critical</span>
-          </div>
-        </header>
-
         <div class="toolbar-row">
           <ion-segment
             class="metric-segment"
@@ -41,6 +24,12 @@
               <ion-label>Water Demand</ion-label>
             </ion-segment-button>
           </ion-segment>
+          <div class="legend">
+            <span class="leg safe">Safe</span>
+            <span class="leg watch">Watch</span>
+            <span class="leg warn">Warning</span>
+            <span class="leg danger">Critical</span>
+          </div>
           <div class="view-toggle" role="group" aria-label="View mode">
             <button type="button" :class="{ on: viewMode === 'map' }" @click="setViewMode('map')">Map</button>
             <button type="button" :class="{ on: viewMode === 'table' }" @click="setViewMode('table')">Table</button>
@@ -794,21 +783,6 @@ onBeforeUnmount(() => {
 <style scoped>
 .page-bg { --background: #f4f8f5; }
 .wrap { max-width: 1240px; margin: 0 auto; padding-bottom: 2rem; }
-
-.page-head {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.85rem;
-}
-.page-head h2 {
-  margin: 0 0 0.25rem;
-  color: #1a4731;
-  font-weight: 800;
-  font-size: 1.35rem;
-}
-.page-head p { margin: 0; color: #64748b; font-size: 0.9rem; }
 
 .legend { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
 .leg {

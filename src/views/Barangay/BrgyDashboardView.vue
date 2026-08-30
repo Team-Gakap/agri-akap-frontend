@@ -20,10 +20,6 @@
       </div>
 
       <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 p-4">
-        <header class="page-intro lg:col-span-12">
-          <h1>Barangay {{ barangayName }} · Command Center</h1>
-        </header>
-
         <!-- ── 1. Descriptive KPI belt (4 cards) ──────────────────────── -->
         <button class="kpi-card lg:col-span-3" type="button" @click="go('/brgy/farmers')">
           <div class="kpi-icon kpi-tone-green">
@@ -712,14 +708,13 @@ onIonViewWillEnter(() => {
 }
 .grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
 .gap-4 { gap: 1rem; }
-.p-4 { padding: 1rem 1.1rem 1.5rem; }
+.p-4 { padding: 0.75rem 1.1rem 1.5rem; }
 
 @media (min-width: 640px) {
   .sm\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 1023px) {
-  .page-intro,
   .diag-col,
   .climate-card,
   .action-card {
@@ -733,18 +728,6 @@ onIonViewWillEnter(() => {
   .lg\:col-span-4 { grid-column: span 4 / span 4; }
   .lg\:col-span-8 { grid-column: span 8 / span 8; }
   .lg\:col-span-12 { grid-column: span 12 / span 12; }
-}
-
-.page-intro {
-  display: flex;
-  align-items: flex-end;
-}
-.page-intro h1 {
-  margin: 0;
-  font-size: clamp(1.25rem, 2.4vw, 1.7rem);
-  font-weight: 900;
-  color: #1A4731;
-  letter-spacing: -0.02em;
 }
 
 .warn-banner {

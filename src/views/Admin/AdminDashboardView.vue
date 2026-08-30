@@ -4,10 +4,6 @@
 
     <ion-content class="dashboard-bg">
       <div class="shell">
-        <header class="intro no-print">
-          <h1>Executive Command Center</h1>
-        </header>
-
         <div v-if="initialLoading" class="center-state no-print">
           <ion-spinner name="crescent" color="primary"></ion-spinner>
           <p>Loading live municipal overview&hellip;</p>
@@ -651,21 +647,7 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchAll));
 .shell {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 1rem 1rem 1.75rem;
-}
-.intro { margin-bottom: 1rem; }
-.intro h1 {
-  margin: 0;
-  font-size: clamp(1.45rem, 2.6vw, 1.85rem);
-  font-weight: 900;
-  color: #1A4731;
-  letter-spacing: -0.02em;
-}
-.intro-sub {
-  margin: 0.25rem 0 0;
-  font-size: 0.78rem;
-  color: #64748b;
-  font-weight: 600;
+  padding: 0.75rem 1rem 1.75rem;
 }
 .center-state {
   text-align: center;

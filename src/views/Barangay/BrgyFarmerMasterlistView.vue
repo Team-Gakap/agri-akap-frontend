@@ -13,11 +13,6 @@
 
     <ion-content class="rpt-content">
       <div class="rpt-shell">
-        <header class="intro">
-          <h1>{{ barangayLabel }}</h1>
-          <p class="lede">Farmers registered in your barangay.</p>
-        </header>
-
         <div class="grid-shell">
           <div class="grid-head">
             <span class="grid-title">Barangay farmer masterlist</span>
@@ -85,24 +80,18 @@
 
 <script setup lang="ts">
 import AppHeader from '@/components/Navigation/AppHeader.vue';
-import { ref, computed, onMounted } from 'vue';
+import { ref, onMounted } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
   IonButton, IonSearchbar, IonSpinner,
 } from '@ionic/vue';
 import apiClient from '@/utils/axios';
-import { useAuthStore } from '@/stores/authStore';
 
-const authStore = useAuthStore();
 const farmers = ref<any[]>([]);
 const loading = ref(false);
 const error = ref('');
 const search = ref('');
 const meta = ref({ current_page: 1, last_page: 1, total: 0 });
-
-const barangayLabel = computed(
-  () => authStore.user?.assigned_barangay || 'Your Barangay Farmers',
-);
 
 const formatName = (f: any) => {
   if (!f?.surname) return '—';
@@ -160,8 +149,6 @@ onMounted(() => fetchFarmers());
   padding: 0.75rem 1rem 1rem;
   gap: 0.65rem;
 }
-.intro h1 { margin: 0; font-size: 1.25rem; font-weight: 900; color: #1a4731; }
-.lede { margin: 0.25rem 0 0; color: #64748b; font-size: 0.88rem; }
 
 .grid-shell {
   flex: 1;

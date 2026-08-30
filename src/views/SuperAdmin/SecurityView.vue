@@ -5,7 +5,6 @@
     <ion-content class="rpt-content">
       <div class="rpt-shell">
         <header class="intro">
-          <h1>Account security</h1>
           <p class="lede">Authenticator enrollment is required. SMS is an optional fallback after TOTP is confirmed.</p>
         </header>
 
@@ -175,9 +174,8 @@ onMounted(() => { void load(); });
 
 <style scoped>
 .rpt-content { --background: #f4f8f5; }
-.rpt-shell { max-width: 720px; margin: 0 auto; padding: 1rem; }
-.intro { margin-bottom: 1rem; }
-h1 { margin: 0 0 0.2rem; font-size: 1.5rem; color: #1a4731; }
+.rpt-shell { max-width: 720px; margin: 0 auto; padding: 0.75rem 1rem 1rem; }
+.intro { margin-bottom: 0.75rem; }
 .lede { margin: 0; color: #475569; }
 .center-state { display: flex; justify-content: center; padding: 3rem; }
 .panel { margin: 0 0 0.9rem; }
