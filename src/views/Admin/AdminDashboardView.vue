@@ -1,20 +1,12 @@
 <template>
   <ion-page>
-    <ion-header class="no-print">
-      <ion-toolbar color="primary">
-        <ion-buttons slot="start">
-          <ion-menu-button></ion-menu-button>
-        </ion-buttons>
-        <ion-title>Command Center</ion-title>
-      </ion-toolbar>
-    </ion-header>
+    <AppHeader />
 
     <ion-content class="dashboard-bg">
       <div class="shell">
         <header class="intro no-print">
           <p class="eyebrow">LGU Echague · Municipal Agriculture Office</p>
           <h1>Executive Command Center</h1>
-          <p class="intro-sub">Single pane of glass · Descriptive · Diagnostic · Predictive · Prescriptive</p>
         </header>
 
         <div v-if="initialLoading" class="center-state no-print">
@@ -338,7 +330,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
@@ -361,6 +353,7 @@ import {
 import apiClient from '@/utils/axios';
 import { toast } from '@/utils/toast';
 import GisRadarMap from '@/components/Dashboard/GisRadarMap.vue';
+import AppHeader from '@/components/Navigation/AppHeader.vue';
 
 ChartJS.register(Title, Tooltip, Legend, ArcElement, BarElement, CategoryScale, LinearScale);
 
@@ -645,7 +638,11 @@ const exportSummary = () => {
   window.print();
 };
 
-onMounted(() => fetchAll());
+onMounted(() => {
+  fetchAll();
+  window.addEventListener('akap:refresh', fetchAll);
+});
+onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchAll));
 </script>
 
 <style scoped>

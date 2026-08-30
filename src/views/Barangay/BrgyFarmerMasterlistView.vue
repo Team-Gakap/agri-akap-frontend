@@ -1,13 +1,7 @@
 <template>
   <ion-page>
-    <ion-header>
-      <ion-toolbar color="primary">
-        <ion-buttons slot="start">
-          <ion-menu-button></ion-menu-button>
-        </ion-buttons>
-        <ion-title>Farmers</ion-title>
-      </ion-toolbar>
-      <ion-toolbar color="primary">
+    <AppHeader>
+      <ion-toolbar class="search-toolbar">
         <ion-searchbar
           placeholder="Search by farmer name…"
           :debounce="400"
@@ -15,7 +9,7 @@
           style="--background:#fff;--color:#0f172a;"
         ></ion-searchbar>
       </ion-toolbar>
-    </ion-header>
+    </AppHeader>
 
     <ion-content class="rpt-content">
       <div class="rpt-shell">
@@ -90,6 +84,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeader from '@/components/Navigation/AppHeader.vue';
 import { ref, computed, onMounted } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
@@ -235,6 +230,11 @@ onMounted(() => fetchFarmers());
 .col-no { text-align: right; width: 44px; }
 .mono { font-family: 'Courier New', monospace; }
 .empty-row { text-align: center; color: #94a3b8; padding: 2rem 0; font-style: italic; }
+.search-toolbar {
+  --background: #ffffff;
+  --border-width: 0 0 1px 0;
+  --border-color: #E2E8F0;
+}
 .pager {
   display: flex;
   align-items: center;

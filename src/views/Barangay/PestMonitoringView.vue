@@ -1,13 +1,6 @@
 <template>
   <component :is="embedded ? 'div' : IonPage" class="encode-root">
-    <ion-header v-if="!embedded" class="no-print">
-      <ion-toolbar color="primary">
-        <ion-buttons slot="start">
-          <ion-menu-button></ion-menu-button>
-        </ion-buttons>
-        <ion-title>Pest Reports</ion-title>
-      </ion-toolbar>
-    </ion-header>
+    <AppHeader v-if="!embedded" />
 
     <component :is="embedded ? 'div' : IonContent" class="ion-padding page-bg" :class="{ 'embedded-encode-body': embedded }">
       <div class="wrapper no-print">
@@ -168,6 +161,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeader from '@/components/Navigation/AppHeader.vue';
 import { ref, reactive, computed, defineAsyncComponent, onMounted } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,

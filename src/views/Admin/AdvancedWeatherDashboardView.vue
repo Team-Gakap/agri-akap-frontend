@@ -1,13 +1,6 @@
 <template>
   <ion-page>
-    <ion-header>
-      <ion-toolbar color="primary">
-        <ion-buttons slot="start">
-          <ion-menu-button></ion-menu-button>
-        </ion-buttons>
-        <ion-title>Precision Weather Dashboard</ion-title>
-      </ion-toolbar>
-    </ion-header>
+    <AppHeader />
 
     <ion-content class="page-bg ion-padding">
       <div class="wrap">
@@ -38,6 +31,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeader from '@/components/Navigation/AppHeader.vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
   IonCard, IonCardHeader, IonCardTitle, IonCardContent,

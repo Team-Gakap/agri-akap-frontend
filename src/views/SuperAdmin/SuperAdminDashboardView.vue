@@ -1,13 +1,6 @@
 <template>
   <ion-page>
-    <ion-header>
-      <ion-toolbar color="primary">
-        <ion-buttons slot="start">
-          <ion-menu-button></ion-menu-button>
-        </ion-buttons>
-        <ion-title>System Console</ion-title>
-      </ion-toolbar>
-    </ion-header>
+    <AppHeader />
 
     <ion-content class="dash-bg ion-padding">
       <div class="shell">
@@ -88,6 +81,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeader from '@/components/Navigation/AppHeader.vue';
 import { onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import {

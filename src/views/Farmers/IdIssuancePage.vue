@@ -1,13 +1,6 @@
 <template>
   <ion-page>
-    <ion-header class="no-print">
-      <ion-toolbar color="primary">
-        <ion-buttons slot="start">
-          <ion-menu-button></ion-menu-button>
-        </ion-buttons>
-        <ion-title>ID Issuance Portal</ion-title>
-      </ion-toolbar>
-    </ion-header>
+    <AppHeader />
 
     <ion-content class="auth-bg no-print-bg">
       <div class="workspace-header no-print">
@@ -302,6 +295,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeader from '@/components/Navigation/AppHeader.vue';
 import { ref, computed, onMounted, onUnmounted, reactive, nextTick } from 'vue';
 import { useRoute } from 'vue-router';
 import {

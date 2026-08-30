@@ -1,18 +1,6 @@
 <template>
   <ion-page>
-    <ion-header>
-      <ion-toolbar color="primary">
-        <ion-buttons slot="start">
-          <ion-back-button default-href="/admin/subsidies" text=""></ion-back-button>
-        </ion-buttons>
-        <ion-title>Subsidy Masterlist</ion-title>
-        <ion-buttons slot="end">
-          <ion-button :disabled="loading" @click="fetchMasterlist">
-            <ion-icon slot="icon-only" :icon="refreshOutline"></ion-icon>
-          </ion-button>
-        </ion-buttons>
-      </ion-toolbar>
-    </ion-header>
+    <AppHeader />
 
     <ion-content class="ms-bg">
       <div class="ms-shell">
@@ -244,6 +232,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeader from '@/components/Navigation/AppHeader.vue';
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {

@@ -1,6 +1,7 @@
 <template>
   <component :is="embedded ? 'div' : IonPage" class="encode-root">
-    <ion-header v-if="!embedded">
+    <AppHeader v-if="!embedded && isAdminOverride" />
+    <ion-header v-else-if="!embedded">
       <ion-toolbar color="primary">
         <ion-buttons slot="start">
           <ion-back-button :default-href="backHref"></ion-back-button>
@@ -151,6 +152,7 @@ import { useDistributionStore } from '@/stores/distributionStore';
 import { useAuthStore } from '@/stores/authStore';
 import apiClient from '@/utils/axios';
 import { presentToast } from '@/utils/toast';
+import AppHeader from '@/components/Navigation/AppHeader.vue';
 
 const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
 const emit = defineEmits<{ verified: []; saved: [] }>();

@@ -1,18 +1,6 @@
 <template>
   <ion-page>
-    <ion-header>
-      <ion-toolbar color="primary">
-        <ion-buttons slot="start">
-          <ion-menu-button></ion-menu-button>
-        </ion-buttons>
-        <ion-title>Subsidy Campaigns</ion-title>
-        <ion-buttons slot="end">
-          <ion-button :disabled="loading" @click="fetchPrograms">
-            <ion-icon slot="icon-only" :icon="refreshOutline"></ion-icon>
-          </ion-button>
-        </ion-buttons>
-      </ion-toolbar>
-    </ion-header>
+    <AppHeader />
 
     <ion-content class="page-bg">
       <div class="shell">
@@ -439,7 +427,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue';
+import AppHeader from '@/components/Navigation/AppHeader.vue';
+import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
@@ -774,7 +763,11 @@ const submitSettings = async () => {
   }
 };
 
-onMounted(() => fetchPrograms());
+onMounted(() => {
+  fetchPrograms();
+  window.addEventListener('akap:refresh', fetchPrograms);
+});
+onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchPrograms));
 </script>
 
 <style scoped>

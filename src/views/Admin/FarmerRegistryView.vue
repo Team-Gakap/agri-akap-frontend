@@ -1,13 +1,6 @@
 <template>
   <ion-page>
-    <ion-header class="no-print">
-      <ion-toolbar class="rpt-toolbar">
-        <ion-buttons slot="start">
-          <ion-menu-button></ion-menu-button>
-        </ion-buttons>
-        <ion-title>Farmer Registry</ion-title>
-      </ion-toolbar>
-    </ion-header>
+    <AppHeader />
 
     <ion-content class="rpt-content">
       <div class="print-only letterhead">
@@ -491,6 +484,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeader from '@/components/Navigation/AppHeader.vue';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {

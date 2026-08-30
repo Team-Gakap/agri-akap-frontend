@@ -1,13 +1,6 @@
 <template>
   <ion-page>
-    <ion-header class="no-print">
-      <ion-toolbar class="rpt-toolbar">
-        <ion-buttons slot="start">
-          <ion-menu-button></ion-menu-button>
-        </ion-buttons>
-        <ion-title>Standing Crop Report</ion-title>
-      </ion-toolbar>
-    </ion-header>
+    <AppHeader />
 
     <ion-content class="rpt-content">
       <div class="print-only letterhead">
@@ -151,6 +144,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeader from '@/components/Navigation/AppHeader.vue';
 import { ref, reactive, computed, onMounted, watch, defineAsyncComponent } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent,

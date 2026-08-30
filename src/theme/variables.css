@@ -13,11 +13,11 @@
   --mao-gold-light: #fff8e1;
 
   /* Surfaces */
-  --mao-surface: #f4f8f5;        /* airy light gray/green content area */
+  --mao-surface: #F8FAFC;        /* canvas / content background */
   --mao-card: #ffffff;           /* crisp white for data cards */
-  --mao-border: #e2ece6;
-  --mao-text: #1f2d26;
-  --mao-text-muted: #5f7268;
+  --mao-border: #E2E8F0;
+  --mao-text: #0f172a;
+  --mao-text-muted: #64748b;
 
   /* Elevation / shape (LGU flat-modern) */
   --mao-radius: 12px;
@@ -30,10 +30,10 @@
     "Segoe UI", "Helvetica Neue", Arial, sans-serif;
 
   /* App background */
-  --ion-background-color: #f4f8f5;
-  --ion-background-color-rgb: 244, 248, 245;
-  --ion-text-color: #1f2d26;
-  --ion-text-color-rgb: 31, 45, 38;
+  --ion-background-color: #F8FAFC;
+  --ion-background-color-rgb: 248, 250, 252;
+  --ion-text-color: #0f172a;
+  --ion-text-color-rgb: 15, 23, 42;
 
   /* ── Primary = Forest Green ───────────────────────────────────── */
   --ion-color-primary: #1a4731;
@@ -91,10 +91,10 @@
   --ion-color-medium-shade: #546459;
   --ion-color-medium-tint: #6f8177;
 
-  --ion-color-light: #f4f8f5;
-  --ion-color-light-rgb: 244, 248, 245;
-  --ion-color-light-contrast: #1f2d26;
-  --ion-color-light-contrast-rgb: 31, 45, 38;
+  --ion-color-light: #F8FAFC;
+  --ion-color-light-rgb: 248, 250, 252;
+  --ion-color-light-contrast: #0f172a;
+  --ion-color-light-contrast-rgb: 15, 23, 42;
   --ion-color-light-shade: #d7dbd8;
   --ion-color-light-tint: #f6faf6;
 

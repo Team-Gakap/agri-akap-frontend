@@ -1,13 +1,6 @@
 <template>
   <ion-page>
-    <ion-header class="no-print">
-      <ion-toolbar class="exec-toolbar">
-        <ion-buttons slot="start">
-          <ion-menu-button></ion-menu-button>
-        </ion-buttons>
-        <ion-title>Executive Reporting Suite</ion-title>
-      </ion-toolbar>
-    </ion-header>
+    <AppHeader />
 
     <ion-content class="exec-content ion-padding">
       <div class="suite-header no-print">
@@ -108,6 +101,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeader from '@/components/Navigation/AppHeader.vue';
 import { computed, onMounted, reactive, ref, watch } from 'vue';
 import {
   IonPage,

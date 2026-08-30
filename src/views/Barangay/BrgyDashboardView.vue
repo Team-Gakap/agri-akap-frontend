@@ -1,18 +1,6 @@
 <template>
   <ion-page>
-    <ion-header>
-      <ion-toolbar color="primary">
-        <ion-buttons slot="start">
-          <ion-menu-button></ion-menu-button>
-        </ion-buttons>
-        <ion-title>Command Center</ion-title>
-        <ion-buttons slot="end">
-          <ion-button :disabled="loading" @click="fetchDashboard">
-            <ion-icon slot="icon-only" :icon="refreshOutline"></ion-icon>
-          </ion-button>
-        </ion-buttons>
-      </ion-toolbar>
-    </ion-header>
+    <AppHeader />
 
     <ion-content class="dash-bg">
       <div v-if="!assignedBarangay" class="p-4">
@@ -239,7 +227,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import AppHeader from '@/components/Navigation/AppHeader.vue';
+import { computed, onMounted, onBeforeUnmount, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
@@ -705,7 +694,11 @@ const copySmsDraft = async () => {
   }
 };
 
-onMounted(() => { void fetchDashboard(); });
+onMounted(() => {
+  void fetchDashboard();
+  window.addEventListener('akap:refresh', fetchDashboard);
+});
+onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchDashboard));
 onIonViewWillEnter(() => {
   if (loaded.value) void fetchDashboard();
 });

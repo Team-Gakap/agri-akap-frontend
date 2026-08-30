@@ -1,6 +1,7 @@
 <template>
   <ion-page>
-    <ion-header>
+    <AppHeader v-if="!isTechMap" />
+    <ion-header v-else>
       <ion-toolbar color="primary">
         <ion-buttons slot="start">
           <ion-menu-button></ion-menu-button>
@@ -86,8 +87,10 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.heat';
 import apiClient from '@/utils/axios';
+import AppHeader from '@/components/Navigation/AppHeader.vue';
 
 const route = useRoute();
+const isTechMap = route.path.startsWith('/tech');
 
 // Echague, Isabela approx center
 const ECHAGUE: [number, number] = [16.7053, 121.6772];

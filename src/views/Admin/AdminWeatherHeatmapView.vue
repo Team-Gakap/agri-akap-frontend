@@ -1,18 +1,6 @@
 <template>
   <ion-page>
-    <ion-header>
-      <ion-toolbar color="primary">
-        <ion-buttons slot="start">
-          <ion-menu-button></ion-menu-button>
-        </ion-buttons>
-        <ion-title>Climate Monitor</ion-title>
-        <ion-buttons slot="end">
-          <ion-button fill="clear" :disabled="loading" @click="loadData">
-            <ion-icon slot="icon-only" :icon="refreshOutline"></ion-icon>
-          </ion-button>
-        </ion-buttons>
-      </ion-toolbar>
-    </ion-header>
+    <AppHeader />
 
     <ion-content class="page-bg ion-padding">
       <div class="wrap">
@@ -226,6 +214,7 @@
 </template>
 
 <script setup lang="ts">
+import AppHeader from '@/components/Navigation/AppHeader.vue';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import {
@@ -789,9 +778,11 @@ onMounted(async () => {
   await nextTick();
   await initMap();
   await ensureGeoLayerReady();
+  window.addEventListener('akap:refresh', loadData);
 });
 
 onBeforeUnmount(() => {
+  window.removeEventListener('akap:refresh', loadData);
   if (map) {
     google.maps.event.clearInstanceListeners(map.data);
     map.data.forEach((feature) => map?.data.remove(feature));
