@@ -8,7 +8,7 @@
         <MaoFormHeader
           :show-barangay="false"
           office-title="Municipal Agriculture Office"
-          :title="`Crop Production Report (${activeMode === 'planting' ? 'Planting Data' : 'Harvest Data'})`"
+          :title="`Crop Production Report (${modeLabel})`"
         >
           <template #subtitle>
             <p class="lh-meta">
@@ -28,18 +28,27 @@
             :class="{ active: activeMode === 'planting' }"
             @click="setMode('planting')"
           >
-            Planting Data
+            Planting
+          </button>
+          <button
+            class="mode-btn"
+            :class="{ active: activeMode === 'standing' }"
+            @click="setMode('standing')"
+          >
+            Standing
           </button>
           <button
             class="mode-btn"
             :class="{ active: activeMode === 'harvest' }"
             @click="setMode('harvest')"
           >
-            Harvest Data
+            Harvest
           </button>
         </div>
 
-        <!-- Filter bar -->
+        <StandingCropReportGrid v-if="activeMode === 'standing'" />
+
+        <template v-else>
         <div class="filter-bar no-print">
           <div class="filter-group">
             <label class="filter-label">Barangay</label>
@@ -183,6 +192,7 @@
             </table>
           </div>
         </div>
+        </template>
 
         <!-- Signature block -->
         <div class="print-only sig-block">
@@ -199,6 +209,7 @@
     </ion-content>
 
     <ReportEncodeModal
+      v-if="activeMode !== 'standing'"
       v-model:is-open="encodeOpen"
       :title="encodeTitle"
       :kind="encodeKind"
@@ -211,6 +222,7 @@
 <script setup lang="ts">
 import AppHeader from '@/components/Navigation/AppHeader.vue';
 import { ref, reactive, computed, onMounted, watch, defineAsyncComponent } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent,
   IonButtons, IonButton, IonMenuButton, IonIcon, IonSpinner,
@@ -221,12 +233,13 @@ import { exportAdminGridExcel } from '@/utils/statutoryFormExcel';
 import apiClient from '@/utils/axios';
 import ReportEncodeModal from '@/components/ReportEncodeModal.vue';
 import MaoFormHeader from '@/components/MaoFormHeader.vue';
+import StandingCropReportGrid from '@/views/Admin/Reports/StandingCropReportGrid.vue';
 import { useReportScope, type ReportPeriod } from '@/composables/useReportScope';
 
 const PlantingForm = defineAsyncComponent(() => import('@/views/Barangay/PlantingLedgerView.vue'));
 const HarvestForm = defineAsyncComponent(() => import('@/views/Barangay/HarvestingLogView.vue'));
 
-type Mode = 'planting' | 'harvest';
+type Mode = 'planting' | 'standing' | 'harvest';
 
 interface PlantingRow {
   rsbsa_no: string;
@@ -253,11 +266,25 @@ interface HarvestRow {
 
 type CropRow = PlantingRow & HarvestRow;
 
+const route = useRoute();
+const router = useRouter();
+
+function parseMode(raw: unknown): Mode {
+  if (raw === 'standing' || raw === 'harvest' || raw === 'planting') return raw;
+  return 'planting';
+}
+
 const loading   = ref(false);
 const loadError = ref('');
 const rows      = ref<CropRow[]>([]);
 const barangays = ref<string[]>([]);
-const activeMode = ref<Mode>('planting');
+const activeMode = ref<Mode>(parseMode(route.query.mode));
+
+const modeLabel = computed(() => {
+  if (activeMode.value === 'standing') return 'Standing Data';
+  if (activeMode.value === 'harvest') return 'Harvest Data';
+  return 'Planting Data';
+});
 
 const filters = reactive({
   barangay: '',
@@ -319,6 +346,7 @@ const fmtDate = (d: string) => {
 };
 
 async function fetchRows() {
+  if (activeMode.value === 'standing') return;
   loading.value = true;
   loadError.value = '';
   try {
@@ -341,9 +369,17 @@ async function fetchRows() {
 }
 
 function setMode(m: Mode) {
-  activeMode.value = m;
-  fetchRows();
+  if (m === activeMode.value && route.query.mode === m) return;
+  const query = { ...route.query, mode: m };
+  router.replace({ query });
 }
+
+watch(() => route.query.mode, (raw) => {
+  const next = parseMode(raw);
+  if (next === activeMode.value) return;
+  activeMode.value = next;
+  if (next !== 'standing') fetchRows();
+});
 
 function clearFilters() {
   filters.barangay = lockedBarangay.value || '';
@@ -373,7 +409,7 @@ async function downloadExcel() {
   const isPlanting = activeMode.value === 'planting';
   await exportAdminGridExcel({
     filename: `crop-production-${activeMode.value}.xlsx`,
-    reportTitle: `Crop Production Report (${isPlanting ? 'Planting Data' : 'Harvest Data'})`,
+    reportTitle: `Crop Production Report (${modeLabel.value})`,
     metaLine: reportMetaLine(),
     columns: isPlanting
       ? [
@@ -418,7 +454,7 @@ onMounted(async () => {
     const res = await apiClient.get('/farmers/barangays');
     barangays.value = (res.data?.data ?? []).filter(Boolean);
   } catch { barangays.value = []; }
-  fetchRows();
+  if (activeMode.value !== 'standing') fetchRows();
 });
 </script>
 

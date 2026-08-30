@@ -188,14 +188,12 @@ interface NavGroup {
 const reportChildrenAdmin: NavItem[] = [
   { title: 'Subsidy Distribution', url: '/admin/reports/subsidies', icon: cubeOutline },
   { title: 'Crop Production', url: '/admin/reports/crop-production', icon: leafOutline },
-  { title: 'Standing Crop', url: '/admin/reports/standing-crop', icon: flowerOutline },
   { title: 'Pest Surveillance', url: '/admin/reports/pest-surveillance', icon: bugOutline, badge: 'pests' },
   { title: 'Damage & Calamity', url: '/admin/reports/damage-calamity', icon: thunderstormOutline },
 ];
 
 const reportChildrenBrgy: NavItem[] = [
   { title: 'Crop Production', url: '/brgy/reports/crop-production', icon: leafOutline },
-  { title: 'Standing Crop', url: '/brgy/reports/standing-crop', icon: flowerOutline },
   { title: 'Pest Surveillance', url: '/brgy/reports/pest-surveillance', icon: bugOutline, badge: 'pests' },
   { title: 'Damage & Calamity', url: '/brgy/reports/damage-calamity', icon: thunderstormOutline },
   { title: 'Subsidy Distribution', url: '/brgy/reports/subsidies', icon: documentsOutline },
@@ -261,12 +259,12 @@ const groups = computed<NavGroup[]>(() => {
   }
 
   const adminOps: NavItem[] = [
-    { title: 'Command Center', url: '/admin/dashboard', icon: gridOutline, exact: true },
+    { title: 'Dashboard', url: '/admin/dashboard', icon: gridOutline, exact: true },
     { title: 'Farmers', url: '/admin/farmers', icon: peopleOutline },
     { title: 'ID Cards', url: '/admin/id-issuance', icon: idCardOutline },
     { title: 'Subsidies', url: '/admin/subsidies', icon: cubeOutline },
     { title: 'SMS', url: '/admin/broadcasts', icon: chatboxEllipsesOutline },
-    { title: 'Climate', url: '/admin/weather', icon: cloudOutline },
+    { title: 'Weather', url: '/admin/weather', icon: cloudOutline },
   ];
 
   if (authStore.isSuperAdmin) {
@@ -312,6 +310,12 @@ function isActive(url: string, exact = false) {
   }
   if (url === '/admin/weather') {
     return route.path === url || route.path.startsWith('/admin/weather/');
+  }
+  if (url === '/admin/reports/crop-production') {
+    return route.path === url || route.path === '/admin/reports/standing-crop';
+  }
+  if (url === '/brgy/reports/crop-production') {
+    return route.path === url || route.path === '/brgy/reports/standing-crop';
   }
   return route.path === url || route.path.startsWith(url + '/');
 }
