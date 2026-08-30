@@ -66,8 +66,12 @@ const mountWidget = async () => {
       },
       'error-callback': () => {
         clearToken();
-        errorMessage.value = 'Captcha failed to load. Check your connection and hostname settings.';
-        emit('failed', errorMessage.value);
+        // Turnstile already renders its own error UI (e.g. "Verification failed").
+        if (import.meta.env.DEV) {
+          errorMessage.value =
+            'Captcha failed to load. Check your connection and hostname settings.';
+        }
+        emit('failed', errorMessage.value || 'turnstile-error');
       },
     });
   } catch (err: any) {

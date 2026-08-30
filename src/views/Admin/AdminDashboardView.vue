@@ -53,32 +53,57 @@
           </button>
 
           <button class="kpi-card span-3" type="button" @click="go('/admin/subsidies')">
-            <div class="kpi-icon-wrap kpi-tone-slate">
-              <ion-icon :icon="cubeOutline"></ion-icon>
+            <div class="kpi-card-head">
+              <div class="kpi-icon-wrap kpi-tone-green">
+                <ion-icon :icon="cubeOutline"></ion-icon>
+              </div>
+              <span v-if="activeCampaigns" class="kpi-badge">{{ fmt(activeCampaigns) }} Active Campaigns</span>
             </div>
-            <p class="kpi-value">
-              {{ fmt(descriptive.subsidy_claimed) }}
-              <small>/ {{ fmt(descriptive.subsidy_allocated) }}</small>
-            </p>
-            <p class="kpi-label">{{ subsidyUnit }} Claimed</p>
+            <p class="kpi-title">Subsidy Disbursement</p>
+            <p class="kpi-value">{{ fmtPct(subsidyUptake) }}<small>%</small></p>
+            <p class="kpi-label">Overall Uptake</p>
             <div class="micro-bar" aria-hidden="true">
               <span :style="{ width: subsidyPercent + '%' }"></span>
             </div>
-            <p class="kpi-hint">{{ subsidyPercent }}% liquidation progress</p>
-          </button>
-
-          <button class="kpi-card span-3" type="button" @click="go('/admin/reports/pest-surveillance')">
-            <div class="kpi-icon-wrap kpi-tone-danger">
-              <ion-icon :icon="warningOutline"></ion-icon>
-            </div>
-            <p class="kpi-value">{{ fmt(threatTotal) }}</p>
-            <p class="kpi-label">Threat Incidents</p>
-            <p class="kpi-meta">
-              <span class="sev-dot critical"></span>{{ fmt(descriptive.threat_critical) }} Critical
-              ·
-              <span class="sev-dot moderate"></span>{{ fmt(descriptive.threat_moderate) }} Moderate
+            <p v-if="activeCampaigns" class="kpi-meta">
+              {{ fmt(beneficiariesClaimed) }} / {{ fmt(beneficiariesEnrolled) }} Beneficiaries Claimed
+            </p>
+            <p v-else class="kpi-meta">No active campaigns</p>
+            <p v-if="topCampaignName" class="kpi-hint">
+              Top: {{ topCampaignName }} ({{ fmtPct(topCampaignPercent) }}%)
+            </p>
+            <p v-if="lowStockPrograms" class="kpi-hint">
+              {{ fmt(lowStockPrograms) }} {{ lowStockPrograms === 1 ? 'program' : 'programs' }} low stock
             </p>
           </button>
+
+          <div class="kpi-card span-3 kpi-card-static">
+            <div class="kpi-card-head">
+              <div class="kpi-icon-wrap kpi-tone-danger">
+                <ion-icon :icon="warningOutline"></ion-icon>
+                <span v-if="pestCritical > 0" class="kpi-pulse" aria-hidden="true"></span>
+              </div>
+            </div>
+            <p class="kpi-title">Field Threat Triage</p>
+            <p class="kpi-value kpi-value-split">
+              <span>{{ fmt(pestCount) }} <small>Pests</small></span>
+              <span class="kpi-split-dot" aria-hidden="true">·</span>
+              <span>{{ fmt(calamityCount) }} <small>Calamities</small></span>
+            </p>
+            <p class="kpi-label">{{ fmt(threatTotal) }} Active Incidents</p>
+            <button class="kpi-triage-row" type="button" @click="go('/admin/reports/pest-surveillance')">
+              <span class="sev-dot critical"></span>
+              Pests: {{ fmt(pestCritical) }} Critical · {{ fmt(pestModerate) }} Moderate
+              <em v-if="topPestName">{{ topPestName }}</em>
+            </button>
+            <button class="kpi-triage-row" type="button" @click="go('/admin/reports/damage-calamity')">
+              <span class="sev-dot moderate"></span>
+              Damage: {{ fmt(calamityCount) }} calamity {{ calamityCount === 1 ? 'report' : 'reports' }} pending validation
+            </button>
+            <p v-if="dispatchesActive" class="kpi-hint">
+              {{ fmt(dispatchesActive) }} {{ dispatchesActive === 1 ? 'technician' : 'technicians' }} assigned
+            </p>
+          </div>
 
           <!-- ── 2. Diagnostic GIS + charts (7) ─────────────────────────── -->
           <div class="span-7 diag-col">
@@ -241,8 +266,14 @@
         <ul>
           <li>Farmers: {{ fmt(descriptive.total_farmers) }} ({{ fmt(descriptive.farmers_male) }} M / {{ fmt(descriptive.farmers_female) }} F) · RSBSA {{ fmt(descriptive.rsbsa_verified) }}</li>
           <li>Planted: {{ fmtHa(descriptive.total_hectares) }} ha (Rice {{ fmtHa(descriptive.rice_hectares) }} · Corn {{ fmtHa(descriptive.corn_hectares) }})</li>
-          <li>Subsidy: {{ fmt(descriptive.subsidy_claimed) }} / {{ fmt(descriptive.subsidy_allocated) }} {{ subsidyUnit }} ({{ subsidyPercent }}%)</li>
-          <li>Threats: {{ fmt(threatTotal) }} ({{ fmt(descriptive.threat_critical) }} critical · {{ fmt(descriptive.threat_moderate) }} moderate)</li>
+          <li>
+            Subsidy: {{ fmt(beneficiariesClaimed) }} / {{ fmt(beneficiariesEnrolled) }} beneficiaries
+            ({{ fmtPct(subsidyUptake) }}%) · {{ fmt(activeCampaigns) }} active campaigns
+          </li>
+          <li>
+            Threats: {{ fmt(pestCount) }} pests ({{ fmt(pestCritical) }} critical)
+            · {{ fmt(calamityCount) }} pending calamity reports
+          </li>
         </ul>
         <h2>Yield forecast (MT)</h2>
         <ul>
@@ -362,6 +393,10 @@ const smsForm = reactive({
 const fmt = (v: any) => Number(v ?? 0).toLocaleString('en-PH');
 const fmtHa = (v: any) => Number(v ?? 0).toLocaleString('en-PH', { maximumFractionDigits: 1 });
 const fmtMt = (v: any) => Number(v ?? 0).toLocaleString('en-PH', { maximumFractionDigits: 1 });
+const fmtPct = (v: any) => Number(v ?? 0).toLocaleString('en-PH', {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+});
 const go = (path: string) => router.push(path);
 
 const stageRows = computed(() => diagnostic.crop_stages ?? []);
@@ -377,10 +412,32 @@ const hasData = computed(() =>
   || alerts.value.length > 0,
 );
 
-const subsidyUnit = computed(() => descriptive.subsidy_unit || 'Sacks');
-const subsidyPercent = computed(() => Math.min(100, Math.max(0, Number(descriptive.subsidy_percent ?? 0))));
+const subsidyUptake = computed(() => Number(
+  descriptive.subsidy_uptake_percent ?? descriptive.subsidy_percent ?? 0,
+));
+const subsidyPercent = computed(() => Math.min(100, Math.max(0, subsidyUptake.value)));
+const activeCampaigns = computed(() => Number(descriptive.subsidy_active_campaigns ?? 0));
+const beneficiariesClaimed = computed(() => Number(
+  descriptive.subsidy_beneficiaries_claimed ?? descriptive.subsidy_claimed ?? 0,
+));
+const beneficiariesEnrolled = computed(() => Number(
+  descriptive.subsidy_beneficiaries_enrolled ?? descriptive.subsidy_allocated ?? 0,
+));
+const topCampaignName = computed(() => String(descriptive.subsidy_top_campaign?.name ?? ''));
+const topCampaignPercent = computed(() => Number(descriptive.subsidy_top_campaign?.percent ?? 0));
+const lowStockPrograms = computed(() => Number(descriptive.subsidy_low_stock_programs ?? 0));
+const pestCount = computed(() => Number(descriptive.active_pests ?? 0));
+const calamityCount = computed(() => Number(descriptive.active_calamities ?? 0));
+const pestCritical = computed(() => Number(
+  descriptive.pest_critical ?? descriptive.threat_critical ?? 0,
+));
+const pestModerate = computed(() => Number(
+  descriptive.pest_moderate ?? descriptive.threat_moderate ?? 0,
+));
+const topPestName = computed(() => String(descriptive.top_pest_name ?? ''));
+const dispatchesActive = computed(() => Number(descriptive.dispatches_active ?? 0));
 const threatTotal = computed(() => Number(descriptive.threat_total ?? (
-  Number(descriptive.active_pests ?? 0) + Number(descriptive.active_calamities ?? 0)
+  pestCount.value + calamityCount.value
 )));
 const seasonLabel = computed(() => predictive.season || 'Current');
 const stageTotal = computed(() => stageRows.value.reduce((s: number, r: any) => s + Number(r.total ?? 0), 0));
@@ -651,7 +708,37 @@ onMounted(() => fetchAll());
   padding: 1rem 1.05rem 0.95rem;
   font-family: inherit;
 }
+.kpi-card-static {
+  cursor: default;
+}
+.kpi-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+.kpi-title {
+  margin: 0 0 0.2rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #1A4731;
+}
+.kpi-badge {
+  flex-shrink: 0;
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: #1A4731;
+  background: rgba(26, 71, 49, 0.08);
+  border: 1px solid rgba(26, 71, 49, 0.16);
+  border-radius: 999px;
+  padding: 0.18rem 0.5rem;
+  line-height: 1.2;
+}
 .kpi-icon-wrap {
+  position: relative;
   width: 38px;
   height: 38px;
   border-radius: 11px;
@@ -660,6 +747,63 @@ onMounted(() => fetchAll());
   justify-content: center;
   font-size: 1.15rem;
   margin-bottom: 0.55rem;
+}
+.kpi-card-head .kpi-icon-wrap {
+  margin-bottom: 0;
+}
+.kpi-pulse {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #dc2626;
+  box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.55);
+  animation: kpi-pulse 1.6s ease-out infinite;
+}
+@keyframes kpi-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.55); }
+  70% { box-shadow: 0 0 0 8px rgba(220, 38, 38, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+}
+.kpi-value-split {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.kpi-split-dot {
+  color: #94a3b8;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+.kpi-triage-row {
+  display: block;
+  width: 100%;
+  margin-top: 0.4rem;
+  padding: 0.35rem 0.45rem;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  background: #F8FAFC;
+  color: #334155;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  line-height: 1.35;
+}
+.kpi-triage-row em {
+  display: block;
+  margin-top: 0.1rem;
+  font-style: normal;
+  font-weight: 600;
+  color: #64748b;
+}
+.kpi-triage-row:hover {
+  border-color: #1A4731;
+  background: #fff;
 }
 .kpi-tone-green { background: rgba(26, 71, 49, 0.1); color: #1A4731; }
 .kpi-tone-gold { background: rgba(212, 175, 55, 0.16); color: #a3831f; }

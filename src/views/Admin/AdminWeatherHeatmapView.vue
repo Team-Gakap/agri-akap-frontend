@@ -76,7 +76,22 @@
 
         <div v-else class="layout">
           <section class="heatmap-panel">
-            <p class="panel-kicker">Barangay risk matrix · {{ metricLabel }}</p>
+            <div class="panel-kicker-row">
+              <p class="panel-kicker">Barangay risk matrix · {{ metricLabel }}</p>
+              <div
+                v-show="viewMode === 'map'"
+                class="basemap-switch"
+                role="group"
+                aria-label="Basemap"
+              >
+                <button type="button" :class="{ on: basemap === 'satellite' }" @click="setBasemap('satellite')">
+                  Satellite
+                </button>
+                <button type="button" :class="{ on: basemap === 'terrain' }" @click="setBasemap('terrain')">
+                  Terrain
+                </button>
+              </div>
+            </div>
 
             <div v-show="viewMode === 'map'" class="map-shell">
               <div v-if="mapLoadError" class="map-error">
@@ -221,7 +236,7 @@ import { refreshOutline } from 'ionicons/icons';
 import type { FeatureCollection, Geometry } from 'geojson';
 import apiClient from '@/utils/axios';
 import { toast } from '@/utils/toast';
-import { loadGoogleMaps } from '@/utils/googleMaps';
+import { echagueMapOptions, loadGoogleMaps } from '@/utils/googleMaps';
 import { findRowForGeoName, indexByOfficialName, toOfficialBarangayName } from '@/utils/echagueGeoName';
 
 type MetricKey =
@@ -255,6 +270,8 @@ const selectedBarangay = ref<string | null>(null);
 const sendingBarangay = ref<string | null>(null);
 const sendingAll = ref(false);
 const viewMode = ref<'map' | 'table'>('map');
+type Basemap = 'satellite' | 'terrain';
+const basemap = ref<Basemap>('terrain');
 const exceptionsOnly = ref(false);
 const sortKey = ref<MetricKey | 'name' | 'level'>('level');
 const sortDir = ref<'asc' | 'desc'>('desc');
@@ -266,8 +283,6 @@ let map: google.maps.Map | null = null;
 let geoJsonLoaded = false;
 let infoWindow: google.maps.InfoWindow | null = null;
 let echagueGeoJson: FeatureCollection<Geometry, { adm4_name: string; adm4_pcode: string }> | null = null;
-
-const ECHAGUE_CENTER = { lat: 16.7053, lng: 121.6772 };
 
 const METRIC_META: Record<MetricKey, { label: string; suffix: string; hint: string; chip: string; critical: (v: number) => boolean; reason: string }> = {
   precipitation_probability: {
@@ -690,6 +705,17 @@ function hideFeatureTooltip() {
   infoWindow?.close();
 }
 
+function applyBasemap(mode: Basemap) {
+  if (!map) return;
+  map.setMapTypeId(mode === 'satellite' ? google.maps.MapTypeId.SATELLITE : google.maps.MapTypeId.TERRAIN);
+  map.setOptions({ styles: echagueMapOptions().styles });
+}
+
+function setBasemap(mode: Basemap) {
+  basemap.value = mode;
+  applyBasemap(mode);
+}
+
 async function initMap() {
   if (!mapEl.value || map) return;
   try {
@@ -698,13 +724,10 @@ async function initMap() {
     mapLoadError.value = err?.message ?? 'Failed to load Google Maps.';
     return;
   }
-  map = new google.maps.Map(mapEl.value, {
-    center: ECHAGUE_CENTER,
+  map = new google.maps.Map(mapEl.value, echagueMapOptions({
+    mapTypeId: google.maps.MapTypeId.TERRAIN,
     zoom: 12,
-    mapTypeControl: false,
-    streetViewControl: false,
-    fullscreenControl: false,
-  });
+  }));
   infoWindow = new google.maps.InfoWindow({ disableAutoPan: true });
 
   map.data.addListener('click', (e: google.maps.Data.MouseEvent) => {
@@ -904,12 +927,37 @@ onBeforeUnmount(() => {
 }
 
 .panel-kicker {
-  margin: 0 0 0.7rem;
+  margin: 0;
   font-size: 0.75rem;
   font-weight: 700;
   color: #64748b;
   text-transform: uppercase;
   letter-spacing: 0.04em;
+}
+.panel-kicker-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.7rem;
+}
+.basemap-switch { display: flex; gap: 0.35rem; }
+.basemap-switch button {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #475569;
+  border-radius: 999px;
+  padding: 0.28rem 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+.basemap-switch button.on {
+  background: #1a4731;
+  border-color: #1a4731;
+  color: #fff;
 }
 
 .map-shell {

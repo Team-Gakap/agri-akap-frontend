@@ -6,19 +6,37 @@
         <p>Echague, Isabela · parcels, outbreak clusters, 72h flood / lodging</p>
       </div>
       <div class="basemap-switch no-print">
-        <button type="button" :class="{ on: basemap === 'hybrid' }" @click="setBasemap('hybrid')">Satellite</button>
+        <button type="button" :class="{ on: basemap === 'satellite' }" @click="setBasemap('satellite')">Satellite</button>
         <button type="button" :class="{ on: basemap === 'terrain' }" @click="setBasemap('terrain')">Terrain</button>
       </div>
     </header>
 
     <div class="layer-bar no-print">
-      <button type="button" class="layer-chip" :class="{ on: layers.plots }" @click="toggleLayer('plots')">
+      <button
+        type="button"
+        class="layer-chip chip-plots"
+        :class="{ on: layers.plots }"
+        @click="toggleLayer('plots')"
+      >
+        <ion-icon v-if="layers.plots" :icon="checkmarkOutline"></ion-icon>
         Registered Plots ({{ plotCount }})
       </button>
-      <button type="button" class="layer-chip" :class="{ on: layers.pests }" @click="toggleLayer('pests')">
+      <button
+        type="button"
+        class="layer-chip chip-pests"
+        :class="{ on: layers.pests }"
+        @click="toggleLayer('pests')"
+      >
+        <ion-icon v-if="layers.pests" :icon="warningOutline"></ion-icon>
         Pest Outbreaks ({{ pestCount }})
       </button>
-      <button type="button" class="layer-chip" :class="{ on: layers.flood }" @click="toggleLayer('flood')">
+      <button
+        type="button"
+        class="layer-chip chip-flood"
+        :class="{ on: layers.flood }"
+        @click="toggleLayer('flood')"
+      >
+        <ion-icon v-if="layers.flood" :icon="waterOutline"></ion-icon>
         Flood / Lodging ({{ floodCount }})
       </button>
     </div>
@@ -34,18 +52,35 @@
           <div ref="mapEl" class="map-canvas"></div>
         </div>
         <div class="map-legend">
-          <span class="legend-chip"><i class="dot plot"></i>Farm parcels</span>
+          <span class="legend-chip"><i class="dot plot"></i>Georeferenced parcel</span>
           <span class="legend-chip"><i class="dot pest"></i>Pest outbreak</span>
           <span class="legend-chip"><i class="dot flood"></i>Flood / lodging ≥80%</span>
-          <span class="legend-chip"><i class="dot damage"></i>Severe damage (≥50%)</span>
+          <span class="legend-chip"><i class="dot damage"></i>Calamity report</span>
         </div>
       </div>
 
       <aside class="inspector">
         <h3>Spatial Inspector</h3>
-        <p v-if="!selected" class="inspector-empty">
-          Click any parcel boundary, barangay, or outbreak cluster to inspect spatial telemetry.
-        </p>
+
+        <div v-if="!selected" class="inspector-summary">
+          <p class="inspector-kind">Spatial health summary</p>
+          <dl>
+            <div>
+              <dt>Mapped coverage</dt>
+              <dd>{{ mappedCoverage.mapped }} / {{ mappedCoverage.total }} parcels georeferenced</dd>
+            </div>
+            <div>
+              <dt>Active spatial alerts</dt>
+              <dd>{{ pestAlertLabel }}</dd>
+            </div>
+            <div>
+              <dt>Highest risk area</dt>
+              <dd>{{ highestRiskLabel }}</dd>
+            </div>
+          </dl>
+          <p class="inspector-hint">Click a parcel, barangay, or outbreak pin for telemetry.</p>
+        </div>
+
         <div v-else class="inspector-body">
           <p class="inspector-kind">{{ selected.kindLabel }}</p>
           <h4>{{ selected.title }}</h4>
@@ -65,6 +100,15 @@
           >
             Trigger SMS Advisory
           </ion-button>
+          <ion-button
+            v-if="selected.kind === 'parcel'"
+            fill="outline"
+            size="small"
+            class="sms-btn"
+            @click="goFarmers"
+          >
+            View Farmer Profile
+          </ion-button>
         </div>
       </aside>
     </div>
@@ -73,22 +117,24 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
-import { IonButton, IonSpinner } from '@ionic/vue';
+import { useRouter } from 'vue-router';
+import { IonButton, IonIcon, IonSpinner } from '@ionic/vue';
+import { checkmarkOutline, warningOutline, waterOutline } from 'ionicons/icons';
 import { MarkerClusterer } from '@googlemaps/markerclusterer';
 import apiClient from '@/utils/axios';
-import { loadGoogleMaps } from '@/utils/googleMaps';
+import { echagueMapOptions, loadGoogleMaps } from '@/utils/googleMaps';
 import { findRowForGeoName, indexByOfficialName, toOfficialBarangayName } from '@/utils/echagueGeoName';
 
 const emit = defineEmits<{
   sms: [payload: { barangay: string; message: string }];
 }>();
 
-const ECHAGUE = { lat: 16.7053, lng: 121.6772 };
+const router = useRouter();
 const PARCEL_GREEN = '#16A34A';
 const PARCEL_AMBER = '#d97706';
 
 type LayerKey = 'plots' | 'pests' | 'flood';
-type Basemap = 'hybrid' | 'terrain';
+type Basemap = 'satellite' | 'terrain';
 
 interface ClimateRow {
   barangay: string;
@@ -115,14 +161,16 @@ interface SelectedEntity {
 const mapEl = ref<HTMLDivElement | null>(null);
 const mapLoading = ref(false);
 const mapLoadError = ref('');
-const basemap = ref<Basemap>('hybrid');
+const basemap = ref<Basemap>('satellite');
 const layers = reactive({ plots: true, pests: true, flood: true });
 const selected = ref<SelectedEntity | null>(null);
 
 let map: google.maps.Map | null = null;
 let geoJsonLoaded = false;
+let skipMapClick = false;
 const lastPayload = ref<any>({
   farm_plots: [],
+  plot_totals: { mapped: 0, total: 0 },
   pest_outbreaks: [],
   damage_points: [],
   flood_risk_points: [],
@@ -135,6 +183,7 @@ const pestMarkers: google.maps.Marker[] = [];
 const damageMarkers: google.maps.Marker[] = [];
 const pulseOverlays: google.maps.OverlayView[] = [];
 let pestClusterer: MarkerClusterer | null = null;
+let damageClusterer: MarkerClusterer | null = null;
 
 const climateRows = computed<ClimateRow[]>(() =>
   (lastPayload.value.barangay_climate ?? []).map((r: any) => ({
@@ -151,16 +200,55 @@ const climateRows = computed<ClimateRow[]>(() =>
 
 const climateIndex = computed(() => indexByOfficialName(climateRows.value));
 
+function isActivePest(p: any): boolean {
+  const status = String(p.status || '').toLowerCase();
+  return !status || status === 'active' || status === 'reported';
+}
+
 const plotCount = computed(() => (lastPayload.value.farm_plots ?? []).length);
 const pestCount = computed(() =>
-  (lastPayload.value.pest_outbreaks ?? []).filter((p: any) => {
-    const status = String(p.status || '').toLowerCase();
-    return !status || status === 'active' || status === 'reported';
-  }).length,
+  (lastPayload.value.pest_outbreaks ?? []).filter(isActivePest).length,
 );
 const floodCount = computed(() =>
   climateRows.value.filter((r) => r.precipitation_probability >= 80).length,
 );
+
+const mappedCoverage = computed(() => {
+  const totals = lastPayload.value.plot_totals;
+  if (totals && (totals.mapped != null || totals.total != null)) {
+    return {
+      mapped: Number(totals.mapped ?? 0),
+      total: Number(totals.total ?? plotCount.value),
+    };
+  }
+  const plots = lastPayload.value.farm_plots ?? [];
+  const mapped = plots.filter((p: any) =>
+    String(p.geotag_status || '').toLowerCase() === 'mapped' || (p.boundary_points?.length ?? 0) >= 3,
+  ).length;
+  return { mapped, total: plots.length };
+});
+
+const pestAlertLabel = computed(() => {
+  const pests = (lastPayload.value.pest_outbreaks ?? []).filter(isActivePest);
+  if (!pests.length) return 'No active outbreak clusters';
+  const byBrgy: Record<string, number> = {};
+  pests.forEach((p: any) => {
+    const name = String(p.brgy || 'Echague').trim() || 'Echague';
+    byBrgy[name] = (byBrgy[name] ?? 0) + 1;
+  });
+  const top = Object.entries(byBrgy).sort((a, b) => b[1] - a[1])[0];
+  if (!top) return 'No active outbreak clusters';
+  const [barangay, count] = top;
+  return `${count} pest ${count === 1 ? 'outbreak' : 'cluster'} (${barangay})`;
+});
+
+const highestRiskLabel = computed(() => {
+  if (!climateRows.value.length) return 'No 72h climate cache';
+  const top = climateRows.value.reduce((best, row) => (
+    row.precipitation_probability > best.precipitation_probability ? row : best
+  ));
+  return `${top.barangay} (${top.precipitation_probability}% rain)`;
+});
 
 function climateForGeo(geoName: string): ClimateRow | undefined {
   return findRowForGeoName(geoName, climateIndex.value);
@@ -172,10 +260,15 @@ function soilLabel(raw: number | null): string {
   return `${v.toFixed(2)} m³/m³`;
 }
 
+function applyBasemap(mode: Basemap) {
+  if (!map) return;
+  map.setMapTypeId(mode === 'satellite' ? google.maps.MapTypeId.SATELLITE : google.maps.MapTypeId.TERRAIN);
+  map.setOptions({ styles: echagueMapOptions().styles });
+}
+
 function setBasemap(mode: Basemap) {
   basemap.value = mode;
-  if (!map) return;
-  map.setMapTypeId(mode === 'hybrid' ? google.maps.MapTypeId.HYBRID : google.maps.MapTypeId.TERRAIN);
+  applyBasemap(mode);
 }
 
 function toggleLayer(key: LayerKey) {
@@ -186,6 +279,15 @@ function toggleLayer(key: LayerKey) {
 
 function emitSms(draft: SmsDraft) {
   emit('sms', draft);
+}
+
+function goFarmers() {
+  router.push('/admin/farmers');
+}
+
+function clearSelection() {
+  selected.value = null;
+  refreshChoropleth();
 }
 
 function circleIcon(fill: string, stroke: string, scale: number): google.maps.Symbol {
@@ -265,6 +367,7 @@ function selectBarangay(geoName: string) {
 }
 
 function selectParcel(p: any) {
+  skipMapClick = true;
   const mapped = String(p.geotag_status || '').toLowerCase() === 'mapped' || (p.boundary_points?.length ?? 0) >= 3;
   selected.value = {
     kind: 'parcel',
@@ -283,6 +386,7 @@ function selectParcel(p: any) {
 }
 
 function selectPest(p: any) {
+  skipMapClick = true;
   const rec = p.recommendation || 'Coordinate with the assigned MAO technician.';
   const brgy = p.brgy || 'Echague';
   selected.value = {
@@ -306,20 +410,22 @@ function selectPest(p: any) {
 }
 
 function selectDamage(d: any) {
+  skipMapClick = true;
   const brgy = d.brgy || 'Echague';
+  const pct = Number(d.damage_percentage ?? 0);
   selected.value = {
     kind: 'damage',
-    kindLabel: 'Severe crop damage',
+    kindLabel: 'Calamity report',
     title: d.calamity_name || 'Damage report',
     rows: [
-      { label: 'Damage', value: `${d.damage_percentage}%` },
+      { label: 'Damage', value: `${pct}%` },
       { label: 'Barangay', value: brgy },
       { label: 'Farmer', value: d.farmer_name || '—' },
       { label: 'Status', value: d.status || '—' },
     ],
     sms: {
       barangay: brgy,
-      message: `MAO Echague Advisory: ${d.calamity_name || 'Calamity'} damage (${d.damage_percentage}%) in ${brgy}. Await ocular inspection guidance.`,
+      message: `MAO Echague Advisory: ${d.calamity_name || 'Calamity'} damage (${pct}%) in ${brgy}. Await ocular inspection guidance.`,
     },
   };
   refreshChoropleth();
@@ -332,6 +438,7 @@ function clearOverlays() {
   damageMarkers.splice(0).forEach((m) => m.setMap(null));
   pulseOverlays.splice(0).forEach((o) => o.setMap(null));
   pestClusterer?.clearMarkers();
+  damageClusterer?.clearMarkers();
 }
 
 function addPulse(position: google.maps.LatLngLiteral) {
@@ -371,8 +478,8 @@ function renderOverlays() {
           paths: path,
           strokeColor: stroke,
           strokeWeight: 2,
-          fillColor: stroke,
-          fillOpacity: 0.2,
+          fillColor: PARCEL_GREEN,
+          fillOpacity: 0.25,
           zIndex: 4,
           map,
         });
@@ -392,10 +499,7 @@ function renderOverlays() {
   }
 
   if (layers.pests) {
-    const pests = (lastPayload.value.pest_outbreaks ?? []).filter((p: any) => {
-      const status = String(p.status || '').toLowerCase();
-      return !status || status === 'active' || status === 'reported';
-    });
+    const pests = (lastPayload.value.pest_outbreaks ?? []).filter(isActivePest);
     pests.forEach((p: any) => {
       const high = isCriticalSeverity(p.severity);
       const fill = high ? '#b91c1c' : '#eab308';
@@ -412,18 +516,17 @@ function renderOverlays() {
   }
 
   if (layers.flood) {
-    (lastPayload.value.damage_points ?? [])
-      .filter((d: any) => Number(d.damage_percentage || 0) >= 50)
-      .forEach((d: any) => {
-        const marker = new google.maps.Marker({
-          position: { lat: Number(d.lat), lng: Number(d.lng) },
-          map,
-          icon: circleIcon('#ef4444', '#7f1d1d', 7),
-          zIndex: 7,
-        });
-        marker.addListener('click', () => selectDamage(d));
-        damageMarkers.push(marker);
+    (lastPayload.value.damage_points ?? []).forEach((d: any) => {
+      const severe = Number(d.damage_percentage || 0) >= 50;
+      const marker = new google.maps.Marker({
+        position: { lat: Number(d.lat), lng: Number(d.lng) },
+        icon: circleIcon(severe ? '#ef4444' : '#f59e0b', '#7f1d1d', severe ? 8 : 6),
+        zIndex: 7,
       });
+      marker.addListener('click', () => selectDamage(d));
+      damageMarkers.push(marker);
+    });
+    damageClusterer = new MarkerClusterer({ map, markers: damageMarkers });
   }
 }
 
@@ -438,19 +541,22 @@ async function initMap() {
     mapLoadError.value = err?.message ?? 'Failed to load Google Maps.';
     return;
   }
-  map = new google.maps.Map(mapEl.value, {
-    center: ECHAGUE,
+  map = new google.maps.Map(mapEl.value, echagueMapOptions({
+    mapTypeId: google.maps.MapTypeId.SATELLITE,
     zoom: 12,
-    mapTypeId: google.maps.MapTypeId.HYBRID,
-    mapTypeControl: false,
-    streetViewControl: false,
-    fullscreenControl: false,
-    gestureHandling: 'greedy',
-  });
+  }));
   map.data.setStyle(choroplethStyle);
   map.data.addListener('click', (e: google.maps.Data.MouseEvent) => {
+    skipMapClick = true;
     const geoName = String(e.feature.getProperty('adm4_name') ?? '');
     selectBarangay(geoName);
+  });
+  map.addListener('click', () => {
+    if (skipMapClick) {
+      skipMapClick = false;
+      return;
+    }
+    clearSelection();
   });
   google.maps.event.trigger(map, 'resize');
 }
@@ -488,6 +594,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   clearOverlays();
   pestClusterer = null;
+  damageClusterer = null;
   map = null;
 });
 </script>
@@ -522,8 +629,7 @@ onBeforeUnmount(() => {
   font-size: 0.75rem;
 }
 .basemap-switch { display: flex; gap: 0.35rem; }
-.basemap-switch button,
-.layer-chip {
+.basemap-switch button {
   border: 1px solid #334155;
   background: transparent;
   color: #e2e8f0;
@@ -534,8 +640,7 @@ onBeforeUnmount(() => {
   cursor: pointer;
   font-family: inherit;
 }
-.basemap-switch button.on,
-.layer-chip.on {
+.basemap-switch button.on {
   background: #1A4731;
   border-color: #1A4731;
   color: #fff;
@@ -547,9 +652,34 @@ onBeforeUnmount(() => {
   padding: 0.55rem 1rem 0.35rem;
 }
 .layer-chip {
-  border-color: #E2E8F0;
-  color: #475569;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  border: 1px solid #E2E8F0;
   background: #fff;
+  color: #64748B;
+  border-radius: 999px;
+  padding: 0.28rem 0.7rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+.layer-chip ion-icon { font-size: 0.9rem; }
+.layer-chip.chip-plots.on {
+  background: #16A34A;
+  border-color: #16A34A;
+  color: #fff;
+}
+.layer-chip.chip-pests.on {
+  background: #D97706;
+  border-color: #D97706;
+  color: #fff;
+}
+.layer-chip.chip-flood.on {
+  background: #334155;
+  border-color: #334155;
+  color: #fff;
 }
 
 .gis-split {
@@ -609,9 +739,9 @@ onBeforeUnmount(() => {
   text-transform: uppercase;
   color: #1A4731;
 }
-.inspector-empty {
+.inspector-hint {
   margin: 0.85rem 0 0;
-  font-size: 0.82rem;
+  font-size: 0.75rem;
   color: #64748b;
   line-height: 1.45;
 }
@@ -629,7 +759,7 @@ onBeforeUnmount(() => {
   font-weight: 800;
   color: #0f172a;
 }
-.inspector dl { margin: 0; }
+.inspector dl { margin: 0.45rem 0 0; }
 .inspector dl div {
   display: grid;
   grid-template-columns: 7.5rem 1fr;

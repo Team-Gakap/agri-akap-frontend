@@ -1,6 +1,29 @@
-export const TURNSTILE_SITE_KEY = (
-  import.meta.env.VITE_TURNSTILE_SITE_KEY || '0x4AAAAAAEdHn0r5QvzgfbDb'
-).trim();
+/** Cloudflare dummy key from docs — only valid on localhost, not production domains. */
+const PLACEHOLDER_SITE_KEY = '0x4AAAAAAEdHn0r5QvzgfbDb';
+
+/** Official Cloudflare test key (always passes) — localhost dev only. */
+const LOCALHOST_TEST_SITE_KEY = '1x00000000000000000000AA';
+
+function isLocalhost(): boolean {
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname;
+  return host === 'localhost' || host === '127.0.0.1';
+}
+
+function resolveSiteKey(): string {
+  const configured = (import.meta.env.VITE_TURNSTILE_SITE_KEY || '').trim();
+  if (configured && configured !== PLACEHOLDER_SITE_KEY) {
+    return configured;
+  }
+
+  if (import.meta.env.DEV && isLocalhost()) {
+    return LOCALHOST_TEST_SITE_KEY;
+  }
+
+  return '';
+}
+
+export const TURNSTILE_SITE_KEY = resolveSiteKey();
 
 const SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
 

@@ -38,7 +38,7 @@
             <div v-if="hasAssignedFarmer" class="action-hub-float">
               <span class="hub-label">Farmer Action Hub</span>
               <button type="button" class="refusal-btn" @click="openRefusalPrompt">
-                🚫 Log Georeferencing Refusal
+                Log Georeferencing Refusal
               </button>
             </div>
           </div>
@@ -153,7 +153,7 @@
                 :disabled="!currentPos || !hasAssignedFarmer"
                 @click="dropIncidentPin"
               >
-                📍 Drop Incident Pin Here
+                Drop Incident Pin Here
               </ion-button>
             </div>
           </template>
@@ -343,7 +343,7 @@
               @click="capturePhotoEvidence"
             >
               <ion-icon slot="start" :icon="cameraOutline"></ion-icon>
-              {{ capturingPhoto ? 'Opening Camera…' : '📸 Take Photo of Farmer at Location' }}
+              {{ capturingPhoto ? 'Opening Camera…' : 'Take Photo of Farmer at Location' }}
             </ion-button>
             <div v-if="meta.photoPreviewSrc" class="thumb-wrap">
               <img :src="meta.photoPreviewSrc" alt="Field evidence thumbnail" class="thumb" />
