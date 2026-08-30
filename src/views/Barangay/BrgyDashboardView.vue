@@ -21,11 +21,7 @@
 
       <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4 p-4">
         <header class="page-intro lg:col-span-12">
-          <div>
-            <p class="eyebrow">Barangay Portal · LGU Echague</p>
-            <h1>Barangay {{ barangayName }} · Command Center</h1>
-          </div>
-          <p class="officer">Assigned officer: {{ officerName }}</p>
+          <h1>Barangay {{ barangayName }} · Command Center</h1>
         </header>
 
         <!-- ── 1. Descriptive KPI belt (4 cards) ──────────────────────── -->
@@ -347,7 +343,6 @@ const authStore = useAuthStore();
 
 const assignedBarangay = computed(() => authStore.user?.assigned_barangay || null);
 const barangayName = computed(() => assignedBarangay.value || 'Barangay');
-const officerName = computed(() => authStore.user?.name || 'Barangay encoder');
 
 const loading = ref(false);
 const loaded = ref(false);
@@ -742,31 +737,14 @@ onIonViewWillEnter(() => {
 
 .page-intro {
   display: flex;
-  justify-content: space-between;
   align-items: flex-end;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-}
-.eyebrow {
-  margin: 0;
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #D4AF37;
 }
 .page-intro h1 {
-  margin: 0.2rem 0 0;
+  margin: 0;
   font-size: clamp(1.25rem, 2.4vw, 1.7rem);
   font-weight: 900;
   color: #1A4731;
   letter-spacing: -0.02em;
-}
-.officer {
-  margin: 0;
-  font-size: 0.78rem;
-  font-weight: 700;
-  color: #64748b;
 }
 
 .warn-banner {

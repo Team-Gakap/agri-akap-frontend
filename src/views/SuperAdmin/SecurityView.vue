@@ -5,7 +5,6 @@
     <ion-content class="rpt-content">
       <div class="rpt-shell">
         <header class="intro">
-          <p class="eyebrow">{{ isSuper ? 'SuperAdmin' : 'MAO Administrator' }}</p>
           <h1>Account security</h1>
           <p class="lede">Authenticator enrollment is required. SMS is an optional fallback after TOTP is confirmed.</p>
         </header>
@@ -82,7 +81,7 @@
 
 <script setup lang="ts">
 import AppHeader from '@/components/Navigation/AppHeader.vue';
-import { computed, onMounted, reactive, ref } from 'vue';
+import { onMounted, reactive, ref } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
   IonCard, IonCardContent, IonCardHeader, IonCardTitle, IonButton, IonSpinner,
@@ -90,10 +89,6 @@ import {
 } from '@ionic/vue';
 import apiClient from '@/utils/axios';
 import { presentToast } from '@/utils/toast';
-import { useAuthStore } from '@/stores/authStore';
-
-const auth = useAuthStore();
-const isSuper = computed(() => auth.isSuperAdmin);
 
 const loading = ref(true);
 const savingMobile = ref(false);
@@ -182,8 +177,7 @@ onMounted(() => { void load(); });
 .rpt-content { --background: #f4f8f5; }
 .rpt-shell { max-width: 720px; margin: 0 auto; padding: 1rem; }
 .intro { margin-bottom: 1rem; }
-.eyebrow { margin: 0; font-size: 0.78rem; letter-spacing: 0.04em; text-transform: uppercase; color: #64748b; font-weight: 700; }
-h1 { margin: 0.2rem 0; font-size: 1.5rem; color: #1a4731; }
+h1 { margin: 0 0 0.2rem; font-size: 1.5rem; color: #1a4731; }
 .lede { margin: 0; color: #475569; }
 .center-state { display: flex; justify-content: center; padding: 3rem; }
 .panel { margin: 0 0 0.9rem; }

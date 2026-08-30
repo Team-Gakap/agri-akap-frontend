@@ -4,11 +4,8 @@
       <ion-toolbar class="brand-toolbar">
         <div class="brand">
           <img class="brand-seal" src="@/assets/images/echague-logo.png" alt="MAO Echague seal" />
-          <div class="brand-copy">
-            <span class="brand-name">AGRI-AKAP</span>
-            <span class="brand-sub">Municipal Agriculture Office</span>
-            <span class="tier-pill">{{ tierLabel }}</span>
-          </div>
+          <span class="brand-name">AGRI-AKAP</span>
+          <span class="tier-tag">{{ tierLabel }}</span>
         </div>
       </ion-toolbar>
     </ion-header>
@@ -17,6 +14,22 @@
       <nav class="nav-scroll">
         <template v-for="group in groups" :key="group.key">
           <p class="nav-group-label">{{ group.label }}</p>
+
+          <ion-menu-toggle :auto-hide="false" v-for="item in group.items" :key="item.url">
+            <ion-item
+              button
+              router-direction="root"
+              :router-link="item.url"
+              lines="none"
+              :detail="false"
+              class="nav-item"
+              :class="{ active: isActive(item.url, item.exact) }"
+            >
+              <ion-icon slot="start" :icon="item.icon" class="nav-icon"></ion-icon>
+              <ion-label class="nav-label">{{ item.title }}</ion-label>
+              <span v-if="item.badge === 'pests' && pests > 0" class="count-pill">{{ pests }}</span>
+            </ion-item>
+          </ion-menu-toggle>
 
           <ion-accordion-group
             v-if="group.accordion"
@@ -52,7 +65,7 @@
             </ion-accordion>
           </ion-accordion-group>
 
-          <ion-menu-toggle :auto-hide="false" v-for="item in group.items" :key="item.url">
+          <ion-menu-toggle :auto-hide="false" v-for="item in (group.trailingItems || [])" :key="'trail-' + item.url">
             <ion-item
               button
               router-direction="root"
@@ -75,14 +88,18 @@
       <div class="session-row">
         <span class="avatar">{{ initials }}</span>
         <div class="session-copy">
-          <strong>{{ displayName }}</strong>
-          <span>{{ roleBadge }} • {{ syncStore.online ? 'Online' : 'Offline' }}</span>
+          <strong>{{ shortName }}</strong>
+          <span>({{ shortRole }})</span>
         </div>
+        <button
+          type="button"
+          class="logout-icon"
+          aria-label="Logout"
+          @click="handleLogout"
+        >
+          <ion-icon :icon="logOutOutline"></ion-icon>
+        </button>
       </div>
-      <ion-button fill="outline" class="logout-btn" @click="handleLogout">
-        <ion-icon slot="start" :icon="logOutOutline"></ion-icon>
-        Logout
-      </ion-button>
     </ion-footer>
   </ion-menu>
 </template>
@@ -92,7 +109,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import {
   IonMenu, IonHeader, IonToolbar, IonContent, IonFooter, IonItem, IonLabel,
-  IonIcon, IonMenuToggle, IonAccordionGroup, IonAccordion, IonButton,
+  IonIcon, IonMenuToggle, IonAccordionGroup, IonAccordion,
 } from '@ionic/vue';
 import {
   gridOutline, peopleOutline, idCardOutline, cubeOutline,
@@ -102,7 +119,6 @@ import {
   chevronForwardOutline, documentsOutline,
 } from 'ionicons/icons';
 import { useAuthStore } from '@/stores/authStore';
-import { useSyncStore } from '@/stores/syncStore';
 import { usePortalAlerts } from '@/composables/usePortalAlerts';
 
 export type PortalKind = 'admin' | 'barangay' | 'superadmin';
@@ -111,7 +127,6 @@ const props = defineProps<{ portal: PortalKind }>();
 
 const route = useRoute();
 const authStore = useAuthStore();
-const syncStore = useSyncStore();
 const { pests, fetchAlerts } = usePortalAlerts();
 
 const contentId = computed(() => ({
@@ -121,9 +136,9 @@ const contentId = computed(() => ({
 }[props.portal]));
 
 const tierLabel = computed(() => ({
-  admin: 'Central Admin',
-  barangay: 'Barangay Portal',
-  superadmin: 'System Governance',
+  admin: 'Admin',
+  barangay: 'Barangay',
+  superadmin: 'Governance',
 }[props.portal]));
 
 const displayName = computed(() => authStore.userName || 'MAO User');
@@ -133,11 +148,17 @@ const initials = computed(() => {
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 });
-const roleBadge = computed(() => {
+const shortName = computed(() => {
+  const parts = displayName.value.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return 'MAO User';
+  if (parts.length === 1) return parts[0];
+  return `${parts[0]} ${parts[parts.length - 1][0]}.`;
+});
+const shortRole = computed(() => {
   switch (authStore.userRole) {
     case 'super_admin': return 'Superadmin';
-    case 'admin': return 'MAO Lead Admin';
-    case 'barangay_official': return 'Barangay Encoder';
+    case 'admin': return 'Admin';
+    case 'barangay_official': return 'Encoder';
     default: return 'Staff';
   }
 });
@@ -161,6 +182,7 @@ interface NavGroup {
   label: string;
   items: NavItem[];
   accordion?: NavAccordion;
+  trailingItems?: NavItem[];
 }
 
 const reportChildrenAdmin: NavItem[] = [
@@ -193,9 +215,9 @@ const groups = computed<NavGroup[]>(() => {
         label: 'Governance',
         items: [
           { title: 'Dashboard', url: '/superadmin/dashboard', icon: homeOutline, exact: true },
-          { title: 'User Accounts', url: '/superadmin/users', icon: peopleOutline },
+          { title: 'Users', url: '/superadmin/users', icon: peopleOutline },
           { title: 'Security', url: '/superadmin/security', icon: shieldCheckmarkOutline },
-          { title: 'SMS Gateway', url: '/superadmin/sms', icon: chatbubblesOutline },
+          { title: 'SMS', url: '/superadmin/sms', icon: chatbubblesOutline },
         ],
       },
       {
@@ -212,19 +234,11 @@ const groups = computed<NavGroup[]>(() => {
   if (props.portal === 'barangay') {
     return [
       {
-        key: 'core',
-        label: 'Core Operations',
+        key: 'ops',
+        label: 'Operations',
         items: [
           { title: 'Dashboard', url: '/brgy/dashboard', icon: gridOutline, exact: true },
           { title: 'Farmers', url: '/brgy/farmers', icon: peopleOutline },
-        ],
-      },
-      {
-        key: 'field',
-        label: 'Field Encoding',
-        items: [
-          { title: 'Pest Incidents', url: '/brgy/pest-monitoring', icon: bugOutline, badge: 'pests' },
-          { title: 'Damage Assessments', url: '/brgy/calamity-assessment', icon: thunderstormOutline },
         ],
         accordion: {
           key: 'crops',
@@ -233,66 +247,41 @@ const groups = computed<NavGroup[]>(() => {
           prefix: '',
           children: cropChildren,
         },
+        trailingItems: [
+          { title: 'Pest Incidents', url: '/brgy/pest-monitoring', icon: bugOutline, badge: 'pests' },
+          { title: 'Disaster Reports', url: '/brgy/calamity-assessment', icon: thunderstormOutline },
+        ],
       },
       {
         key: 'reports',
-        label: 'Statutory Audit & Reports',
-        items: [],
-        accordion: {
-          key: 'reports',
-          title: 'Executive Reports',
-          icon: documentTextOutline,
-          prefix: '/brgy/reports',
-          children: reportChildrenBrgy,
-        },
+        label: 'Reports',
+        items: reportChildrenBrgy,
       },
     ];
   }
 
-  const adminGroups: NavGroup[] = [
-    {
-      key: 'core',
-      label: 'Core Operations',
-      items: [
-        { title: 'Command Center', url: '/admin/dashboard', icon: gridOutline, exact: true },
-        { title: 'Farmer Registry (RSBSA)', url: '/admin/farmers', icon: peopleOutline },
-        { title: 'ID Card Production', url: '/admin/id-issuance', icon: idCardOutline },
-        { title: 'Subsidy Campaigns', url: '/admin/subsidies', icon: cubeOutline },
-      ],
-    },
-    {
-      key: 'intel',
-      label: 'Intelligence & Field',
-      items: [
-        { title: 'Outreach & SMS Broadcast', url: '/admin/broadcasts', icon: chatboxEllipsesOutline },
-        { title: 'Agro-Climate Monitor', url: '/admin/weather', icon: cloudOutline },
-      ],
-    },
-    {
-      key: 'reports',
-      label: 'Statutory Audit & Reports',
-      items: [],
-      accordion: {
-        key: 'reports',
-        title: 'Executive Reports',
-        icon: documentTextOutline,
-        prefix: '/admin/reports',
-        children: reportChildrenAdmin,
-      },
-    },
+  const adminOps: NavItem[] = [
+    { title: 'Command Center', url: '/admin/dashboard', icon: gridOutline, exact: true },
+    { title: 'Farmers', url: '/admin/farmers', icon: peopleOutline },
+    { title: 'ID Cards', url: '/admin/id-issuance', icon: idCardOutline },
+    { title: 'Subsidies', url: '/admin/subsidies', icon: cubeOutline },
+    { title: 'SMS', url: '/admin/broadcasts', icon: chatboxEllipsesOutline },
+    { title: 'Climate', url: '/admin/weather', icon: cloudOutline },
   ];
 
   if (authStore.isSuperAdmin) {
-    adminGroups.push({
-      key: 'gov',
-      label: 'Governance',
-      items: [
-        { title: 'System Console', url: '/superadmin/dashboard', icon: shieldCheckmarkOutline, exact: true },
-      ],
+    adminOps.push({
+      title: 'System Console',
+      url: '/superadmin/dashboard',
+      icon: shieldCheckmarkOutline,
+      exact: true,
     });
   }
 
-  return adminGroups;
+  return [
+    { key: 'ops', label: 'Operations', items: adminOps },
+    { key: 'reports', label: 'Reports', items: reportChildrenAdmin },
+  ];
 });
 
 const expanded = ref<Record<string, boolean>>({});
@@ -347,55 +336,62 @@ onMounted(() => {
   --background: #ffffff;
   border-right: 1px solid #E2E8F0;
 }
+.brand-header {
+  box-shadow: none;
+}
+.brand-header::after {
+  display: none !important;
+}
 .brand-toolbar {
   --background: #ffffff;
   --color: #0f172a;
   --border-width: 0 0 1px 0;
   --border-color: #E2E8F0;
-  --min-height: 76px;
+  --min-height: 64px;
+  --padding-top: 0;
+  --padding-bottom: 0;
   --padding-start: 12px;
   --padding-end: 12px;
+  height: 64px;
+  min-height: 64px;
+  overflow: hidden;
+}
+.brand-toolbar :deep(.toolbar-container) {
+  min-height: 64px;
+  height: 64px;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 .brand {
   display: flex;
   align-items: center;
-  gap: 0.65rem;
-  padding: 0.35rem 0;
+  gap: 0.5rem;
+  min-width: 0;
+  height: 64px;
 }
 .brand-seal {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   object-fit: contain;
   flex-shrink: 0;
 }
-.brand-copy {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  line-height: 1.15;
-}
 .brand-name {
   font-weight: 800;
-  font-size: 1rem;
+  font-size: 0.95rem;
   letter-spacing: 0.04em;
   color: #0f172a;
+  white-space: nowrap;
 }
-.brand-sub {
-  font-size: 0.72rem;
-  font-weight: 500;
-  color: #64748b;
-}
-.tier-pill {
-  margin-top: 0.25rem;
-  align-self: flex-start;
-  font-size: 0.6rem;
+.tier-tag {
+  flex-shrink: 0;
+  font-size: 0.58rem;
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: #1A4731;
   background: #E8F5E9;
   border-radius: 999px;
-  padding: 0.12rem 0.45rem;
+  padding: 0.12rem 0.4rem;
 }
 
 ion-content { --background: #ffffff; }
@@ -462,21 +458,26 @@ ion-content { --background: #ffffff; }
 .session-footer {
   border-top: 1px solid #E2E8F0;
   background: #ffffff;
-  padding: 0.7rem 0.85rem 0.85rem;
+  height: 60px;
+  min-height: 60px;
+  padding: 0 0.75rem;
+  display: flex;
+  align-items: center;
 }
 .session-row {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
-  margin-bottom: 0.55rem;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
 }
 .avatar {
-  width: 34px;
-  height: 34px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   background: #1A4731;
   color: #fff;
-  font-size: 0.7rem;
+  font-size: 0.68rem;
   font-weight: 800;
   display: flex;
   align-items: center;
@@ -485,8 +486,10 @@ ion-content { --background: #ffffff; }
 }
 .session-copy {
   display: flex;
-  flex-direction: column;
+  align-items: baseline;
+  gap: 0.28rem;
   min-width: 0;
+  flex: 1;
   line-height: 1.2;
 }
 .session-copy strong {
@@ -500,29 +503,32 @@ ion-content { --background: #ffffff; }
   font-size: 0.65rem;
   font-weight: 650;
   color: #64748b;
+  flex-shrink: 0;
 }
-.logout-btn {
-  --border-color: #fecaca;
-  --color: #b91c1c;
-  --border-radius: 10px;
-  --padding-start: 10px;
-  --padding-end: 10px;
-  width: 100%;
-  margin: 0;
-  text-transform: none;
-  font-weight: 700;
-  font-size: 0.8rem;
+.logout-icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fff;
+  color: #b91c1c;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1.15rem;
 }
 
 @media (max-width: 700px) {
   ion-menu { --width: 56px !important; --max-width: 56px !important; --border: none !important; }
-  .brand-copy, .nav-group-label, .nav-label, .count-pill, .session-copy, .logout-btn { display: none !important; }
-  .brand { justify-content: center; padding: 0; }
-  .brand-toolbar { --min-height: 56px; --padding-start: 0; --padding-end: 0; }
+  .brand-name, .tier-tag, .nav-group-label, .nav-label, .count-pill, .session-copy { display: none !important; }
+  .brand { justify-content: center; }
+  .brand-toolbar { --padding-start: 0; --padding-end: 0; }
   .nav-item { --padding-start: 0; --inner-padding-end: 0; --min-height: 52px; justify-content: center; margin: 0; border-left-width: 0; }
   .nav-icon { font-size: 22px; margin: 0 auto !important; margin-inline-end: 0 !important; }
   .nav-children { display: none !important; }
-  .session-footer { padding: 0.4rem 0; display: flex; justify-content: center; }
-  .session-row { margin: 0; }
+  .session-footer { padding: 0; justify-content: center; }
+  .session-row { justify-content: center; }
 }
 </style>

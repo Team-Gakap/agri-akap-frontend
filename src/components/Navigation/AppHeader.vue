@@ -5,24 +5,22 @@
         <ion-menu-button class="akap-menu-btn"></ion-menu-button>
       </ion-buttons>
 
-      <ion-title class="crumb-title">
-        <div class="crumb-wrap">
-          <nav class="crumbs" aria-label="Breadcrumb">
-            <span class="crumb-root">{{ portalLabel }}</span>
-            <span class="crumb-sep" aria-hidden="true">/</span>
-            <span class="crumb-page">{{ pageTitle }}</span>
-          </nav>
-          <span v-if="localityBadge" class="locality-pill">{{ localityBadge }}</span>
+      <ion-title class="page-title-slot">
+        <div class="title-wrap">
+          <span class="page-title">{{ pageTitle }}</span>
+          <span v-if="localityBadge" class="locality-pill">
+            <ion-icon :icon="locationOutline" aria-hidden="true"></ion-icon>
+            {{ localityBadge }}
+          </span>
         </div>
       </ion-title>
 
       <ion-buttons slot="end" class="tray">
         <div class="status-chip" :class="{ offline: !syncStore.online }">
           <span class="status-dot"></span>
-          <span v-if="syncStore.online">System Online</span>
+          <span v-if="syncStore.online">Online</span>
           <span v-else>Offline Queue: {{ syncStore.pending }}</span>
         </div>
-        <time class="clock" :datetime="nowIso">{{ clockLabel }}</time>
 
         <button
           v-if="showAlerts"
@@ -50,14 +48,11 @@
           id="akap-profile-trigger"
           type="button"
           class="profile-btn"
+          aria-label="Account menu"
           aria-haspopup="true"
           @click="profileOpen = true"
         >
           <span class="avatar">{{ initials }}</span>
-          <span class="profile-meta">
-            <strong>{{ displayName }}</strong>
-            <em>{{ roleBadge }}</em>
-          </span>
         </button>
       </ion-buttons>
     </ion-toolbar>
@@ -93,8 +88,6 @@
     @didDismiss="profileOpen = false"
   >
     <div class="popover-card profile-menu">
-      <p class="popover-kicker">{{ displayName }}</p>
-      <p class="popover-sub">{{ roleBadge }}</p>
       <button type="button" class="popover-row" @click="go('/change-password')">Account Settings</button>
       <button
         v-if="authStore.isSuperAdmin"
@@ -110,12 +103,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   IonHeader, IonToolbar, IonTitle, IonButtons, IonMenuButton, IonIcon, IonPopover,
 } from '@ionic/vue';
-import { notificationsOutline, refreshOutline } from 'ionicons/icons';
+import { notificationsOutline, refreshOutline, locationOutline } from 'ionicons/icons';
 import { useAuthStore } from '@/stores/authStore';
 import { useSyncStore } from '@/stores/syncStore';
 import { usePortalAlerts } from '@/composables/usePortalAlerts';
@@ -128,21 +121,12 @@ const { pests, calamities, threatTotal, fetchAlerts } = usePortalAlerts();
 
 const profileOpen = ref(false);
 const alertsOpen = ref(false);
-const nowIso = ref(new Date().toISOString());
-const clockLabel = ref(formatClock());
-let clockTimer: ReturnType<typeof setInterval> | null = null;
 
 const pageTitle = computed(() => String(route.meta.title || 'Portal'));
 
-const portalLabel = computed(() => {
-  if (route.path.startsWith('/superadmin')) return 'System Governance';
-  return 'Echague MAO Portal';
-});
-
 const localityBadge = computed(() => {
   if (authStore.userRole !== 'barangay_official') return '';
-  const brgy = authStore.user?.assigned_barangay?.trim();
-  return brgy ? `Brgy. ${brgy}` : '';
+  return authStore.user?.assigned_barangay?.trim() || '';
 });
 
 const showAlerts = computed(() =>
@@ -172,29 +156,6 @@ const initials = computed(() => {
   return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
 });
 
-const roleBadge = computed(() => {
-  switch (authStore.userRole) {
-    case 'super_admin': return 'Superadmin';
-    case 'admin': return 'MAO Lead Admin';
-    case 'barangay_official': return 'Barangay Encoder';
-    case 'technician': return 'Technician';
-    default: return 'Staff';
-  }
-});
-
-function formatClock(): string {
-  const d = new Date();
-  const opts: Intl.DateTimeFormatOptions = { timeZone: 'Asia/Manila' };
-  const date = d.toLocaleDateString('en-US', { ...opts, month: 'long', day: 'numeric', year: 'numeric' });
-  const time = d.toLocaleTimeString('en-US', { ...opts, hour: 'numeric', minute: '2-digit' });
-  return `${date} • ${time} PHT`;
-}
-
-function tickClock() {
-  nowIso.value = new Date().toISOString();
-  clockLabel.value = formatClock();
-}
-
 async function refreshTelemetry() {
   await syncStore.recheck();
   await fetchAlerts(true);
@@ -218,69 +179,75 @@ function logout() {
 }
 
 onMounted(() => {
-  tickClock();
-  clockTimer = setInterval(tickClock, 30_000);
   void fetchAlerts();
-});
-
-onBeforeUnmount(() => {
-  if (clockTimer) clearInterval(clockTimer);
 });
 </script>
 
 <style scoped>
+.akap-header-wrap {
+  box-shadow: none;
+}
+.akap-header-wrap::after {
+  display: none !important;
+}
 .akap-toolbar {
   --background: #ffffff;
   --color: #0f172a;
   --border-width: 0 0 1px 0;
   --border-color: #E2E8F0;
-  --min-height: 58px;
+  --min-height: 64px;
+  --padding-top: 0;
+  --padding-bottom: 0;
   --padding-start: 8px;
   --padding-end: 10px;
+  height: 64px;
+  min-height: 64px;
+  overflow: hidden;
+}
+.akap-toolbar :deep(.toolbar-container) {
+  min-height: 64px;
+  height: 64px;
+  padding-top: 0;
+  padding-bottom: 0;
 }
 .akap-menu-btn { --color: #1A4731; }
-.crumb-title {
+.page-title-slot {
   padding-inline: 0;
   text-align: start;
 }
 
-.crumb-wrap {
+.title-wrap {
   display: flex;
   align-items: center;
   gap: 0.55rem;
   min-width: 0;
   padding-inline-start: 0.15rem;
 }
-.crumbs {
-  display: flex;
-  align-items: baseline;
-  gap: 0.35rem;
-  min-width: 0;
-  font-weight: 700;
-}
-.crumb-root {
-  color: #1A4731;
-  font-size: 0.78rem;
-  white-space: nowrap;
-}
-.crumb-sep { color: #cbd5e1; font-weight: 600; }
-.crumb-page {
+.page-title {
+  margin: 0;
   color: #0f172a;
-  font-size: 0.92rem;
+  font-size: 1.05rem;
   font-weight: 800;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  line-height: 1.2;
 }
 .locality-pill {
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
   font-size: 0.65rem;
   font-weight: 800;
   color: #1A4731;
   background: #E8F5E9;
   border: 1px solid #cfe3d4;
   border-radius: 999px;
-  padding: 0.18rem 0.5rem;
+  padding: 0.18rem 0.5rem 0.18rem 0.38rem;
+}
+.locality-pill ion-icon {
+  font-size: 0.78rem;
 }
 
 .tray {
@@ -315,12 +282,6 @@ onBeforeUnmount(() => {
   background: #16a34a;
 }
 .status-chip.offline .status-dot { background: #ea580c; }
-.clock {
-  font-size: 0.7rem;
-  font-weight: 650;
-  color: #64748b;
-  white-space: nowrap;
-}
 .icon-btn {
   position: relative;
   width: 36px;
@@ -357,11 +318,13 @@ onBeforeUnmount(() => {
 .profile-btn {
   display: inline-flex;
   align-items: center;
-  gap: 0.45rem;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
   border: 1px solid #E2E8F0;
   background: #fff;
-  border-radius: 999px;
-  padding: 0.15rem 0.55rem 0.15rem 0.15rem;
+  border-radius: 50%;
   cursor: pointer;
   font-family: inherit;
 }
@@ -377,44 +340,16 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: center;
 }
-.profile-meta {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  line-height: 1.15;
-  text-align: left;
-}
-.profile-meta strong {
-  font-size: 0.72rem;
-  color: #0f172a;
-  font-weight: 800;
-  max-width: 140px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.profile-meta em {
-  font-style: normal;
-  font-size: 0.6rem;
-  font-weight: 700;
-  color: #D4AF37;
-}
 
 .popover-card {
-  min-width: 240px;
-  padding: 0.7rem 0.75rem 0.55rem;
+  min-width: 220px;
+  padding: 0.35rem 0.75rem 0.4rem;
 }
 .popover-kicker {
   margin: 0;
   font-size: 0.72rem;
   font-weight: 800;
   color: #1A4731;
-}
-.popover-sub {
-  margin: 0.1rem 0 0.45rem;
-  font-size: 0.68rem;
-  color: #64748b;
-  font-weight: 600;
 }
 .popover-row {
   display: flex;
@@ -437,10 +372,9 @@ onBeforeUnmount(() => {
   font-size: 0.75rem;
   color: #94a3b8;
 }
-.profile-menu .popover-row:first-of-type { border-top: 1px solid #E2E8F0; }
+.profile-menu .popover-row:first-of-type { border-top: 0; }
 
 @media (max-width: 900px) {
-  .clock, .status-chip, .profile-meta { display: none; }
-  .profile-btn { padding: 0.15rem; border-radius: 50%; }
+  .status-chip { display: none; }
 }
 </style>

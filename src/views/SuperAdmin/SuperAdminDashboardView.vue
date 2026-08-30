@@ -5,7 +5,6 @@
     <ion-content class="dash-bg ion-padding">
       <div class="shell">
         <header class="intro">
-          <p class="eyebrow">AGRI-AKAP &middot; SuperAdmin</p>
           <h1>System Governance</h1>
           <p class="lede">User lifecycle, session control, and immutable audit trails.</p>
         </header>
@@ -131,8 +130,7 @@ onMounted(() => { void load(); });
 .dash-bg { --background: #f4f8f5; }
 .shell { max-width: 1100px; margin: 0 auto; }
 .intro { margin-bottom: 1.25rem; }
-.eyebrow { margin: 0; font-size: 0.78rem; letter-spacing: 0.04em; text-transform: uppercase; color: #64748b; font-weight: 700; }
-h1 { margin: 0.2rem 0; font-size: 1.6rem; color: #1a4731; }
+h1 { margin: 0 0 0.2rem; font-size: 1.6rem; color: #1a4731; }
 .lede { margin: 0; color: #475569; }
 .center-state { display: flex; justify-content: center; padding: 3rem; }
 .kpi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1rem; }

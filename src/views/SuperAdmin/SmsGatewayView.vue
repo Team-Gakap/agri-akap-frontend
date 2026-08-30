@@ -5,7 +5,6 @@
     <ion-content class="rpt-content">
       <div class="rpt-shell">
         <header class="intro">
-          <p class="eyebrow">SuperAdmin</p>
           <h1>SMS gateway</h1>
           <p class="lede">
             Choose whether farmer and staff SMS goes through IPROG or Semaphore.
@@ -148,8 +147,7 @@ onMounted(() => { void load(); });
 .rpt-content { --background: #f4f8f5; }
 .rpt-shell { max-width: 720px; margin: 0 auto; padding: 1rem; }
 .intro { margin-bottom: 1rem; }
-.eyebrow { margin: 0; font-size: 0.78rem; letter-spacing: 0.04em; text-transform: uppercase; color: #64748b; font-weight: 700; }
-h1 { margin: 0.2rem 0; font-size: 1.5rem; color: #1a4731; }
+h1 { margin: 0 0 0.2rem; font-size: 1.5rem; color: #1a4731; }
 .lede { margin: 0; color: #475569; }
 .center-state { display: flex; justify-content: center; padding: 3rem; }
 .panel { margin: 0 0 0.9rem; }

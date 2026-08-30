@@ -5,7 +5,6 @@
     <ion-content class="dashboard-bg">
       <div class="shell">
         <header class="intro no-print">
-          <p class="eyebrow">LGU Echague · Municipal Agriculture Office</p>
           <h1>Executive Command Center</h1>
         </header>
 
@@ -655,16 +654,8 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchAll));
   padding: 1rem 1rem 1.75rem;
 }
 .intro { margin-bottom: 1rem; }
-.eyebrow {
-  margin: 0;
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: #D4AF37;
-}
 .intro h1 {
-  margin: 0.25rem 0 0;
+  margin: 0;
   font-size: clamp(1.45rem, 2.6vw, 1.85rem);
   font-weight: 900;
   color: #1A4731;
