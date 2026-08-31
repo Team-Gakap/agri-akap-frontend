@@ -105,7 +105,7 @@
         </div>
       </div>
 
-      <div v-if="!embedded" class="form-preview print-document">
+      <div v-if="!embedded" class="form-preview print-document print-only">
         <HarvestingPrint
           :rows="previewRows"
           :barangay="effectiveBarangay || ''"

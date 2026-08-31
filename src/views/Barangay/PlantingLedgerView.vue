@@ -134,7 +134,7 @@
         </div>
       </div>
 
-      <div v-if="!embedded" class="form-preview print-document">
+      <div v-if="!embedded" class="form-preview print-document print-only">
         <PlantingLedgerPrint
           :rows="previewRows"
           :barangay="effectiveBarangay || ''"

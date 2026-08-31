@@ -117,7 +117,7 @@
         </div>
       </div>
 
-      <div v-if="!embedded" class="form-preview print-document">
+      <div v-if="!embedded" class="form-preview print-document print-only">
         <StandingCropPrint
           :rows="previewRows"
           :barangay="effectiveBarangay || ''"

@@ -114,7 +114,7 @@ import {
 import {
   gridOutline, peopleOutline, idCardOutline, cubeOutline,
   chatboxEllipsesOutline, cloudOutline, documentTextOutline,
-  homeOutline, leafOutline, flowerOutline, basketOutline, bugOutline, thunderstormOutline,
+  homeOutline, leafOutline, bugOutline, thunderstormOutline,
   shieldCheckmarkOutline, chatbubblesOutline, briefcaseOutline, logOutOutline,
   chevronForwardOutline, documentsOutline,
 } from 'ionicons/icons';
@@ -192,19 +192,6 @@ const reportChildrenAdmin: NavItem[] = [
   { title: 'Damage & Calamity', url: '/admin/reports/damage-calamity', icon: thunderstormOutline },
 ];
 
-const reportChildrenBrgy: NavItem[] = [
-  { title: 'Crop Production', url: '/brgy/reports/crop-production', icon: leafOutline },
-  { title: 'Pest Surveillance', url: '/brgy/reports/pest-surveillance', icon: bugOutline, badge: 'pests' },
-  { title: 'Damage & Calamity', url: '/brgy/reports/damage-calamity', icon: thunderstormOutline },
-  { title: 'Subsidy Distribution', url: '/brgy/reports/subsidies', icon: documentsOutline },
-];
-
-const cropChildren: NavItem[] = [
-  { title: 'Planting Records', url: '/brgy/planting-ledger', icon: leafOutline },
-  { title: 'Standing Crops', url: '/brgy/standing-crop', icon: flowerOutline },
-  { title: 'Harvest Records', url: '/brgy/harvesting', icon: basketOutline },
-];
-
 const groups = computed<NavGroup[]>(() => {
   if (props.portal === 'superadmin') {
     return [
@@ -232,28 +219,22 @@ const groups = computed<NavGroup[]>(() => {
   if (props.portal === 'barangay') {
     return [
       {
-        key: 'ops',
-        label: 'Operations',
+        key: 'dash',
+        label: 'Dashboard',
         items: [
           { title: 'Dashboard', url: '/brgy/dashboard', icon: gridOutline, exact: true },
           { title: 'Farmers', url: '/brgy/farmers', icon: peopleOutline },
         ],
-        accordion: {
-          key: 'crops',
-          title: 'Crop Records',
-          icon: leafOutline,
-          prefix: '',
-          children: cropChildren,
-        },
-        trailingItems: [
-          { title: 'Pest Incidents', url: '/brgy/pest-monitoring', icon: bugOutline, badge: 'pests' },
-          { title: 'Disaster Reports', url: '/brgy/calamity-assessment', icon: thunderstormOutline },
-        ],
       },
       {
-        key: 'reports',
-        label: 'Reports',
-        items: reportChildrenBrgy,
+        key: 'ledgers',
+        label: 'Field ledgers',
+        items: [
+          { title: 'Subsidy Claims', url: '/brgy/reports/subsidies', icon: documentsOutline },
+          { title: 'Crop Records', url: '/brgy/crop-records', icon: leafOutline },
+          { title: 'Pest Reports', url: '/brgy/pest-monitoring', icon: bugOutline, badge: 'pests' },
+          { title: 'Disaster Reports', url: '/brgy/calamity-assessment', icon: thunderstormOutline },
+        ],
       },
     ];
   }
@@ -314,8 +295,19 @@ function isActive(url: string, exact = false) {
   if (url === '/admin/reports/crop-production') {
     return route.path === url || route.path === '/admin/reports/standing-crop';
   }
-  if (url === '/brgy/reports/crop-production') {
-    return route.path === url || route.path === '/brgy/reports/standing-crop';
+  if (url === '/brgy/crop-records') {
+    return route.path === url
+      || route.path === '/brgy/planting-ledger'
+      || route.path === '/brgy/standing-crop'
+      || route.path === '/brgy/harvesting'
+      || route.path === '/brgy/reports/crop-production'
+      || route.path === '/brgy/reports/standing-crop';
+  }
+  if (url === '/brgy/pest-monitoring') {
+    return route.path === url || route.path === '/brgy/reports/pest-surveillance';
+  }
+  if (url === '/brgy/calamity-assessment') {
+    return route.path === url || route.path === '/brgy/reports/damage-calamity';
   }
   return route.path === url || route.path.startsWith(url + '/');
 }

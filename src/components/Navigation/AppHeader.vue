@@ -137,13 +137,13 @@ const showAlerts = computed(() =>
 
 const pestHref = computed(() =>
   authStore.userRole === 'barangay_official'
-    ? '/brgy/reports/pest-surveillance'
+    ? '/brgy/pest-monitoring'
     : '/admin/reports/pest-surveillance',
 );
 
 const damageHref = computed(() =>
   authStore.userRole === 'barangay_official'
-    ? '/brgy/reports/damage-calamity'
+    ? '/brgy/calamity-assessment'
     : '/admin/reports/damage-calamity',
 );
 

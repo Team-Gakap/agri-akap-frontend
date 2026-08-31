@@ -13,7 +13,103 @@
           @change="onTargetBarangayChange"
         />
 
+        <div v-if="!embedded" class="hub-toolbar">
+          <div class="mode-toggle-bar">
+            <button class="mode-btn" :class="{ active: viewMode === 'ledger' }" type="button" @click="setViewMode('ledger')">Registered records</button>
+            <button class="mode-btn" :class="{ active: viewMode === 'entry' }" type="button" @click="setViewMode('entry')">New report</button>
+          </div>
+        </div>
+
+        <div v-if="showLedger" class="ledger-panel">
+          <div class="filter-bar">
+            <div class="filter-group grow">
+              <label class="filter-label">Search</label>
+              <input class="filter-input" type="search" v-model="searchQuery" placeholder="Name or RSBSA" />
+            </div>
+            <div class="filter-group">
+              <label class="filter-label">Crop</label>
+              <select class="filter-select" :value="crop" @change="onCropFilterChange">
+                <option value="Corn">Corn</option>
+                <option value="Rice">Rice</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="ledger-card">
+            <div class="ledger-toolbar">
+              <div class="ledger-meta">
+                <h3>Registered records</h3>
+                <span class="ledger-count">{{ filteredEntries.length }} inspection(s) · {{ totalPlantedHa.toFixed(2) }} ha</span>
+              </div>
+              <FormExportActions @print="printForm" @excel="downloadExcel" />
+            </div>
+            <div class="table-scroll">
+              <table class="excel-table">
+                <thead>
+                  <tr>
+                    <th>NO.</th>
+                    <th>RSBSA NO.</th>
+                    <th>LAST NAME</th>
+                    <th>FIRST NAME</th>
+                    <th>MIDDLE NAME</th>
+                    <th>EXT NAME</th>
+                    <th>B-DAY</th>
+                    <th>FARMER ADDRESS</th>
+                    <th>FARM LOCATION</th>
+                    <th>AREA PLANTED</th>
+                    <th>DAYS AFTER PLANTING</th>
+                    <th>VARIETY</th>
+                    <th>AREA DAMAGE (%)</th>
+                    <th>DAMAGE BY PEST/DISEASES</th>
+                    <th class="no-print">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-if="!filteredEntries.length">
+                    <td colspan="15" class="empty-row">No pest records match the current filters.</td>
+                  </tr>
+                  <tr v-for="(e, i) in filteredEntries" :key="e.id">
+                    <td class="col-no">{{ i + 1 }}</td>
+                    <td class="mono">{{ e.rsbsa_no }}</td>
+                    <td>{{ e.surname }}</td>
+                    <td>{{ e.first_name }}</td>
+                    <td>{{ e.middle_name }}</td>
+                    <td>{{ e.ext_name }}</td>
+                    <td>{{ e.birthdate_display }}</td>
+                    <td>{{ e.farmer_address }}</td>
+                    <td>{{ e.farm_location }}</td>
+                    <td class="col-num">{{ Number(e.area_planted).toFixed(2) }}</td>
+                    <td class="col-num">{{ e.days_after_planting }}</td>
+                    <td>{{ e.variety }}</td>
+                    <td class="col-num">{{ e.area_damage_pct }}</td>
+                    <td>{{ e.damage_by }}</td>
+                    <td class="no-print">
+                      <img
+                        v-if="e.photo_url"
+                        :src="e.photo_url"
+                        class="ledger-thumb"
+                        alt="Evidence"
+                        @click="viewingPhoto = e.photo_url!"
+                      />
+                      <ion-button size="small" fill="clear" color="danger" @click="removeEntry(entries.indexOf(e))">Remove</ion-button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="ledger-footer">
+              <span>{{ pageMeta.total }} total · {{ totalPlantedHa.toFixed(2) }} ha on this view</span>
+              <div v-if="pageMeta.last > 1" class="pager">
+                <button type="button" :disabled="page <= 1" @click="page = Math.max(1, page - 1)">Prev</button>
+                <span>Page {{ page }} of {{ pageMeta.last }}</span>
+                <button type="button" :disabled="page >= pageMeta.last" @click="page = Math.min(pageMeta.last, page + 1)">Next</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <ion-select
+          v-if="showForm"
           class="field crop-field"
           label="Crop Type"
           label-placement="stacked"
@@ -25,7 +121,7 @@
           <ion-select-option value="Rice">Rice</ion-select-option>
         </ion-select>
 
-        <div class="form-card">
+        <div v-if="showForm" class="form-card">
           <h3>Add Report — {{ crop }}</h3>
           <p class="crop-hint">Only farmers with a {{ crop }} farm plot can be added on this form. Choose pest, disease, or both.</p>
 
@@ -119,31 +215,9 @@
           </ion-button>
         </div>
 
-        <div v-if="!embedded" class="preview-section no-print">
-          <div class="preview-toolbar">
-            <div class="preview-meta">
-              <h3>Form Preview</h3>
-              <span class="preview-count">{{ entries.length }} inspection(s)</span>
-            </div>
-            <FormExportActions @print="printForm" @excel="downloadExcel" />
-          </div>
-          <ul v-if="entries.length" class="entry-actions">
-            <li v-for="(e, i) in entries" :key="e.id">
-              <img
-                v-if="e.photo_url"
-                :src="e.photo_url"
-                class="ledger-thumb"
-                alt="Evidence"
-                @click="viewingPhoto = e.photo_url!"
-              />
-              <span>{{ i + 1 }}. {{ e.surname }}, {{ e.first_name }} — {{ e.variety || '—' }}</span>
-              <ion-button size="small" fill="clear" color="danger" @click="removeEntry(i)">Remove</ion-button>
-            </li>
-          </ul>
-        </div>
       </div>
 
-      <div v-if="!embedded" class="form-preview print-document">
+      <div v-if="!embedded" class="form-preview print-document print-only">
         <PestMonitoringPrint
           :rows="previewRows"
           :barangay="effectiveBarangay || ''"
@@ -162,7 +236,8 @@
 
 <script setup lang="ts">
 import AppHeader from '@/components/Navigation/AppHeader.vue';
-import { ref, reactive, computed, defineAsyncComponent, onMounted } from 'vue';
+import { ref, reactive, computed, defineAsyncComponent, onMounted, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
   IonButton, IonIcon, IonInput, IonSelect, IonSelectOption, IonItem, IonToggle,
@@ -185,8 +260,21 @@ import { loadPestCatalog, threatsForCrop } from '@/utils/pestCatalog';
 import { storageUrl } from '@/utils/storageUrl';
 const PestMonitoringPrint = defineAsyncComponent(() => import('@/components/PestMonitoringPrint.vue'));
 
-withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
+const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
 const emit = defineEmits<{ saved: [] }>();
+
+const route = useRoute();
+const router = useRouter();
+const viewMode = computed(() => (props.embedded || route.query.mode === 'entry' ? 'entry' : 'ledger'));
+const showForm = computed(() => props.embedded || viewMode.value === 'entry');
+const showLedger = computed(() => !props.embedded && viewMode.value === 'ledger');
+
+function setViewMode(mode: 'ledger' | 'entry') {
+  const query = { ...route.query } as Record<string, any>;
+  if (mode === 'entry') query.mode = 'entry';
+  else delete query.mode;
+  void router.replace({ query });
+}
 
 interface PestEntry {
   id: string;
@@ -225,9 +313,24 @@ const farmerSearch = useBarangayFarmerSearch(() => effectiveBarangay.value, {
 
 const entries = ref<PestEntry[]>([]);
 const viewingPhoto = ref<string | null>(null);
+const searchQuery = ref('');
+const page = ref(1);
+const pageMeta = reactive({ current: 1, last: 1, total: 0 });
+
+const filteredEntries = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase();
+  if (!q) return entries.value;
+  return entries.value.filter((e) =>
+    `${e.rsbsa_no} ${e.surname} ${e.first_name} ${e.middle_name} ${e.ext_name}`.toLowerCase().includes(q)
+  );
+});
+
+const totalPlantedHa = computed(() =>
+  filteredEntries.value.reduce((s, e) => s + Number(e.area_planted || 0), 0)
+);
 
 const previewRows = computed(() =>
-  entries.value.map((e) => ({
+  filteredEntries.value.map((e) => ({
     rsbsa_no: e.rsbsa_no,
     surname: e.surname,
     first_name: e.first_name,
@@ -325,17 +428,25 @@ const mapFarmerAddress = (f: any) =>
 const loadLedger = async () => {
   if (!effectiveBarangay.value) {
     entries.value = [];
+    pageMeta.current = 1;
+    pageMeta.last = 1;
+    pageMeta.total = 0;
     return;
   }
   try {
     const res = await apiClient.get('/pest-monitoring', {
       params: {
         per_page: 200,
+        page: page.value,
         crop_type: crop.value || undefined,
         barangay: effectiveBarangay.value,
       },
     });
-    const rows = res.data?.data?.data ?? [];
+    const paginator = res.data?.data ?? {};
+    const rows = paginator.data ?? [];
+    pageMeta.current = Number(paginator.current_page) || 1;
+    pageMeta.last = Number(paginator.last_page) || 1;
+    pageMeta.total = Number(paginator.total) || rows.length;
     entries.value = rows.map((r: any) => {
       const farmer = r.farmer || {};
       return {
@@ -369,9 +480,17 @@ const onTargetBarangayChange = () => {
   void loadLedger();
 };
 
+const onCropFilterChange = (e: Event) => {
+  crop.value = (e.target as HTMLSelectElement).value;
+  resetForm();
+  page.value = 1;
+  void loadLedger();
+};
+
 const onCropChange = async (e: any) => {
   crop.value = e.detail.value;
   resetForm();
+  page.value = 1;
   await loadLedger();
 };
 
@@ -490,6 +609,7 @@ const addEntry = async () => {
     resetForm();
     await toast.success('Pest inspection saved.', 1800);
     emit('saved');
+    if (!props.embedded) setViewMode('ledger');
   } catch (e: any) {
     await toast.error(e?.response?.data?.message || 'Failed to save pest inspection.');
   } finally {
@@ -528,12 +648,146 @@ onMounted(async () => {
   await loadPestCatalog();
   void loadLedger();
 });
+
+watch(page, () => {
+  void loadLedger();
+});
+
+watch(viewMode, (mode) => {
+  if (!props.embedded && mode === 'ledger') void loadLedger();
+});
 </script>
 
 <style scoped>
 .page-bg { --background: #f4f8f5; }
-.wrapper { max-width: 1100px; margin: 0 auto; padding-bottom: 2rem; }
+.wrapper { max-width: 1200px; margin: 0 auto; padding-bottom: 2rem; }
 .embedded-encode-body { padding-bottom: 2rem; }
+.hub-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+.mode-toggle-bar {
+  display: flex;
+  background: #fff;
+  border: 1px solid #d5dbe1;
+  border-radius: 8px;
+  overflow: hidden;
+  width: fit-content;
+}
+.mode-btn {
+  border: none;
+  background: transparent;
+  padding: 8px 20px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #64748b;
+  cursor: pointer;
+  font-family: inherit;
+}
+.mode-btn.active { background: #1a4731; color: #fff; }
+.mode-btn:not(.active):hover { background: #f1f5f9; }
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  align-items: flex-end;
+  background: #fff;
+  border: 1px solid #d5dbe1;
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+  margin-bottom: 0.75rem;
+}
+.filter-group { display: flex; flex-direction: column; gap: 3px; }
+.filter-group.grow { flex: 1; min-width: 180px; }
+.filter-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.filter-select, .filter-input {
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.88rem;
+  font-family: inherit;
+  min-width: 140px;
+  background: #fff;
+}
+.ledger-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 1rem;
+}
+.ledger-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+.ledger-meta h3 { margin: 0; color: #1a4731; font-weight: 800; font-size: 1rem; }
+.ledger-count { font-size: 0.85rem; color: #64748b; }
+.table-scroll { overflow: auto; max-height: 62vh; }
+.excel-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+  color: #1e293b;
+  min-width: 900px;
+}
+.excel-table th, .excel-table td {
+  border: 1px solid #cbd5e1;
+  padding: 4px 8px;
+  text-align: left;
+  white-space: nowrap;
+}
+.excel-table thead th {
+  position: sticky;
+  top: 0;
+  background: #1a4731;
+  color: #fff;
+  font-weight: 700;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  z-index: 2;
+}
+.excel-table tbody tr:nth-child(even) { background: #f8fafc; }
+.col-no, .col-num { text-align: right; }
+.mono { font-family: 'Courier New', monospace; }
+.empty-row { text-align: center; color: #94a3b8; padding: 2rem 0; font-style: italic; white-space: normal; }
+.ledger-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.65rem 1rem;
+  border-top: 1px solid #e2e8f0;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+.pager { display: flex; align-items: center; gap: 0.5rem; }
+.pager button {
+  border: 1px solid #1a4731;
+  background: #fff;
+  color: #1a4731;
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-weight: 700;
+  font-family: inherit;
+}
+.pager button:disabled { opacity: 0.4; cursor: default; }
 .export-btn { --background: #d4af37; --color: #1a4731; font-weight: 700; text-transform: none; }
 .warn-banner {
   background: #fff8e1; color: #92400e; border: 1px solid #fcd34d;

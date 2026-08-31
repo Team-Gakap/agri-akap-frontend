@@ -74,7 +74,7 @@ const routes: Array<RouteRecordRaw> = [
     meta: { requiresAuth: true, role: ["admin", "super_admin"] },
     children: [
       { path: "", redirect: "/admin/dashboard" },
-      { path: "dashboard", name: "Dashboard", component: () => import("@/views/Admin/AdminDashboardView.vue"), meta: { title: "Command Center" } },
+      { path: "dashboard", name: "Dashboard", component: () => import("@/views/Admin/AdminDashboardView.vue"), meta: { title: "Dashboard" } },
       { path: "analytics", redirect: "/admin/dashboard" },
       { path: "staff", redirect: adminGovernanceRedirect("/superadmin/users") },
       { path: "security", redirect: adminGovernanceRedirect("/superadmin/security") },
@@ -86,7 +86,7 @@ const routes: Array<RouteRecordRaw> = [
       { path: "subsidies/:id/masterlist", name: "SubsidyMasterlist", component: () => import("@/views/Programs/SubsidyMasterlistView.vue"), meta: { title: "Subsidy Masterlist" } },
       { path: "broadcasts", name: "Broadcasts", component: () => import("@/views/Communication/BroadcastCenterPage.vue"), meta: { title: "Outreach & SMS" } },
       { path: "intelligence", redirect: "/admin/dashboard" },
-      { path: "weather", name: "PrecisionWeather", component: () => import("@/views/Admin/AdminWeatherHeatmapView.vue"), meta: { title: "Agro-Climate Monitor" } },
+      { path: "weather", name: "PrecisionWeather", component: () => import("@/views/Admin/AdminWeatherHeatmapView.vue"), meta: { title: "Climate Monitoring" } },
       { path: "weather/detail", name: "PrecisionWeatherDetail", component: () => import("@/views/Admin/AdvancedWeatherDashboardView.vue"), meta: { title: "Precision Weather" } },
       { path: "weather/climate-hub", redirect: "/admin/weather" },
       { path: "map", redirect: "/admin/dashboard" },
@@ -136,19 +136,28 @@ const routes: Array<RouteRecordRaw> = [
     meta: { requiresAuth: true, role: "barangay_official" },
     children: [
       { path: "", redirect: "/brgy/dashboard" },
-      { path: "dashboard", name: "BrgyDashboard", component: () => import("@/views/Barangay/BrgyDashboardView.vue"), meta: { title: "Command Center" } },
+      { path: "dashboard", name: "BrgyDashboard", component: () => import("@/views/Barangay/BrgyDashboardView.vue"), meta: { title: "Dashboard" } },
       { path: "farmers", name: "BrgyFarmerMasterlist", component: () => import("@/views/Barangay/BrgyFarmerMasterlistView.vue"), meta: { title: "Farmers" } },
-      { path: "planting-ledger", name: "BrgyPlantingLedger", component: () => import("@/views/Barangay/PlantingLedgerView.vue"), meta: { title: "Planting Records" } },
-      { path: "pest-monitoring", name: "BrgyPestMonitoring", component: () => import("@/views/Barangay/PestMonitoringView.vue"), meta: { title: "Pest Incidents" } },
-      { path: "standing-crop", name: "BrgyStandingCrop", component: () => import("@/views/Barangay/StandingCropLogView.vue"), meta: { title: "Standing Crops" } },
-      { path: "harvesting", name: "BrgyHarvesting", component: () => import("@/views/Barangay/HarvestingLogView.vue"), meta: { title: "Harvest Records" } },
-      { path: "calamity-assessment", name: "BrgyCalamityAssessment", component: () => import("@/views/Barangay/CalamityAssessmentLogView.vue"), meta: { title: "Damage Assessments" } },
-      { path: "reports", redirect: "/brgy/reports/crop-production" },
-      { path: "reports/subsidies", name: "BrgyReportSubsidies", component: () => import("@/views/Admin/Reports/SubsidyReportView.vue"), meta: { title: "Subsidy Distribution" } },
-      { path: "reports/crop-production", name: "BrgyReportCropProduction", component: () => import("@/views/Admin/Reports/CropProductionReportView.vue"), meta: { title: "Crop Production" } },
-      { path: "reports/standing-crop", redirect: { path: "/brgy/reports/crop-production", query: { mode: "standing" } } },
-      { path: "reports/pest-surveillance", name: "BrgyReportPest", component: () => import("@/views/Admin/Reports/PestReportView.vue"), meta: { title: "Pest Surveillance" } },
-      { path: "reports/damage-calamity", name: "BrgyReportDamage", component: () => import("@/views/Admin/Reports/DamageReportView.vue"), meta: { title: "Damage & Calamity" } },
+      { path: "crop-records", name: "BrgyCropHub", component: () => import("@/views/Barangay/BrgyCropHubView.vue"), meta: { title: "Crop Production" } },
+      { path: "planting-ledger", redirect: { path: "/brgy/crop-records", query: { kind: "planting" } } },
+      { path: "standing-crop", redirect: { path: "/brgy/crop-records", query: { kind: "standing" } } },
+      { path: "harvesting", redirect: { path: "/brgy/crop-records", query: { kind: "harvest" } } },
+      { path: "pest-monitoring", name: "BrgyPestMonitoring", component: () => import("@/views/Barangay/PestMonitoringView.vue"), meta: { title: "Pest Reports" } },
+      { path: "calamity-assessment", name: "BrgyCalamityAssessment", component: () => import("@/views/Barangay/CalamityAssessmentLogView.vue"), meta: { title: "Disaster Reports" } },
+      { path: "reports", redirect: "/brgy/crop-records" },
+      { path: "reports/subsidies", name: "BrgyReportSubsidies", component: () => import("@/views/Admin/Reports/SubsidyReportView.vue"), meta: { title: "Subsidy Claims" } },
+      {
+        path: "reports/crop-production",
+        redirect: (to) => {
+          const raw = to.query?.mode ?? to.query?.kind;
+          const mode = Array.isArray(raw) ? raw[0] : raw;
+          const kind = mode === "standing" ? "standing" : mode === "harvest" ? "harvest" : "planting";
+          return { path: "/brgy/crop-records", query: { kind } };
+        },
+      },
+      { path: "reports/standing-crop", redirect: { path: "/brgy/crop-records", query: { kind: "standing" } } },
+      { path: "reports/pest-surveillance", redirect: "/brgy/pest-monitoring" },
+      { path: "reports/damage-calamity", redirect: "/brgy/calamity-assessment" },
       { path: "weather-hub", redirect: "/brgy/dashboard" },
       { path: "map", name: "BrgyMap", component: () => import("@/views/Map/MapPage.vue"), meta: { title: "Farm Map" } },
     ],
