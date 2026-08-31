@@ -36,5 +36,6 @@ onMounted(async () => {
 
 onUnmounted(() => {
   resumeListenerHandle?.remove();
+  syncStore.teardown();
 });
 </script>

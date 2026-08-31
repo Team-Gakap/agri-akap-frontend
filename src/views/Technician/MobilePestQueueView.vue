@@ -78,12 +78,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonBackButton,
   IonSearchbar, IonSelect, IonSelectOption, IonList, IonCard, IonCardContent,
-  IonBadge, IonIcon, IonRippleEffect, IonSpinner, IonButton,
+  IonBadge, IonIcon, IonRippleEffect, IonSpinner, IonButton, onIonViewWillEnter,
 } from '@ionic/vue';
 import { bugOutline, cloudOfflineOutline } from 'ionicons/icons';
 import apiClient from '@/utils/axios';
@@ -202,7 +202,7 @@ const openValidation = (report: PendingPestReport) => {
   });
 };
 
-onMounted(loadReports);
+onIonViewWillEnter(loadReports);
 </script>
 
 <style scoped>

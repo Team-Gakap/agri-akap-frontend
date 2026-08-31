@@ -839,6 +839,12 @@ export async function syncAllPendingData(): Promise<{ synced: number; failed: nu
     await clearSyncedRows('offline_harvest_logs', harvest_logs, results.harvest_logs, counters);
     await clearSyncedRows('offline_standing_crop_logs', standing_crop_logs, results.standing_crop_logs, counters);
 
+    // Fresh fetches after sync must not resurrect already-validated dispatch tickets
+    // from the last-known snapshot (pest / calamity / geo-tag queues).
+    if (counters.synced > 0) {
+      await db.cachedQueueLists.clear();
+    }
+
     return counters;
   } catch (err) {
     if (isNetworkError(err)) {

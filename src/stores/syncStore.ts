@@ -13,6 +13,9 @@ export const useSyncStore = defineStore('sync', () => {
 
   const hasPending = computed(() => pending.value > 0);
 
+  let flushTimer: ReturnType<typeof setInterval> | null = null;
+  let unsubConnectivity: (() => void) | null = null;
+
   async function refreshCount() {
     pending.value = await pendingCount();
   }
@@ -38,7 +41,8 @@ export const useSyncStore = defineStore('sync', () => {
   /** Wire native/web connectivity events + periodic reachability probe. Call once on app start. */
   function init() {
     initConnectivity();
-    onConnectivityChange((next) => {
+    unsubConnectivity?.();
+    unsubConnectivity = onConnectivityChange((next) => {
       const cameOnline = next && !online.value;
       online.value = next;
       if (cameOnline) void sync();
@@ -46,6 +50,11 @@ export const useSyncStore = defineStore('sync', () => {
 
     refreshCount();
     if (online.value) sync();
+
+    if (flushTimer) clearInterval(flushTimer);
+    flushTimer = setInterval(() => {
+      if (online.value && hasPending.value && !isSyncing.value) void sync();
+    }, 60_000);
   }
 
   /** Re-check connectivity (e.g. on app resume) and sync if reachable. */
@@ -53,6 +62,15 @@ export const useSyncStore = defineStore('sync', () => {
     const next = await refreshConnectivity();
     online.value = next;
     if (next) await sync();
+  }
+
+  function teardown() {
+    if (flushTimer) {
+      clearInterval(flushTimer);
+      flushTimer = null;
+    }
+    unsubConnectivity?.();
+    unsubConnectivity = null;
   }
 
   return {
@@ -67,5 +85,6 @@ export const useSyncStore = defineStore('sync', () => {
     sync,
     init,
     recheck,
+    teardown,
   };
 });

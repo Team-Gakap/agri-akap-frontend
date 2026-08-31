@@ -177,6 +177,7 @@ onMounted(async () => {
 
 onIonViewWillEnter(async () => {
   await loadPending();
+  await loadHistory();
 });
 </script>
 

@@ -396,7 +396,7 @@ import 'leaflet/dist/leaflet.css';
 import { ensureLocationPermission, scanFarmerQr, showScannerBackground, stopLiveQrScan } from '@/composables/useNativeHardware';
 import { db, newUuid, type GeoTagIncidentType, type GeoTagGeometryType, type GeoTagRefusalAttempt } from '@/database/db';
 import { useSyncStore } from '@/stores/syncStore';
-import { queueGeoTagRefusal, lookupFarmer, searchFarmers } from '@/services/syncService';
+import { queueGeoTagRefusal, lookupFarmer, searchFarmers, isOnline, syncAllPendingData } from '@/services/syncService';
 import SignaturePad from '@/components/SignaturePad.vue';
 import VarietyField from '@/components/VarietyField.vue';
 import apiClient from '@/utils/axios';
@@ -1326,7 +1326,12 @@ const saveGeoTagRecord = async () => {
     formModalOpen.value = false;
 
     await syncStore.refreshCount();
-    await toast('Geo-tag saved offline. Will sync to MAO when online.', 'success');
+    if (isOnline()) {
+      void syncAllPendingData().then(() => syncStore.refreshCount());
+      await toast('Geo-tag saved. Syncing to MAO…', 'success');
+    } else {
+      await toast('Geo-tag saved offline. Will sync to MAO when online.', 'success');
+    }
   } catch (err) {
     console.warn('[AGRI-AKAP] Failed to queue geo-tag:', err);
     await toast('Could not save locally. Please try again.', 'danger');

@@ -834,6 +834,7 @@ ion-card-subtitle {
 .action-btn.outline {
   --border-color: #1a4731;
   --color: #1a4731;
+  --background: #fff;
 }
 
 .status-line {
