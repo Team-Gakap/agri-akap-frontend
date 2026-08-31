@@ -17,6 +17,7 @@ import {
   type OfflineSyncStatus,
 } from '@/database/db';
 import { isOnline as connectivityIsOnline, isNetworkError, markReachable, markUnreachable } from './connectivity';
+import { shrinkSyncImage } from '@/utils/resizeImageForId';
 
 export interface SyncOutcome {
   client_id: string | null;
@@ -532,35 +533,136 @@ type AutoIncTable =
   | 'offline_harvest_logs'
   | 'offline_standing_crop_logs';
 
+const BULK_SYNC_TIMEOUT_MS = 120_000;
+
+type MissingOutcome = 'synced' | 'pending';
+
+export interface SyncFlushResult {
+  synced: number;
+  failed: number;
+  errored?: boolean;
+  errorMessage?: string;
+}
+
 async function clearSyncedRows(
   table: AutoIncTable,
   rows: Array<{ id?: number; client_id: string }>,
   outcomes: SyncOutcome[] | undefined,
   counters: { synced: number; failed: number },
+  missing: MissingOutcome = 'synced',
 ) {
   const byClient = new Map((outcomes ?? []).map((o) => [o.client_id, o]));
   for (const row of rows) {
     const outcome = byClient.get(row.client_id);
-    if (!outcome || outcome.outcome === 'synced' || outcome.outcome === 'duplicate') {
+    if (outcome?.outcome === 'synced' || outcome?.outcome === 'duplicate') {
       if (row.id != null) await db[table].delete(row.id);
       counters.synced++;
-    } else {
+    } else if (outcome?.outcome === 'failed') {
       counters.failed++;
       if (row.id != null) {
         await db[table].update(row.id, { sync_status: 'failed', error: outcome.message });
       }
+    } else if (missing === 'synced') {
+      if (row.id != null) await db[table].delete(row.id);
+      counters.synced++;
+    } else if (row.id != null) {
+      await db[table].update(row.id, { sync_status: 'pending' });
     }
   }
+}
+
+async function applyKeyedOutcomes(
+  table: 'pendingDistributions' | 'pendingAssessments',
+  rows: Array<{ client_id: string }>,
+  outcomes: SyncOutcome[] | undefined,
+  counters: { synced: number; failed: number },
+  missing: MissingOutcome,
+) {
+  const byClient = new Map((outcomes ?? []).map((o) => [o.client_id, o]));
+  for (const row of rows) {
+    const outcome = byClient.get(row.client_id);
+    if (outcome?.outcome === 'synced' || outcome?.outcome === 'duplicate') {
+      await db[table].delete(row.client_id);
+      counters.synced++;
+    } else if (outcome?.outcome === 'failed') {
+      counters.failed++;
+      await db[table].update(row.client_id, { status: 'failed', error: outcome.message });
+    } else if (missing === 'synced') {
+      await db[table].delete(row.client_id);
+      counters.synced++;
+    } else {
+      await db[table].update(row.client_id, { status: 'pending' });
+    }
+  }
+}
+
+type BulkResults = Record<string, SyncOutcome[] | undefined>;
+
+async function applyAllBulkResults(
+  results: BulkResults,
+  rows: {
+    claimDistributions: Array<{ client_id: string }>;
+    assessments: Array<{ client_id: string }>;
+    planting_logs: Array<{ id?: number; client_id: string }>;
+    pest_reports: Array<{ id?: number; client_id: string }>;
+    farm_profiles: Array<{ id?: number; client_id: string }>;
+    field_distributions: Array<{ id?: number; client_id: string }>;
+    geo_tags: Array<{ id?: number; client_id: string }>;
+    geo_refusals: Array<{ id?: number; client_id: string }>;
+    harvest_logs: Array<{ id?: number; client_id: string }>;
+    standing_crop_logs: Array<{ id?: number; client_id: string }>;
+  },
+  counters: { synced: number; failed: number },
+  missing: MissingOutcome,
+) {
+  await applyKeyedOutcomes('pendingDistributions', rows.claimDistributions, results.distributions, counters, missing);
+  await applyKeyedOutcomes('pendingAssessments', rows.assessments, results.assessments, counters, missing);
+  await clearSyncedRows('offline_planting_logs', rows.planting_logs, results.planting_logs, counters, missing);
+  await clearSyncedRows('offline_pest_reports', rows.pest_reports, results.pest_reports, counters, missing);
+  await clearSyncedRows('offline_farm_profiles', rows.farm_profiles, results.farm_profiles, counters, missing);
+  await clearSyncedRows(
+    'offline_distributions',
+    rows.field_distributions,
+    results.field_distributions ?? results.offline_distributions,
+    counters,
+    missing,
+  );
+  await clearSyncedRows('offline_geo_tags', rows.geo_tags, results.geo_tags, counters, missing);
+  await clearSyncedRows('offline_geo_refusals', rows.geo_refusals, results.geo_tag_refusals, counters, missing);
+  await clearSyncedRows('offline_harvest_logs', rows.harvest_logs, results.harvest_logs, counters, missing);
+  await clearSyncedRows('offline_standing_crop_logs', rows.standing_crop_logs, results.standing_crop_logs, counters, missing);
+
+  if (counters.synced > 0) {
+    await db.cachedQueueLists.clear();
+  }
+}
+
+async function resetSyncingToPending() {
+  await db.pendingDistributions.where('status').equals('syncing').modify({ status: 'pending' });
+  await db.pendingAssessments.where('status').equals('syncing').modify({ status: 'pending' });
+  await db.offline_planting_logs.where('sync_status').equals('syncing').modify({ sync_status: 'pending' });
+  await db.offline_pest_reports.where('sync_status').equals('syncing').modify({ sync_status: 'pending' });
+  await db.offline_farm_profiles.where('sync_status').equals('syncing').modify({ sync_status: 'pending' });
+  await db.offline_distributions.where('sync_status').equals('syncing').modify({ sync_status: 'pending' });
+  await db.offline_geo_tags.where('sync_status').equals('syncing').modify({ sync_status: 'pending' });
+  await db.offline_geo_refusals.where('sync_status').equals('syncing').modify({ sync_status: 'pending' });
+  await db.offline_harvest_logs.where('sync_status').equals('syncing').modify({ sync_status: 'pending' });
+  await db.offline_standing_crop_logs.where('sync_status').equals('syncing').modify({ sync_status: 'pending' });
+}
+
+function axiosResponseData(err: unknown): { message?: string; results?: BulkResults } | undefined {
+  const data = (err as { response?: { data?: { message?: string; results?: BulkResults } } })?.response?.data;
+  return data && typeof data === 'object' ? data : undefined;
 }
 
 /**
  * Offline-first sync engine:
  * 1. Abort when offline
- * 2. Collect every Dexie row with sync_status === 'pending'
- * 3. POST master payload to `/sync/bulk`
- * 4. On HTTP 200, delete (or mark synced) local rows to avoid duplicates
+ * 2. Collect every Dexie row with sync_status === 'pending' or 'failed'
+ * 3. POST master payload to `/sync/bulk` (120s timeout for geo-tag photos)
+ * 4. Apply per-item results (HTTP 200 or error bodies that include `results`)
  */
-export async function syncAllPendingData(): Promise<{ synced: number; failed: number; errored?: boolean }> {
+export async function syncAllPendingData(): Promise<SyncFlushResult> {
   if (syncingAll || !isOnline()) {
     return { synced: 0, failed: 0 };
   }
@@ -728,7 +830,7 @@ export async function syncAllPendingData(): Promise<{ synced: number; failed: nu
         farmer_id: r.farmer_id,
         program_id: r.program_id,
       })),
-      geo_tags: geo_tags.map((r) => ({
+      geo_tags: await Promise.all(geo_tags.map(async (r) => ({
         client_id: r.client_id,
         farmer_id: r.farmer_id,
         rsbsa_no: r.rsbsa_no,
@@ -739,17 +841,17 @@ export async function syncAllPendingData(): Promise<{ synced: number; failed: nu
         crop_planted: r.crop_planted,
         crop_variety: r.crop_variety,
         parcel_name: r.parcel_name,
-        incident_type: r.incident_type,
+        incident_type: r.incident_type || 'none',
         observations: r.observations,
-        photo_base64: r.photo_base64,
+        photo_base64: await shrinkSyncImage(r.photo_base64),
         accuracy_m: r.accuracy_m,
         non_productive_area_sqm: r.non_productive_area_sqm,
         has_discrepancy: r.has_discrepancy,
         planting_start_month: r.planting_start_month,
         planting_end_month: r.planting_end_month,
-        farmer_signature_base64: r.farmer_signature_base64,
-        aew_signature_base64: r.aew_signature_base64,
-      })),
+        farmer_signature_base64: await shrinkSyncImage(r.farmer_signature_base64, 1200),
+        aew_signature_base64: await shrinkSyncImage(r.aew_signature_base64, 1200),
+      }))),
       geo_tag_refusals: geo_refusals.map((r) => ({
         client_id: r.client_id,
         farmer_id: r.farmer_id,
@@ -783,85 +885,57 @@ export async function syncAllPendingData(): Promise<{ synced: number; failed: nu
       })),
     };
 
-    const res = await apiClient.post('/sync/bulk', payload);
+    const bulkRows = {
+      claimDistributions,
+      assessments,
+      planting_logs,
+      pest_reports,
+      farm_profiles,
+      field_distributions,
+      geo_tags,
+      geo_refusals,
+      harvest_logs,
+      standing_crop_logs,
+    };
+
+    const res = await apiClient.post('/sync/bulk', payload, { timeout: BULK_SYNC_TIMEOUT_MS });
     if (res.status !== 200) {
       throw new Error(`Sync HTTP ${res.status}`);
     }
     markReachable();
 
-    const results = res.data?.results ?? {};
-
-    for (const r of (results.distributions ?? []) as SyncOutcome[]) {
-      if (r.outcome === 'synced' || r.outcome === 'duplicate') {
-        await db.pendingDistributions.delete(r.client_id as string);
-        counters.synced++;
-      } else if (r.client_id) {
-        counters.failed++;
-        await db.pendingDistributions.update(r.client_id, { status: 'failed', error: r.message });
-      }
-    }
-
-    for (const r of (results.assessments ?? []) as SyncOutcome[]) {
-      if (r.outcome === 'synced' || r.outcome === 'duplicate') {
-        await db.pendingAssessments.delete(r.client_id as string);
-        counters.synced++;
-      } else if (r.client_id) {
-        counters.failed++;
-        await db.pendingAssessments.update(r.client_id, { status: 'failed', error: r.message });
-      }
-    }
-
-    // Claims/assessments with no per-item results but HTTP 200 → clear syncing leftovers
-    if (!results.distributions?.length && claimDistributions.length) {
-      for (const d of claimDistributions) {
-        await db.pendingDistributions.delete(d.client_id);
-        counters.synced++;
-      }
-    }
-    if (!results.assessments?.length && assessments.length) {
-      for (const a of assessments) {
-        await db.pendingAssessments.delete(a.client_id);
-        counters.synced++;
-      }
-    }
-
-    await clearSyncedRows('offline_planting_logs', planting_logs, results.planting_logs, counters);
-    await clearSyncedRows('offline_pest_reports', pest_reports, results.pest_reports, counters);
-    await clearSyncedRows('offline_farm_profiles', farm_profiles, results.farm_profiles, counters);
-    await clearSyncedRows(
-      'offline_distributions',
-      field_distributions,
-      results.field_distributions ?? results.offline_distributions,
-      counters,
-    );
-    await clearSyncedRows('offline_geo_tags', geo_tags, results.geo_tags, counters);
-    await clearSyncedRows('offline_geo_refusals', geo_refusals, results.geo_tag_refusals, counters);
-    await clearSyncedRows('offline_harvest_logs', harvest_logs, results.harvest_logs, counters);
-    await clearSyncedRows('offline_standing_crop_logs', standing_crop_logs, results.standing_crop_logs, counters);
-
-    // Fresh fetches after sync must not resurrect already-validated dispatch tickets
-    // from the last-known snapshot (pest / calamity / geo-tag queues).
-    if (counters.synced > 0) {
-      await db.cachedQueueLists.clear();
-    }
+    await applyAllBulkResults(res.data?.results ?? {}, bulkRows, counters, 'synced');
 
     return counters;
   } catch (err) {
+    const errorBody = axiosResponseData(err);
+    if (errorBody?.results && !/rolled back/i.test(errorBody.message ?? '')) {
+      await applyAllBulkResults(errorBody.results, {
+        claimDistributions,
+        assessments,
+        planting_logs,
+        pest_reports,
+        farm_profiles,
+        field_distributions,
+        geo_tags,
+        geo_refusals,
+        harvest_logs,
+        standing_crop_logs,
+      }, counters, 'pending');
+      return counters;
+    }
+
     if (isNetworkError(err)) {
       markUnreachable();
     }
     console.warn('[AGRI-AKAP] Bulk sync failed, will retry:', err);
-    await db.pendingDistributions.where('status').equals('syncing').modify({ status: 'pending' });
-    await db.pendingAssessments.where('status').equals('syncing').modify({ status: 'pending' });
-    await db.offline_planting_logs.where('sync_status').equals('syncing').modify({ sync_status: 'pending' });
-    await db.offline_pest_reports.where('sync_status').equals('syncing').modify({ sync_status: 'pending' });
-    await db.offline_farm_profiles.where('sync_status').equals('syncing').modify({ sync_status: 'pending' });
-    await db.offline_distributions.where('sync_status').equals('syncing').modify({ sync_status: 'pending' });
-    await db.offline_geo_tags.where('sync_status').equals('syncing').modify({ sync_status: 'pending' });
-    await db.offline_geo_refusals.where('sync_status').equals('syncing').modify({ sync_status: 'pending' });
-    await db.offline_harvest_logs.where('sync_status').equals('syncing').modify({ sync_status: 'pending' });
-    await db.offline_standing_crop_logs.where('sync_status').equals('syncing').modify({ sync_status: 'pending' });
-    return { synced: 0, failed: 0, errored: true };
+    await resetSyncingToPending();
+    return {
+      synced: 0,
+      failed: 0,
+      errored: true,
+      errorMessage: errorBody?.message,
+    };
   } finally {
     syncingAll = false;
   }

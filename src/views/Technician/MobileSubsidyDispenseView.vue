@@ -19,57 +19,12 @@
         <div class="icon-wrap">
           <ion-icon :icon="qrCodeOutline"></ion-icon>
         </div>
-        <h2>Find Farmer &amp; Release</h2>
-        <p>Scan the farmer’s ID, or search by name / RSBSA number.</p>
+        <h2>{{ hasProgram ? 'Scan &amp; Release' : 'Choose a campaign' }}</h2>
+        <p v-if="!hasProgram">Pick the subsidy program first. After that, scan farmers one after another.</p>
+        <p v-else>Scan the next farmer’s ID, or search by name / RSBSA. The campaign stays selected.</p>
       </div>
 
-      <ion-button expand="block" class="scan-btn" :disabled="lookingUp" @click="startScan">
-        <ion-icon slot="start" :icon="qrCodeOutline"></ion-icon>
-        Scan Farmer QR
-      </ion-button>
-
-      <div class="search-box">
-        <ion-input
-          class="search-input"
-          label="Search farmer (name or RSBSA)"
-          label-placement="stacked"
-          placeholder="Type at least 2 characters…"
-          :value="searchQuery"
-          @ionInput="onSearchInput"
-        ></ion-input>
-        <div v-if="searching" class="hint">Searching…</div>
-        <ul v-if="searchResults.length" class="suggest">
-          <li v-for="f in searchResults" :key="f.id" @click="selectSearchedFarmer(f)">
-            <strong>{{ formatName(f) }}</strong>
-            <span>{{ f.rsbsa_no || 'No RSBSA' }} · {{ f.permanent_brgy || f.barangay || '—' }}</span>
-          </li>
-        </ul>
-        <p v-else-if="searchQuery.trim().length >= 2 && !searching && !farmer" class="hint">
-          No farmers match “{{ searchQuery.trim() }}”.
-        </p>
-      </div>
-
-      <ion-card v-if="farmer" class="farmer-card">
-        <ion-card-header>
-          <ion-card-subtitle>Verified farmer</ion-card-subtitle>
-          <ion-card-title>{{ farmerDisplayName }}</ion-card-title>
-        </ion-card-header>
-        <ion-card-content>
-          <div class="detail-row">
-            <span>RSBSA</span>
-            <strong>{{ farmer.rsbsa_no || farmer.rsbsaNo || '—' }}</strong>
-          </div>
-          <div class="detail-row">
-            <span>Barangay</span>
-            <strong>{{ farmer.barangay || farmer.permanent_brgy || '—' }}</strong>
-          </div>
-          <ion-button expand="block" fill="clear" color="medium" @click="clearFarmer">
-            Change farmer
-          </ion-button>
-        </ion-card-content>
-      </ion-card>
-
-      <ion-card class="program-card">
+      <ion-card v-if="showProgramPicker" class="program-card">
         <ion-card-header>
           <ion-card-subtitle>Subsidy program</ion-card-subtitle>
           <ion-card-title>Select campaign</ion-card-title>
@@ -77,9 +32,10 @@
         <ion-card-content>
           <ion-item class="program-select-item" lines="none">
             <ion-select
-              v-model="selectedProgramId"
+              :value="selectedProgramId"
               placeholder="Choose an active campaign…"
               interface="action-sheet"
+              @ionChange="onProgramChange"
             >
               <ion-select-option v-for="p in programs" :key="p.id" :value="p.id">
                 {{ programOptionLabel(p) }}
@@ -107,30 +63,112 @@
               </strong>
             </div>
           </div>
-          
-          <!-- RFFA Eligibility Lock -->
-          <div v-if="isRffaBlocked" class="rffa-lock-banner">
-            <ion-icon :icon="alertCircleOutline" class="lock-icon"></ion-icon>
-            <div class="lock-text">
-              <strong>Not Eligible for RFFA</strong>
-              <p>Exceeds 2.0ha limit or invalid commodity.</p>
-            </div>
-          </div>
-          
           <p v-if="!programs.length" class="hint danger">
             No active subsidy programs. Ask MAO admin to activate a campaign.
           </p>
         </ion-card-content>
       </ion-card>
 
+      <button
+        v-else-if="selectedProgram"
+        type="button"
+        class="program-chip"
+        @click="changingProgram = true"
+      >
+        <span class="chip-label">Campaign</span>
+        <strong>{{ programOptionLabel(selectedProgram) }}</strong>
+        <span class="chip-change">Change</span>
+      </button>
+
+      <ion-card v-if="lastClaim" :color="lastClaim.offline ? 'warning' : 'success'" class="result-card">
+        <ion-card-header>
+          <ion-icon
+            :icon="lastClaim.offline ? cloudOfflineOutline : checkmarkCircleOutline"
+            class="result-icon"
+          ></ion-icon>
+          <ion-card-title class="text-white">
+            {{ lastClaim.offline ? 'Queued Offline' : 'Release Recorded' }}
+          </ion-card-title>
+        </ion-card-header>
+        <ion-card-content class="text-white">
+          <template v-if="lastClaim.offline">
+            <h2 class="farmer-name-result">{{ lastClaim.farmerName }}</h2>
+            <p>Saved on this device. Eligibility and inventory are verified when it syncs.</p>
+          </template>
+          <template v-else>
+            <h2 class="farmer-name-result">{{ lastClaim.data?.farmer_name || lastClaim.farmerName }}</h2>
+            <div class="dispense-box">
+              <span class="dispense-label">DISPENSED</span>
+              <span class="dispense-qty">{{ dispensedLabel }}</span>
+              <span v-if="lastClaim.data?.unit_secondary" class="dispense-qty-secondary">
+                + {{ lastClaim.data?.quantity_dispensed_secondary }} {{ lastClaim.data?.unit_secondary }}
+              </span>
+            </div>
+            <p v-if="lastClaim.data?.inventory_remaining != null" class="remaining-note">
+              Inventory Remaining:
+              <strong>{{ lastClaim.data?.inventory_remaining }} {{ lastClaim.data?.unit || selectedProgram?.unit_of_measurement }}</strong>
+            </p>
+            <p v-if="lastClaim.data?.unit_secondary" class="remaining-note">
+              Inventory Remaining:
+              <strong>{{ lastClaim.data?.inventory_remaining_secondary }} {{ lastClaim.data?.unit_secondary }}</strong>
+            </p>
+            <p class="sms-note">
+              <ion-icon :icon="chatbubbleEllipsesOutline"></ion-icon>
+              SMS receipt sent to the farmer's registered number.
+            </p>
+          </template>
+        </ion-card-content>
+      </ion-card>
+
       <ion-button
         expand="block"
-        class="continue-btn"
-        :disabled="!farmer || !selectedProgramId || verifying || isRffaBlocked"
-        @click="continueToRelease"
+        class="scan-btn"
+        :disabled="!hasProgram || lookingUp || claiming"
+        @click="startScan"
       >
-        {{ verifying ? 'Checking eligibility…' : 'Continue to Release' }}
+        <ion-icon slot="start" :icon="qrCodeOutline"></ion-icon>
+        {{ claiming ? 'Releasing…' : lookingUp ? 'Looking up farmer…' : 'Scan Farmer QR' }}
       </ion-button>
+
+      <div class="search-box" :class="{ disabled: !hasProgram || claiming }">
+        <ion-input
+          class="search-input"
+          label="Search farmer (name or RSBSA)"
+          label-placement="stacked"
+          placeholder="Type at least 2 characters…"
+          :value="searchQuery"
+          :disabled="!hasProgram || claiming"
+          @ionInput="onSearchInput"
+        ></ion-input>
+        <div v-if="searching" class="hint">Searching…</div>
+        <ul v-if="searchResults.length" class="suggest">
+          <li v-for="f in searchResults" :key="f.id" @click="selectSearchedFarmer(f)">
+            <strong>{{ formatName(f) }}</strong>
+            <span>{{ f.rsbsa_no || 'No RSBSA' }} · {{ f.permanent_brgy || f.barangay || '—' }}</span>
+          </li>
+        </ul>
+        <p v-else-if="searchQuery.trim().length >= 2 && !searching && !farmer" class="hint">
+          No farmers match “{{ searchQuery.trim() }}”.
+        </p>
+      </div>
+
+      <ion-card v-if="farmer && claiming" class="farmer-card">
+        <ion-card-header>
+          <ion-card-subtitle>Releasing</ion-card-subtitle>
+          <ion-card-title>{{ farmerDisplayName }}</ion-card-title>
+        </ion-card-header>
+        <ion-card-content>
+          <p class="hint">Checking eligibility and recording the claim…</p>
+        </ion-card-content>
+      </ion-card>
+
+      <div v-if="isRffaBlocked" class="rffa-lock-banner">
+        <ion-icon :icon="alertCircleOutline" class="lock-icon"></ion-icon>
+        <div class="lock-text">
+          <strong>Not Eligible for RFFA</strong>
+          <p>Exceeds 2.0ha limit or invalid commodity. Scan or search another farmer.</p>
+        </div>
+      </div>
     </component>
 
     <div v-if="isScanning" class="scan-overlay">
@@ -146,26 +184,29 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { useRoute } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonBackButton,
   IonButton, IonIcon, IonInput, IonCard, IonCardHeader, IonCardTitle, IonCardSubtitle,
   IonCardContent, IonItem, IonSelect, IonSelectOption,
 } from '@ionic/vue';
-import { qrCodeOutline, alertCircleOutline } from 'ionicons/icons';
+import {
+  qrCodeOutline, alertCircleOutline, checkmarkCircleOutline,
+  cloudOfflineOutline, chatbubbleEllipsesOutline,
+} from 'ionicons/icons';
 import { getPrograms, lookupFarmer, searchFarmers, isOnline, isNetworkError } from '@/services/syncService';
 import { scanFarmerQr, showScannerBackground, stopLiveQrScan } from '@/composables/useNativeHardware';
-import { useDistributionStore } from '@/stores/distributionStore';
+import { claimSubsidyRelease, type SubsidyClaimData } from '@/composables/useSubsidyClaim';
+import { useDistributionStore, type ReleaseContext } from '@/stores/distributionStore';
 import { useAuthStore } from '@/stores/authStore';
 import apiClient from '@/utils/axios';
 import { presentToast } from '@/utils/toast';
 import AppHeader from '@/components/Navigation/AppHeader.vue';
 import { catalogSummary } from '@/constants/subsidyCatalog';
 
-const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
-const emit = defineEmits<{ verified: []; saved: [] }>();
+withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
+const emit = defineEmits<{ saved: [] }>();
 
-const router = useRouter();
 const route = useRoute();
 const authStore = useAuthStore();
 const distributionStore = useDistributionStore();
@@ -178,17 +219,22 @@ const backHref = computed(() =>
 const isScanning = ref(false);
 const lookingUp = ref(false);
 const searching = ref(false);
-const verifying = ref(false);
+const claiming = ref(false);
+const changingProgram = ref(false);
 const searchQuery = ref('');
 const searchResults = ref<any[]>([]);
 const farmer = ref<any | null>(null);
 const programs = ref<any[]>([]);
 const selectedProgramId = ref('');
+const lastClaim = ref<{ offline: boolean; farmerName: string; data?: SubsidyClaimData } | null>(null);
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
 const selectedProgram = computed(() =>
   programs.value.find((p) => p.id === selectedProgramId.value) ?? null
 );
+
+const hasProgram = computed(() => !!selectedProgramId.value);
+const showProgramPicker = computed(() => !hasProgram.value || changingProgram.value);
 
 const programOptionLabel = (p: any) => {
   if (p.seed_class && p.item_type) return catalogSummary(p.target_crop, p.seed_class, p.item_type);
@@ -200,6 +246,13 @@ const isRffaBlocked = computed(() => {
   const programName = selectedProgram.value.name || selectedProgram.value.program_name || '';
   const isRffa = /rffa/i.test(programName);
   return isRffa && farmer.value.is_rffa_eligible === false;
+});
+
+const dispensedLabel = computed(() => {
+  const data = lastClaim.value?.data;
+  if (!data) return '';
+  if (data.unit) return `${data.quantity_dispensed ?? ''} ${data.unit}`.trim();
+  return String(data.quantity_dispensed ?? '');
 });
 
 const formatName = (f: any) => {
@@ -214,7 +267,19 @@ const farmerDisplayName = computed(() => formatName(farmer.value));
 const toast = (message: string, color: 'primary' | 'success' | 'warning' | 'danger' = 'primary') =>
   presentToast(message, color);
 
+const persistProgram = (id: string) => {
+  selectedProgramId.value = id;
+  distributionStore.setActiveProgram(id);
+};
+
+const onProgramChange = (e: CustomEvent) => {
+  const id = String(e.detail.value ?? '');
+  persistProgram(id);
+  if (id) changingProgram.value = false;
+};
+
 const onSearchInput = (e: CustomEvent) => {
+  if (!hasProgram.value) return;
   const value = String(e.detail.value ?? '');
   searchQuery.value = value;
   if (searchTimer) clearTimeout(searchTimer);
@@ -242,14 +307,157 @@ const applyFarmer = (result: any, typed = '') => {
   searchResults.value = [];
 };
 
-const selectSearchedFarmer = (f: any) => {
+const selectSearchedFarmer = async (f: any) => {
   applyFarmer(f);
+  await claimForCurrentFarmer();
 };
 
 const clearFarmer = () => {
   farmer.value = null;
   searchQuery.value = '';
   searchResults.value = [];
+};
+
+const buildOfflineContext = (program: any, source: 'subsidy' | 'program'): ReleaseContext => {
+  const rsbsaNo = farmer.value.rsbsa_no || farmer.value.rsbsaNo;
+  return {
+    farmer_id: farmer.value.id,
+    program_id: selectedProgramId.value,
+    farmer_name: farmerDisplayName.value,
+    mobile_number: farmer.value.mobile_number,
+    item_released: program?.name || program?.program_name || 'Subsidy item',
+    seed_class: program?.seed_class ?? null,
+    item_type: program?.item_type ?? null,
+    unit: program?.unit_of_measurement || '',
+    total_farm_size: 0,
+    eligible_size: 0,
+    quantity: 0,
+    inventory_remaining: program?.remaining_quantity ?? 0,
+    unit_secondary: program?.secondary_unit ?? null,
+    quantity_secondary: null,
+    inventory_remaining_secondary: program?.secondary_remaining_quantity ?? null,
+    plot_lat: farmer.value.farm_plots?.[0]?.latitude ?? farmer.value.farmPlots?.[0]?.latitude,
+    plot_long: farmer.value.farm_plots?.[0]?.longitude ?? farmer.value.farmPlots?.[0]?.longitude,
+    rsbsa_no: rsbsaNo,
+    source,
+    offline: true,
+  };
+};
+
+const verifyOnline = async (program: any, source: 'subsidy' | 'program'): Promise<ReleaseContext> => {
+  if (source === 'subsidy') {
+    const response = await apiClient.post(`/subsidies/${selectedProgramId.value}/verify-farmer`, {
+      farmer_id: farmer.value.id,
+      rsbsa_no: farmer.value.rsbsa_no || farmer.value.rsbsaNo,
+    });
+    const data = response.data?.data ?? {};
+    return {
+      farmer_id: data.farmer_id || farmer.value.id,
+      program_id: data.program_id || selectedProgramId.value,
+      farmer_name: data.farmer_name || farmerDisplayName.value,
+      mobile_number: data.mobile_number,
+      item_released: data.item_released || program.name,
+      seed_class: data.seed_class ?? program.seed_class ?? null,
+      item_type: data.item_type ?? program.item_type ?? null,
+      unit: data.unit || program.unit_of_measurement,
+      total_farm_size: data.total_farm_size || 0,
+      eligible_size: data.eligible_size || 0,
+      quantity: data.quantity || 0,
+      inventory_remaining: data.inventory_remaining ?? program.remaining_quantity,
+      unit_secondary: data.unit_secondary ?? program.secondary_unit ?? null,
+      quantity_secondary: data.quantity_secondary ?? null,
+      inventory_remaining_secondary: data.inventory_remaining_secondary ?? program.secondary_remaining_quantity ?? null,
+      plot_lat: data.plot_lat,
+      plot_long: data.plot_long,
+      beneficiary_id: data.beneficiary_id,
+      rsbsa_no: farmer.value.rsbsa_no || farmer.value.rsbsaNo,
+      source: 'subsidy',
+      offline: false,
+    };
+  }
+
+  const response = await apiClient.post('/distributions/verify', {
+    farmer_id: farmer.value.id,
+    program_id: selectedProgramId.value,
+  });
+  const data = response.data?.data ?? {};
+  return {
+    farmer_id: data.farmer_id || farmer.value.id,
+    program_id: data.program_id || selectedProgramId.value,
+    farmer_name: data.farmer_name || farmerDisplayName.value,
+    mobile_number: data.mobile_number,
+    item_released: data.item_released || program?.name,
+    unit: data.unit || program?.unit_of_measurement,
+    total_farm_size: data.total_farm_size || 0,
+    eligible_size: data.eligible_size || 0,
+    quantity: data.quantity || 0,
+    inventory_remaining: data.inventory_remaining ?? program?.remaining_quantity,
+    plot_lat: data.plot_lat,
+    plot_long: data.plot_long,
+    rsbsa_no: farmer.value.rsbsa_no || farmer.value.rsbsaNo,
+    source: 'program',
+    offline: false,
+  };
+};
+
+const applyStockFromClaim = (data?: SubsidyClaimData) => {
+  if (!data || !selectedProgram.value) return;
+  if (data.inventory_remaining != null) {
+    selectedProgram.value.remaining_quantity = Number(data.inventory_remaining);
+  }
+  if (data.inventory_remaining_secondary != null) {
+    selectedProgram.value.secondary_remaining_quantity = Number(data.inventory_remaining_secondary);
+  }
+};
+
+const claimForCurrentFarmer = async () => {
+  if (!farmer.value || !selectedProgramId.value || claiming.value) return;
+  if (isRffaBlocked.value) {
+    await toast('This farmer is not eligible for RFFA.', 'danger');
+    return;
+  }
+
+  const program = selectedProgram.value;
+  const source: 'subsidy' | 'program' = program?.source === 'subsidy' ? 'subsidy' : 'program';
+  const farmerName = farmerDisplayName.value;
+  claiming.value = true;
+
+  try {
+    let ctx: ReleaseContext;
+    if (!isOnline()) {
+      ctx = buildOfflineContext(program, source);
+    } else {
+      try {
+        ctx = await verifyOnline(program, source);
+      } catch (err: any) {
+        if (!isNetworkError(err)) {
+          await toast(err?.response?.data?.message || 'Could not verify eligibility.', 'danger');
+          return;
+        }
+        ctx = buildOfflineContext(program, source);
+        await toast('Connection lost. Saving offline — will confirm on sync.', 'warning');
+      }
+    }
+
+    distributionStore.setContext(ctx);
+    const result = await claimSubsidyRelease(ctx);
+    lastClaim.value = {
+      offline: result.offline,
+      farmerName,
+      data: result.data,
+    };
+    applyStockFromClaim(result.data);
+    distributionStore.clear();
+    clearFarmer();
+    emit('saved');
+    if (result.offline) {
+      await toast('Queued offline. Will sync when back online.', 'warning');
+    }
+  } catch (err: any) {
+    await toast(err?.response?.data?.message || 'Release failed. Please try again.', 'danger');
+  } finally {
+    claiming.value = false;
+  }
 };
 
 const fetchFarmerByQr = async (raw: string) => {
@@ -271,7 +479,7 @@ const fetchFarmerByQr = async (raw: string) => {
       return;
     }
     applyFarmer(result, value);
-    await toast('Farmer loaded.', 'success');
+    await claimForCurrentFarmer();
   } catch (err) {
     console.warn('[AGRI-AKAP] Farmer lookup failed:', err);
     await toast('Lookup failed. Check connection or try again.', 'danger');
@@ -286,7 +494,11 @@ const stopScan = async () => {
 };
 
 const startScan = async () => {
-  if (isScanning.value || lookingUp.value) return;
+  if (!hasProgram.value) {
+    await toast('Choose a subsidy campaign first.', 'warning');
+    return;
+  }
+  if (isScanning.value || lookingUp.value || claiming.value) return;
 
   const result = await scanFarmerQr({
     onLiveScanStart: () => { isScanning.value = true; },
@@ -309,136 +521,19 @@ const startScan = async () => {
   await fetchFarmerByQr(result.value);
 };
 
-/** Best-effort context built from cached program/farmer data when there's no
- *  connectivity to run the live eligibility check. The server re-verifies
- *  everything (eligibility, allocation, stock) when the queued claim syncs. */
-const buildOfflineContext = (program: any, source: 'subsidy' | 'program') => {
-  const rsbsaNo = farmer.value.rsbsa_no || farmer.value.rsbsaNo;
-  distributionStore.setContext({
-    farmer_id: farmer.value.id,
-    program_id: selectedProgramId.value,
-    farmer_name: farmerDisplayName.value,
-    mobile_number: farmer.value.mobile_number,
-    item_released: program?.name || program?.program_name || 'Subsidy item',
-    seed_class: program?.seed_class ?? null,
-    item_type: program?.item_type ?? null,
-    unit: program?.unit_of_measurement || '',
-    total_farm_size: 0,
-    eligible_size: 0,
-    quantity: 0,
-    inventory_remaining: program?.remaining_quantity ?? 0,
-    unit_secondary: program?.secondary_unit ?? null,
-    quantity_secondary: null,
-    inventory_remaining_secondary: program?.secondary_remaining_quantity ?? null,
-    plot_lat: farmer.value.farm_plots?.[0]?.latitude ?? farmer.value.farmPlots?.[0]?.latitude,
-    plot_long: farmer.value.farm_plots?.[0]?.longitude ?? farmer.value.farmPlots?.[0]?.longitude,
-    rsbsa_no: rsbsaNo,
-    source,
-    offline: true,
-  });
-};
-
-const goToRelease = () => {
-  if (props.embedded) {
-    emit('verified');
-    return;
-  }
-  router.push('/tech/release');
-};
-
-const continueToRelease = async () => {
-  if (!farmer.value || !selectedProgramId.value) return;
-  const program = selectedProgram.value;
-  const source: 'subsidy' | 'program' = program?.source === 'subsidy' ? 'subsidy' : 'program';
-  verifying.value = true;
-
-  if (!isOnline()) {
-    buildOfflineContext(program, source);
-    verifying.value = false;
-    await toast('Offline: exact allocation will be confirmed by the server on sync.', 'warning');
-    goToRelease();
-    return;
-  }
-
-  try {
-    if (source === 'subsidy') {
-      const response = await apiClient.post(`/subsidies/${selectedProgramId.value}/verify-farmer`, {
-        farmer_id: farmer.value.id,
-        rsbsa_no: farmer.value.rsbsa_no || farmer.value.rsbsaNo,
-      });
-      const data = response.data?.data ?? {};
-      distributionStore.setContext({
-        farmer_id: data.farmer_id || farmer.value.id,
-        program_id: data.program_id || selectedProgramId.value,
-        farmer_name: data.farmer_name || farmerDisplayName.value,
-        mobile_number: data.mobile_number,
-        item_released: data.item_released || program.name,
-        seed_class: data.seed_class ?? program.seed_class ?? null,
-        item_type: data.item_type ?? program.item_type ?? null,
-        unit: data.unit || program.unit_of_measurement,
-        total_farm_size: data.total_farm_size || 0,
-        eligible_size: data.eligible_size || 0,
-        quantity: data.quantity || 0,
-        inventory_remaining: data.inventory_remaining ?? program.remaining_quantity,
-        unit_secondary: data.unit_secondary ?? program.secondary_unit ?? null,
-        quantity_secondary: data.quantity_secondary ?? null,
-        inventory_remaining_secondary: data.inventory_remaining_secondary ?? program.secondary_remaining_quantity ?? null,
-        plot_lat: data.plot_lat,
-        plot_long: data.plot_long,
-        beneficiary_id: data.beneficiary_id,
-        rsbsa_no: farmer.value.rsbsa_no || farmer.value.rsbsaNo,
-        source: 'subsidy',
-        offline: false,
-      });
-      goToRelease();
-      return;
-    }
-
-    const response = await apiClient.post('/distributions/verify', {
-      farmer_id: farmer.value.id,
-      program_id: selectedProgramId.value,
-    });
-    const data = response.data?.data ?? {};
-    distributionStore.setContext({
-      farmer_id: data.farmer_id || farmer.value.id,
-      program_id: data.program_id || selectedProgramId.value,
-      farmer_name: data.farmer_name || farmerDisplayName.value,
-      mobile_number: data.mobile_number,
-      item_released: data.item_released || program?.name,
-      unit: data.unit || program?.unit_of_measurement,
-      total_farm_size: data.total_farm_size || 0,
-      eligible_size: data.eligible_size || 0,
-      quantity: data.quantity || 0,
-      inventory_remaining: data.inventory_remaining ?? program?.remaining_quantity,
-      plot_lat: data.plot_lat,
-      plot_long: data.plot_long,
-      rsbsa_no: farmer.value.rsbsa_no || farmer.value.rsbsaNo,
-      source: 'program',
-      offline: false,
-    });
-    goToRelease();
-  } catch (err: any) {
-    if (isNetworkError(err)) {
-      // The device looked online but the eligibility check couldn't reach the server.
-      buildOfflineContext(program, source);
-      await toast('Connection lost. Continuing offline — will confirm on sync.', 'warning');
-      goToRelease();
-      return;
-    }
-    await toast(err?.response?.data?.message || 'Could not verify eligibility.', 'danger');
-  } finally {
-    verifying.value = false;
-  }
-};
-
 onMounted(async () => {
   showScannerBackground();
   programs.value = await getPrograms();
-  if (programs.value.length === 1) selectedProgramId.value = programs.value[0].id;
+  const saved = distributionStore.activeProgramId;
+  if (saved && programs.value.some((p) => p.id === saved)) {
+    selectedProgramId.value = saved;
+  } else if (programs.value.length === 1) {
+    persistProgram(programs.value[0].id);
+  }
 
   const farmerId = String(route.query.farmer || '').trim();
   const rsbsa = String(route.query.rsbsa || '').trim();
-  if (farmerId || rsbsa) {
+  if ((farmerId || rsbsa) && selectedProgramId.value) {
     lookingUp.value = true;
     try {
       if (farmerId) {
@@ -446,6 +541,7 @@ onMounted(async () => {
         if (res.data?.data) {
           applyFarmer(res.data.data);
           lookingUp.value = false;
+          await claimForCurrentFarmer();
           return;
         }
       }
@@ -533,6 +629,8 @@ onBeforeUnmount(() => {
   margin-bottom: 1rem;
 }
 
+.search-box.disabled { opacity: 0.55; pointer-events: none; }
+
 .search-input { --padding-start: 0; }
 .hint { margin: 0.25rem 0 0; font-size: 0.8rem; color: #64748b; }
 .hint.danger { color: #b91c1c; font-weight: 600; }
@@ -585,6 +683,41 @@ onBeforeUnmount(() => {
 
 .program-details { margin-top: 0.75rem; }
 
+.program-chip {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  width: 100%;
+  margin: 0 0 1rem;
+  padding: 0.75rem 1rem;
+  background: #f0f7f2;
+  border: 1px solid #c5d9cc;
+  border-radius: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.program-chip .chip-label {
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.program-chip strong {
+  flex: 1;
+  color: #1a4731;
+  font-size: 0.95rem;
+}
+
+.program-chip .chip-change {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #1a4731;
+  text-decoration: underline;
+}
+
 .rffa-lock-banner {
   display: flex;
   align-items: flex-start;
@@ -632,14 +765,29 @@ onBeforeUnmount(() => {
   text-align: right;
 }
 
-.continue-btn {
-  --background: #d4af37;
-  --color: #1a4731;
-  text-transform: none;
-  font-weight: 800;
-  min-height: 52px;
-  margin-bottom: 1.5rem;
+.result-card {
+  margin: 0 0 1rem;
+  border-radius: 14px;
 }
+
+.text-white { color: white !important; }
+.result-icon { font-size: 2.4rem; margin-bottom: 0.35rem; }
+.farmer-name-result { font-weight: 900; font-size: 1.35rem; margin: 0 0 0.75rem; }
+.dispense-box {
+  background: rgba(255,255,255,0.2);
+  border: 2px solid rgba(255,255,255,0.6);
+  border-radius: 10px;
+  padding: 1rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dispense-label { font-size: 0.75rem; letter-spacing: 2px; opacity: 0.85; }
+.dispense-qty { font-size: 2.1rem; font-weight: 900; line-height: 1; }
+.dispense-qty-secondary { font-size: 1.05rem; font-weight: 700; opacity: 0.9; }
+.remaining-note { font-size: 0.82rem; margin-top: 0.75rem; opacity: 0.9; }
+.sms-note { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; margin-top: 0.65rem; opacity: 0.9; }
 
 .scan-overlay {
   position: absolute;

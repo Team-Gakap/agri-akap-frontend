@@ -401,6 +401,7 @@ import SignaturePad from '@/components/SignaturePad.vue';
 import VarietyField from '@/components/VarietyField.vue';
 import apiClient from '@/utils/axios';
 import { presentToast } from '@/utils/toast';
+import { shrinkSyncImage } from '@/utils/resizeImageForId';
 
 type ToolMode = 'boundary' | 'incident';
 
@@ -1185,16 +1186,16 @@ const capturePhotoEvidence = async () => {
   capturingPhoto.value = true;
   try {
     const photo = await Camera.getPhoto({
-      quality: 85,
+      quality: 60,
       allowEditing: false,
       resultType: CameraResultType.Base64,
       source: CameraSource.Camera,
     });
     const base64 = photo.base64String ?? null;
     if (!base64) throw new Error('Empty camera payload');
-    const format = (photo.format || 'jpeg').toLowerCase();
-    meta.photoBase64 = base64;
-    meta.photoPreviewSrc = `data:image/${format};base64,${base64}`;
+    const shrunk = (await shrinkSyncImage(base64, 1600, 0.7)) ?? base64;
+    meta.photoBase64 = shrunk;
+    meta.photoPreviewSrc = `data:image/jpeg;base64,${shrunk}`;
     await toast('Photo evidence captured.', 'success');
   } catch (err) {
     console.warn('[AGRI-AKAP] Camera capture failed:', err);

@@ -24,11 +24,11 @@ export const useSyncStore = defineStore('sync', () => {
     if (isSyncing.value || !online.value) return;
     isSyncing.value = true;
     try {
-      const { synced, failed, errored } = await syncAllPendingData();
+      const { synced, failed, errored, errorMessage } = await syncAllPendingData();
       lastSyncAt.value = new Date().toISOString();
       lastSyncFailed.value = !!errored;
       if (errored) {
-        lastMessage.value = 'Sync failed — will retry automatically.';
+        lastMessage.value = errorMessage?.trim() || 'Sync failed — will retry automatically.';
       } else if (synced || failed) {
         lastMessage.value = `Synced ${synced} record(s)` + (failed ? `, ${failed} failed` : '');
       }

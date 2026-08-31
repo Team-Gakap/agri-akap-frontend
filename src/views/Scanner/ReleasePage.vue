@@ -18,7 +18,6 @@
     <component :is="embedded ? 'div' : IonContent" class="release-bg ion-padding">
       <div class="release-wrapper">
 
-        <!-- No context (opened directly) -->
         <ion-card v-if="!ctx" class="empty-card">
           <ion-card-content>
             <p>No verified farmer in context. Please scan a farmer ID first.</p>
@@ -29,7 +28,6 @@
           </ion-card-content>
         </ion-card>
 
-        <!-- SUCCESS SCREEN -->
         <template v-else-if="releaseResult">
           <ion-card :color="releaseResult.offline ? 'warning' : 'success'">
             <ion-card-header>
@@ -72,9 +70,7 @@
           </ion-button>
         </template>
 
-        <!-- RELEASE FORM -->
         <template v-else>
-          <!-- Allocation preview -->
           <ion-card class="alloc-card">
             <ion-card-content>
               <p class="alloc-eyebrow">ALLOCATION PREVIEW</p>
@@ -115,44 +111,16 @@
             </ion-card-content>
           </ion-card>
 
-          <!-- Evidence capture -->
-          <ion-card class="evidence-card">
-            <ion-card-content>
-              <h3 class="section-title">Photo Voucher <span class="req">*required</span></h3>
-
-              <div v-if="photoPreview" class="photo-preview-box mb-3">
-                <img :src="photoPreview" alt="Release Voucher" />
-                <div class="gps-watermark" v-if="geo.lat">
-                  LAT: {{ geo.lat.toFixed(5) }}<br>
-                  LNG: {{ geo.long.toFixed(5) }}
-                </div>
-              </div>
-
-              <ion-button expand="block" color="medium" fill="outline" @click="captureVoucher">
-                <ion-icon slot="start" :icon="cameraOutline"></ion-icon>
-                {{ photoPreview ? 'Retake Photo' : 'Capture Photo Voucher' }}
-              </ion-button>
-
-              <p class="gps-status">
-                <ion-icon :icon="locationOutline"></ion-icon>
-                <span v-if="geo.source === 'device'">High-accuracy GPS locked.</span>
-                <span v-else-if="geo.source === 'plot'">Using registered plot coordinates (device GPS unavailable).</span>
-                <span v-else>No coordinates yet — captured with the photo.</span>
-              </p>
-            </ion-card-content>
-          </ion-card>
-
           <ion-button
             expand="block"
             size="large"
             class="authorize-btn"
-            :disabled="!photoPreview || isSubmitting"
+            :disabled="isSubmitting"
             @click="authorizeRelease"
           >
             <ion-icon slot="start" :icon="checkmarkDoneOutline"></ion-icon>
             {{ authorizeLabel }}
           </ion-button>
-          <p class="helper-text" v-if="!photoPreview">Capture a photo voucher to enable release.</p>
         </template>
 
       </div>
@@ -161,24 +129,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed } from 'vue';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonBackButton,
   IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonIcon,
   IonChip, IonLabel, toastController,
 } from '@ionic/vue';
 import {
-  qrCodeOutline, cameraOutline, locationOutline, checkmarkDoneOutline,
+  qrCodeOutline, checkmarkDoneOutline,
   checkmarkCircleOutline, chatbubbleEllipsesOutline,
   cloudDoneOutline, cloudOfflineOutline,
 } from 'ionicons/icons';
-import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
-import { Geolocation } from '@capacitor/geolocation';
 import { useRouter } from 'vue-router';
-import apiClient from '@/utils/axios';
 import { useSyncStore } from '@/stores/syncStore';
 import { useDistributionStore } from '@/stores/distributionStore';
-import { isOnline, isNetworkError, queueDistribution, syncAllPendingData } from '@/services/syncService';
+import { claimSubsidyRelease } from '@/composables/useSubsidyClaim';
 
 const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
 const emit = defineEmits<{ saved: []; back: [] }>();
@@ -190,26 +155,11 @@ const distributionStore = useDistributionStore();
 const ctx = computed(() => distributionStore.context);
 
 const isSubmitting = ref(false);
-const photoPreview = ref<string | null>(null);
-const photoBase64 = ref<string>('');
 const releaseResult = ref<any>(null);
-
-const geo = ref<{ lat: number; long: number; source: 'device' | 'plot' | 'none' }>({
-  lat: 0,
-  long: 0,
-  source: 'none',
-});
 
 const authorizeLabel = computed(() => {
   if (isSubmitting.value) return 'Recording...';
   return syncStore.online ? 'Authorize Release' : 'Save Release Offline';
-});
-
-onMounted(() => {
-  // Seed best-effort coordinates from the plot fallback if provided.
-  if (ctx.value?.plot_lat != null && ctx.value?.plot_long != null) {
-    geo.value = { lat: Number(ctx.value.plot_lat), long: Number(ctx.value.plot_long), source: 'plot' };
-  }
 });
 
 const toast = async (message: string, color = 'primary') => {
@@ -226,105 +176,18 @@ const goScan = () => {
   router.replace('/tech/subsidy-dispense');
 };
 
-const captureVoucher = async () => {
-  // GPS is best-effort: a failure here keeps any plot-fallback coordinates.
-  try {
-    const position = await Geolocation.getCurrentPosition({ enableHighAccuracy: true });
-    geo.value = {
-      lat: position.coords.latitude,
-      long: position.coords.longitude,
-      source: 'device',
-    };
-  } catch {
-    if (geo.value.source !== 'plot') {
-      await toast('Device GPS unavailable — using plot coordinates if registered.', 'warning');
-    }
-  }
-
-  try {
-    const image = await Camera.getPhoto({
-      quality: 70,
-      allowEditing: false,
-      resultType: CameraResultType.Base64,
-      source: CameraSource.Camera,
-    });
-    photoPreview.value = `data:image/jpeg;base64,${image.base64String}`;
-    photoBase64.value = `data:image/jpeg;base64,${image.base64String}`;
-  } catch {
-    await toast('Camera access failed. A photo voucher is required to authorize release.', 'danger');
-  }
-};
-
 const authorizeRelease = async () => {
   if (!ctx.value) return;
-  if (!photoBase64.value) {
-    await toast('A photo voucher is strictly required to authorize release.', 'danger');
-    return;
-  }
-
   isSubmitting.value = true;
-
-  const lat = geo.value.source === 'none' ? null : geo.value.lat;
-  const long = geo.value.source === 'none' ? null : geo.value.long;
-
-  // OFFLINE: queue for bulk sync (server re-verifies eligibility/stock on upload).
-  if (!isOnline()) {
-    await queueRelease(lat, long);
-    return;
-  }
-
   try {
-    if (ctx.value.source === 'subsidy') {
-      const response = await apiClient.post(`/subsidies/${ctx.value.program_id}/claim-farmer`, {
-        farmer_id: ctx.value.farmer_id,
-        rsbsa_no: ctx.value.rsbsa_no,
-        beneficiary_id: ctx.value.beneficiary_id,
-        photo_proof_base64: photoBase64.value,
-      });
-      releaseResult.value = response.data;
-      isSubmitting.value = false;
-      if (props.embedded) emit('saved');
-      return;
-    }
-
-    const response = await apiClient.post('/distributions/claim', {
-      farmer_id: ctx.value.farmer_id,
-      program_id: ctx.value.program_id,
-      geo_tag_lat: lat,
-      geo_tag_long: long,
-      photo_proof_base64: photoBase64.value,
-    });
-    releaseResult.value = response.data;
+    const result = await claimSubsidyRelease(ctx.value);
+    releaseResult.value = result;
     if (props.embedded) emit('saved');
   } catch (err: any) {
-    if (isNetworkError(err)) {
-      // Network dropped: fall back to the offline queue.
-      await queueRelease(lat, long);
-      return;
-    }
     await toast(err.response?.data?.message || 'Release failed. Please try again.', 'danger');
+  } finally {
     isSubmitting.value = false;
   }
-};
-
-const queueRelease = async (lat: number | null, long: number | null) => {
-  if (!ctx.value) return;
-  await queueDistribution({
-    source: ctx.value.source ?? 'program',
-    farmer_id: ctx.value.farmer_id,
-    farmer_name: ctx.value.farmer_name,
-    program_id: ctx.value.program_id,
-    program_name: ctx.value.item_released,
-    rsbsa_no: ctx.value.rsbsa_no,
-    beneficiary_id: ctx.value.beneficiary_id,
-    geo_tag_lat: lat,
-    geo_tag_long: long,
-    photo_proof_base64: photoBase64.value,
-  });
-  await syncStore.refreshCount();
-  void syncAllPendingData().then(() => syncStore.refreshCount());
-  releaseResult.value = { offline: true };
-  isSubmitting.value = false;
 };
 </script>
 
@@ -354,17 +217,7 @@ const queueRelease = async (lat: number | null, long: number | null) => {
 
 .offline-note { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 10px; background: #fff7e6; border: 1px solid #ffe0a3; border-radius: 8px; color: #92600a; font-size: 0.85rem; }
 
-.evidence-card { border-radius: 12px; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.04); margin-top: 1rem; }
-.section-title { font-size: 1rem; color: #1a4731; font-weight: 800; margin: 0 0 12px; }
-.req { color: #c0392b; font-size: 0.75rem; font-weight: 700; margin-left: 4px; }
-.photo-preview-box { position: relative; width: 100%; max-height: 300px; overflow: hidden; border-radius: 8px; border: 2px dashed #1a4731; background: #000; display: flex; align-items: center; justify-content: center; }
-.photo-preview-box img { width: 100%; height: auto; opacity: 0.9; }
-.gps-watermark { position: absolute; bottom: 10px; right: 10px; background: rgba(0,0,0,0.72); color: #00ff88; padding: 5px 10px; font-family: monospace; font-size: 0.78rem; border-radius: 4px; font-weight: 700; }
-.gps-status { display: flex; align-items: center; gap: 6px; margin: 12px 0 0; font-size: 0.82rem; color: #64748b; }
-.mb-3 { margin-bottom: 1rem; }
-
 .authorize-btn { --border-radius: 14px; height: 70px; font-size: 1.05rem; font-weight: 800; letter-spacing: 1px; margin-top: 1.5rem; }
-.helper-text { color: var(--ion-color-medium); font-size: 0.85rem; text-align: center; margin-top: 0.6rem; }
 
 .mt-4 { margin-top: 1.5rem; }
 .text-white { color: white !important; }

@@ -2,8 +2,9 @@ import { defineStore } from 'pinia';
 import { ref } from 'vue';
 
 /**
- * Allocation preview returned by POST /distributions/verify. Holds the
- * eligibility snapshot handed from the Scan tab to the Release view.
+ * Allocation preview returned by POST /distributions/verify or
+ * /subsidies/{id}/verify-farmer. Used by the Give Subsidy rapid-claim loop
+ * (and leftover /tech/release) to claim without a second program pick.
  */
 export interface ReleaseContext {
   farmer_id: string;
@@ -33,14 +34,20 @@ export interface ReleaseContext {
 
 export const useDistributionStore = defineStore('distribution', () => {
   const context = ref<ReleaseContext | null>(null);
+  /** Sticky campaign for the rapid-scan loop. Survives claims; not cleared with context. */
+  const activeProgramId = ref('');
 
   function setContext(ctx: ReleaseContext) {
     context.value = ctx;
+  }
+
+  function setActiveProgram(id: string) {
+    activeProgramId.value = id;
   }
 
   function clear() {
     context.value = null;
   }
 
-  return { context, setContext, clear };
+  return { context, activeProgramId, setContext, setActiveProgram, clear };
 });

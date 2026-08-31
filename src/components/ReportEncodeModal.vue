@@ -15,15 +15,8 @@
     </ion-header>
     <ion-content class="encoding-modal-body">
       <MobileSubsidyDispenseView
-        v-if="kind === 'subsidy' && subsidyStep === 'dispense'"
+        v-if="kind === 'subsidy'"
         embedded
-        @verified="subsidyStep = 'release'"
-        @saved="onSaved"
-      />
-      <ReleasePage
-        v-else-if="kind === 'subsidy' && subsidyStep === 'release'"
-        embedded
-        @back="subsidyStep = 'dispense'"
         @saved="onSaved"
       />
       <component
@@ -37,14 +30,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, type Component } from 'vue';
+import { type Component } from 'vue';
 import { IonModal, IonHeader, IonToolbar, IonTitle, IonButtons, IonButton, IonContent } from '@ionic/vue';
 import MobileSubsidyDispenseView from '@/views/Technician/MobileSubsidyDispenseView.vue';
-import ReleasePage from '@/views/Scanner/ReleasePage.vue';
 
 export type EncodeKind = 'planting' | 'harvest' | 'pest' | 'damage' | 'subsidy' | 'standing';
 
-const props = defineProps<{
+defineProps<{
   isOpen: boolean;
   title: string;
   kind: EncodeKind;
@@ -56,18 +48,11 @@ const emit = defineEmits<{
   (e: 'saved'): void;
 }>();
 
-const subsidyStep = ref<'dispense' | 'release'>('dispense');
-
-watch(() => props.isOpen, (open) => {
-  if (open) subsidyStep.value = 'dispense';
-});
-
 const close = () => emit('update:isOpen', false);
 const onDismiss = () => emit('update:isOpen', false);
 
 const onSaved = () => {
   emit('saved');
-  close();
 };
 </script>
 

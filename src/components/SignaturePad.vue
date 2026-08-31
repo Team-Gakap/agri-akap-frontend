@@ -130,10 +130,19 @@ const clear = () => {
   emit('update:hasSignature', false);
 };
 
-/** Extract the signature as a Base64 PNG data URL, or null if untouched. */
+/** Extract the signature as a JPEG data URL, or null if untouched. */
 const toBase64 = (): string | null => {
   if (!hasStroke.value || !canvasEl.value) return null;
-  return canvasEl.value.toDataURL('image/png');
+  const src = canvasEl.value;
+  const tmp = document.createElement('canvas');
+  tmp.width = src.width;
+  tmp.height = src.height;
+  const tctx = tmp.getContext('2d');
+  if (!tctx) return src.toDataURL('image/jpeg', 0.7);
+  tctx.fillStyle = '#ffffff';
+  tctx.fillRect(0, 0, tmp.width, tmp.height);
+  tctx.drawImage(src, 0, 0);
+  return tmp.toDataURL('image/jpeg', 0.7);
 };
 
 watch(
