@@ -66,6 +66,14 @@
               <option value="Corn">Corn</option>
               <option value="Both">Rice and Corn</option>
             </select>
+            <select v-model="seedClassFilter" class="tool-select" aria-label="Seed class">
+              <option value="">All seed classes</option>
+              <option v-for="sc in SEED_CLASSES" :key="sc" :value="sc">{{ sc }}</option>
+            </select>
+            <select v-model="itemTypeFilter" class="tool-select" aria-label="Item type">
+              <option value="">All item types</option>
+              <option v-for="it in ALL_ITEM_TYPES" :key="it" :value="it">{{ itemTypeLabel(it) }}</option>
+            </select>
           </div>
 
           <div class="table-scroll">
@@ -96,6 +104,12 @@
                         {{ p.unit_of_measurement }}
                       </span>
                       <span v-if="p.is_low_stock" class="stock-badge">Low Stock</span>
+                    </div>
+                    <div v-if="p.secondary_unit" class="inv-line">
+                      <span class="inv-qty inv-qty-secondary">
+                        {{ fmt(p.secondary_remaining_quantity) }} / {{ fmt(p.secondary_total_quantity) }}
+                        {{ p.secondary_unit }}
+                      </span>
                     </div>
                     <div
                       class="progress-track"
@@ -233,6 +247,36 @@
               </ion-select>
             </ion-item>
             <ion-item>
+              <ion-select
+                label="Seed Class *"
+                label-placement="stacked"
+                interface="popover"
+                placeholder="Choose Hybrid or Inbred"
+                :value="form.seed_class"
+                @ionChange="(e: any) => onSeedClassChange(e.detail.value)"
+              >
+                <ion-select-option v-for="sc in SEED_CLASSES" :key="sc" :value="sc">{{ sc }}</ion-select-option>
+              </ion-select>
+            </ion-item>
+            <ion-item>
+              <ion-select
+                label="Item Type *"
+                label-placement="stacked"
+                interface="popover"
+                placeholder="Choose an item"
+                :disabled="!form.seed_class"
+                :value="form.item_type"
+                @ionChange="(e: any) => onItemTypeChange(e.detail.value)"
+              >
+                <ion-select-option v-for="it in availableItemTypes" :key="it" :value="it">{{ itemTypeLabel(it) }}</ion-select-option>
+              </ion-select>
+            </ion-item>
+            <p v-if="catalogEntry" class="catalog-hint">
+              Units: <strong>{{ catalogEntry.unit }}</strong>
+              <span v-if="catalogEntry.secondaryUnit"> and <strong>{{ catalogEntry.secondaryUnit }}</strong></span>
+              — set by the MAO catalog and cannot be changed.
+            </p>
+            <ion-item>
               <ion-input
                 type="number"
                 label="Min Hectares (0 = no floor)"
@@ -257,16 +301,27 @@
             <ion-item>
               <ion-input
                 type="number"
-                label="Items per Hectare *"
+                :label="`${primaryUnitLabel} per Hectare *`"
                 label-placement="stacked"
                 :value="form.items_per_hectare"
                 @ionInput="(e: any) => form.items_per_hectare = Number(e.detail.value)"
-                min="1"
-                :max="isCashUnit(form.unit_of_measurement) ? CASH_CAP : 1000"
-                step="1"
+                min="0.01"
+                :max="isCashItem ? CASH_CAP : 100000"
+                step="0.01"
               ></ion-input>
             </ion-item>
-            <p v-if="isCashUnit(form.unit_of_measurement)" class="cash-cap-hint">
+            <ion-item v-if="isDualUnit">
+              <ion-input
+                type="number"
+                :label="`${secondaryUnitLabel} per Hectare *`"
+                label-placement="stacked"
+                :value="form.secondary_items_per_hectare"
+                @ionInput="(e: any) => form.secondary_items_per_hectare = Number(e.detail.value)"
+                min="0.01"
+                step="0.01"
+              ></ion-input>
+            </ion-item>
+            <p v-if="isCashItem" class="cash-cap-hint">
               Cash programs cannot exceed ₱{{ CASH_CAP.toLocaleString('en-PH') }} per hectare or per farmer.
             </p>
             <ion-item>
@@ -284,43 +339,97 @@
 
             <h3 class="section-label">Warehouse Stock</h3>
 
-            <ion-item>
-              <ion-select
-                label="Unit of Measurement"
-                label-placement="stacked"
-                interface="popover"
-                :value="form.unit_of_measurement"
-                @ionChange="(e: any) => form.unit_of_measurement = e.detail.value"
-              >
-                <ion-select-option value="Sacks">Sacks</ion-select-option>
-                <ion-select-option value="Kg">Kg</ion-select-option>
-                <ion-select-option value="Cash (PHP)">Cash (PHP)</ion-select-option>
-              </ion-select>
-            </ion-item>
-            <ion-item>
-              <ion-input
-                type="number"
-                label="Initial Stock on Hand"
-                label-placement="stacked"
-                :value="form.total_quantity"
-                @ionInput="(e: any) => form.total_quantity = Number(e.detail.value)"
-                min="0"
-                step="1"
-                placeholder="0"
-              ></ion-input>
-            </ion-item>
-            <ion-item>
-              <ion-input
-                type="number"
-                label="Reorder Level (optional)"
-                label-placement="stacked"
-                :value="form.reorder_level"
-                @ionInput="(e: any) => form.reorder_level = e.detail.value === '' ? null : Number(e.detail.value)"
-                min="0"
-                step="1"
-                placeholder="Alert when stock falls below this"
-              ></ion-input>
-            </ion-item>
+            <template v-if="form.seed_class && form.item_type">
+              <ion-item>
+                <ion-input
+                  type="number"
+                  :label="`Initial Stock on Hand (${primaryUnitLabel})`"
+                  label-placement="stacked"
+                  :value="form.total_quantity"
+                  @ionInput="(e: any) => form.total_quantity = Number(e.detail.value)"
+                  min="0"
+                  step="1"
+                  placeholder="0"
+                ></ion-input>
+              </ion-item>
+              <ion-item>
+                <ion-input
+                  type="number"
+                  :label="`Reorder Level (${primaryUnitLabel}, optional)`"
+                  label-placement="stacked"
+                  :value="form.reorder_level"
+                  @ionInput="(e: any) => form.reorder_level = e.detail.value === '' ? null : Number(e.detail.value)"
+                  min="0"
+                  step="1"
+                  placeholder="Alert when stock falls below this"
+                ></ion-input>
+              </ion-item>
+              <template v-if="isDualUnit">
+                <ion-item>
+                  <ion-input
+                    type="number"
+                    :label="`Initial Stock on Hand (${secondaryUnitLabel})`"
+                    label-placement="stacked"
+                    :value="form.secondary_total_quantity"
+                    @ionInput="(e: any) => form.secondary_total_quantity = Number(e.detail.value)"
+                    min="0"
+                    step="1"
+                    placeholder="0"
+                  ></ion-input>
+                </ion-item>
+                <ion-item>
+                  <ion-input
+                    type="number"
+                    :label="`Reorder Level (${secondaryUnitLabel}, optional)`"
+                    label-placement="stacked"
+                    :value="form.secondary_reorder_level"
+                    @ionInput="(e: any) => form.secondary_reorder_level = e.detail.value === '' ? null : Number(e.detail.value)"
+                    min="0"
+                    step="1"
+                    placeholder="Alert when stock falls below this"
+                  ></ion-input>
+                </ion-item>
+              </template>
+            </template>
+            <template v-else>
+              <ion-item>
+                <ion-select
+                  label="Unit of Measurement"
+                  label-placement="stacked"
+                  interface="popover"
+                  :value="form.unit_of_measurement"
+                  @ionChange="(e: any) => form.unit_of_measurement = e.detail.value"
+                >
+                  <ion-select-option value="Sacks">Sacks</ion-select-option>
+                  <ion-select-option value="Kg">Kg</ion-select-option>
+                  <ion-select-option value="Cash (PHP)">Cash (PHP)</ion-select-option>
+                </ion-select>
+              </ion-item>
+              <ion-item>
+                <ion-input
+                  type="number"
+                  label="Initial Stock on Hand"
+                  label-placement="stacked"
+                  :value="form.total_quantity"
+                  @ionInput="(e: any) => form.total_quantity = Number(e.detail.value)"
+                  min="0"
+                  step="1"
+                  placeholder="0"
+                ></ion-input>
+              </ion-item>
+              <ion-item>
+                <ion-input
+                  type="number"
+                  label="Reorder Level (optional)"
+                  label-placement="stacked"
+                  :value="form.reorder_level"
+                  @ionInput="(e: any) => form.reorder_level = e.detail.value === '' ? null : Number(e.detail.value)"
+                  min="0"
+                  step="1"
+                  placeholder="Alert when stock falls below this"
+                ></ion-input>
+              </ion-item>
+            </template>
           </ion-list>
 
           <p v-if="formError" class="form-error">{{ formError }}</p>
@@ -347,6 +456,9 @@
             <p class="modal-hint">
               Current stock:
               <strong>{{ fmt(activeProgram.remaining_quantity) }} {{ activeProgram.unit_of_measurement }}</strong>
+              <span v-if="activeProgram.secondary_unit">
+                &middot; <strong>{{ fmt(activeProgram.secondary_remaining_quantity) }} {{ activeProgram.secondary_unit }}</strong>
+              </span>
             </p>
 
             <ion-item class="modal-input">
@@ -354,14 +466,25 @@
                 type="number"
                 :value="restockQty"
                 @ionInput="(e: any) => restockQty = e.detail.value === '' ? null : Number(e.detail.value)"
-                :label="`Units Delivered (${activeProgram.unit_of_measurement}) *`"
+                :label="`${activeProgram.unit_of_measurement} Delivered *`"
                 label-placement="floating"
                 placeholder="e.g., 500"
-                min="1"
+                min="0.01"
+              ></ion-input>
+            </ion-item>
+            <ion-item v-if="activeProgram.secondary_unit" class="modal-input">
+              <ion-input
+                type="number"
+                :value="restockQtySecondary"
+                @ionInput="(e: any) => restockQtySecondary = e.detail.value === '' ? null : Number(e.detail.value)"
+                :label="`${activeProgram.secondary_unit} Delivered`"
+                label-placement="floating"
+                placeholder="e.g., 25"
+                min="0.01"
               ></ion-input>
             </ion-item>
 
-            <ion-button expand="block" class="save-btn" :disabled="savingRestock || !(Number(restockQty) >= 1)" @click="submitRestock">
+            <ion-button expand="block" class="save-btn" :disabled="savingRestock || !(Number(restockQty) >= 0.01)" @click="submitRestock">
               <ion-icon slot="start" :icon="addCircleOutline"></ion-icon>
               {{ savingRestock ? 'Saving…' : 'Add to Stock' }}
             </ion-button>
@@ -382,8 +505,11 @@
         <ion-content class="ion-padding">
           <div v-if="activeProgram">
             <p class="modal-program">{{ activeProgram.program_name }}</p>
+            <p v-if="activeProgram.item_type" class="modal-hint">
+              {{ catalogSummary(activeProgram.target_crop, activeProgram.seed_class, activeProgram.item_type) }} — units are set by the MAO catalog.
+            </p>
 
-            <ion-item class="modal-input">
+            <ion-item v-if="!activeProgram.item_type" class="modal-input">
               <ion-select
                 :value="settingsUnit"
                 interface="popover"
@@ -404,6 +530,17 @@
                 :value="settingsReorder"
                 @ionInput="(e: any) => settingsReorder = e.detail.value === '' ? null : Number(e.detail.value)"
                 :label="`Minimum Reorder Level (${activeProgram.unit_of_measurement})`"
+                label-placement="floating"
+                placeholder="Leave blank to disable alerts"
+                min="0"
+              ></ion-input>
+            </ion-item>
+            <ion-item v-if="activeProgram.secondary_unit" class="modal-input">
+              <ion-input
+                type="number"
+                :value="settingsReorderSecondary"
+                @ionInput="(e: any) => settingsReorderSecondary = e.detail.value === '' ? null : Number(e.detail.value)"
+                :label="`Minimum Reorder Level (${activeProgram.secondary_unit})`"
                 label-placement="floating"
                 placeholder="Leave blank to disable alerts"
                 min="0"
@@ -437,20 +574,33 @@ import {
 } from 'ionicons/icons';
 import apiClient from '@/utils/axios';
 import { cropLabel } from '@/utils/cropLabel';
-import { CASH_CAP, isCashUnit } from '@/utils/subsidyCash';
+import { CASH_CAP } from '@/utils/subsidyCash';
+import {
+  SEED_CLASSES, itemTypesFor, getCatalogEntry, isDualUnit as catalogIsDualUnit,
+  isCashItemType, itemTypeLabel, catalogSummary, type SeedClass, type ItemType,
+} from '@/constants/subsidyCatalog';
+
+const ALL_ITEM_TYPES: ItemType[] = ['seed', 'abono', 'liquid_fertilizer', 'wettable', 'cash'];
 
 interface SubsidyProgramRow {
   id: string;
   program_name: string;
   target_crop: string;
+  seed_class?: SeedClass | null;
+  item_type?: ItemType | null;
   max_hectares_limit: number;
   min_hectares_limit: number;
   items_per_hectare: number;
+  secondary_items_per_hectare?: number | null;
   status: string;
   unit_of_measurement: string;
+  secondary_unit?: string | null;
   total_quantity: number;
   remaining_quantity: number;
   reorder_level: number | null;
+  secondary_total_quantity?: number | null;
+  secondary_remaining_quantity?: number | null;
+  secondary_reorder_level?: number | null;
   is_low_stock: boolean;
   beneficiaries_count: number;
   claimed_count: number;
@@ -465,6 +615,8 @@ const generatingId = ref<string | null>(null);
 const statusUpdatingId = ref<string | null>(null);
 const searchName = ref('');
 const cropFilter = ref('');
+const seedClassFilter = ref('');
+const itemTypeFilter = ref('');
 const statusFilter = ref('');
 const error = ref('');
 const formError = ref('');
@@ -475,23 +627,48 @@ const restockOpen = ref(false);
 const settingsOpen = ref(false);
 
 const restockQty = ref<number | null>(null);
+const restockQtySecondary = ref<number | null>(null);
 const savingRestock = ref(false);
 
 const settingsUnit = ref('');
 const settingsReorder = ref<number | null>(null);
+const settingsReorderSecondary = ref<number | null>(null);
 const savingSettings = ref(false);
 
 const form = reactive({
   program_name: '',
   target_crop: 'Rice',
+  seed_class: '' as SeedClass | '',
+  item_type: '' as ItemType | '',
   max_hectares_limit: 2,
   min_hectares_limit: 0,
   items_per_hectare: 2,
+  secondary_items_per_hectare: null as number | null,
   status: 'Draft',
   unit_of_measurement: 'Bags',
   total_quantity: 0,
   reorder_level: null as number | null,
+  secondary_total_quantity: 0,
+  secondary_reorder_level: null as number | null,
 });
+
+const catalogEntry = computed(() => getCatalogEntry(form.seed_class, form.item_type));
+const availableItemTypes = computed(() => itemTypesFor(form.seed_class));
+const isDualUnit = computed(() => catalogIsDualUnit(form.seed_class, form.item_type));
+const isCashItem = computed(() => isCashItemType(form.item_type));
+const primaryUnitLabel = computed(() => catalogEntry.value?.unit || form.unit_of_measurement || 'Item');
+const secondaryUnitLabel = computed(() => catalogEntry.value?.secondaryUnit || '');
+
+const onSeedClassChange = (value: SeedClass) => {
+  form.seed_class = value;
+  form.item_type = '';
+};
+
+const onItemTypeChange = (value: ItemType) => {
+  form.item_type = value;
+  const entry = getCatalogEntry(form.seed_class, value);
+  form.unit_of_measurement = entry?.unit || 'Bags';
+};
 
 const toast = async (message: string, color: 'success' | 'warning' | 'danger' | 'primary' = 'success') => {
   const t = await toastController.create({ message, duration: 2800, color, position: 'top' });
@@ -505,6 +682,8 @@ const searchedPrograms = computed(() => {
   return programs.value.filter((p) => {
     if (q && !p.program_name.toLowerCase().includes(q)) return false;
     if (cropFilter.value && p.target_crop !== cropFilter.value) return false;
+    if (seedClassFilter.value && p.seed_class !== seedClassFilter.value) return false;
+    if (itemTypeFilter.value && p.item_type !== itemTypeFilter.value) return false;
     return true;
   });
 });
@@ -545,11 +724,15 @@ const claimedPct = (p: SubsidyProgramRow) => {
 
 const allocationMeta = (p: SubsidyProgramRow) => {
   const unit = p.unit_of_measurement || 'Sacks';
-  const rate = `${p.items_per_hectare} ${unit}/ha`;
+  let rate = `${p.items_per_hectare} ${unit}/ha`;
+  if (p.secondary_unit && p.secondary_items_per_hectare != null) {
+    rate += ` + ${p.secondary_items_per_hectare} ${p.secondary_unit}/ha`;
+  }
+  const catalogTag = p.seed_class && p.item_type ? catalogSummary(null, p.seed_class, p.item_type) : '';
   const cap = `Cap ${Number(p.max_hectares_limit).toFixed(2)} ha`;
   const min = Number(p.min_hectares_limit ?? 0);
-  if (min > 0) return `${rate} · Min ${min.toFixed(2)} ha · ${cap}`;
-  return `${rate} · ${cap}`;
+  const parts = [catalogTag, rate, min > 0 ? `Min ${min.toFixed(2)} ha` : '', cap].filter(Boolean);
+  return parts.join(' · ');
 };
 
 const fetchPrograms = async () => {
@@ -568,13 +751,18 @@ const fetchPrograms = async () => {
 const openCreate = () => {
   form.program_name = '';
   form.target_crop = 'Rice';
+  form.seed_class = '';
+  form.item_type = '';
   form.max_hectares_limit = 2;
   form.min_hectares_limit = 0;
   form.items_per_hectare = 2;
+  form.secondary_items_per_hectare = null;
   form.status = 'Draft';
   form.unit_of_measurement = 'Bags';
   form.total_quantity = 0;
   form.reorder_level = null;
+  form.secondary_total_quantity = 0;
+  form.secondary_reorder_level = null;
   formError.value = '';
   createOpen.value = true;
 };
@@ -583,6 +771,14 @@ const createProgram = async () => {
   formError.value = '';
   if (!form.program_name.trim()) {
     formError.value = 'Program name is required.';
+    return;
+  }
+  if (!form.seed_class) {
+    formError.value = 'Seed class is required.';
+    return;
+  }
+  if (!form.item_type) {
+    formError.value = 'Item type is required.';
     return;
   }
   if (!form.max_hectares_limit || form.max_hectares_limit <= 0) {
@@ -597,11 +793,15 @@ const createProgram = async () => {
     formError.value = 'Min hectares cannot exceed the max hectares cap.';
     return;
   }
-  if (!form.items_per_hectare || form.items_per_hectare < 1) {
-    formError.value = 'Items per hectare must be at least 1.';
+  if (!form.items_per_hectare || form.items_per_hectare <= 0) {
+    formError.value = `${primaryUnitLabel.value} per hectare must be greater than 0.`;
     return;
   }
-  if (isCashUnit(form.unit_of_measurement) && form.items_per_hectare > CASH_CAP) {
+  if (isDualUnit.value && !(Number(form.secondary_items_per_hectare) > 0)) {
+    formError.value = `${secondaryUnitLabel.value} per hectare must be greater than 0.`;
+    return;
+  }
+  if (isCashItem.value && form.items_per_hectare > CASH_CAP) {
     formError.value = `Cash rate cannot exceed ₱${CASH_CAP.toLocaleString('en-PH')} per hectare.`;
     return;
   }
@@ -611,13 +811,17 @@ const createProgram = async () => {
     const res = await apiClient.post('/subsidies', {
       program_name: form.program_name.trim(),
       target_crop: form.target_crop,
+      seed_class: form.seed_class,
+      item_type: form.item_type,
       max_hectares_limit: form.max_hectares_limit,
       min_hectares_limit: form.min_hectares_limit || 0,
       items_per_hectare: form.items_per_hectare,
+      secondary_items_per_hectare: isDualUnit.value ? form.secondary_items_per_hectare : undefined,
       status: form.status,
-      unit_of_measurement: form.unit_of_measurement.trim() || 'Bags',
       total_quantity: form.total_quantity || 0,
       reorder_level: form.reorder_level,
+      secondary_total_quantity: isDualUnit.value ? (form.secondary_total_quantity || 0) : undefined,
+      secondary_reorder_level: isDualUnit.value ? form.secondary_reorder_level : undefined,
     });
     createOpen.value = false;
     const id = res.data?.data?.id;
@@ -713,15 +917,17 @@ const generateMasterlist = async (id: string) => {
 const openRestock = (p: SubsidyProgramRow) => {
   activeProgram.value = p;
   restockQty.value = null;
+  restockQtySecondary.value = null;
   restockOpen.value = true;
 };
 
 const submitRestock = async () => {
-  if (!activeProgram.value || !(Number(restockQty.value) >= 1)) return;
+  if (!activeProgram.value || !(Number(restockQty.value) >= 0.01)) return;
   savingRestock.value = true;
   try {
     const res = await apiClient.post(`/subsidies/${activeProgram.value.id}/restock`, {
       quantity_added: Number(restockQty.value),
+      secondary_quantity_added: Number(restockQtySecondary.value) > 0 ? Number(restockQtySecondary.value) : undefined,
     });
     await toast(res.data?.message || 'Delivery logged.', 'success');
     restockOpen.value = false;
@@ -737,6 +943,7 @@ const openSettings = (p: SubsidyProgramRow) => {
   activeProgram.value = p;
   settingsUnit.value = p.unit_of_measurement || 'Bags';
   settingsReorder.value = p.reorder_level ?? null;
+  settingsReorderSecondary.value = p.secondary_reorder_level ?? null;
   settingsOpen.value = true;
 };
 
@@ -745,8 +952,9 @@ const submitSettings = async () => {
   savingSettings.value = true;
   try {
     const res = await apiClient.patch(`/subsidies/${activeProgram.value.id}/config`, {
-      unit_of_measurement: settingsUnit.value.trim() || undefined,
+      unit_of_measurement: activeProgram.value.item_type ? undefined : (settingsUnit.value.trim() || undefined),
       reorder_level: settingsReorder.value,
+      secondary_reorder_level: activeProgram.value.secondary_unit ? settingsReorderSecondary.value : undefined,
     });
     await toast(res.data?.message || 'Stock settings updated.', 'success');
     settingsOpen.value = false;
@@ -1037,6 +1245,16 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchPrograms))
   font-size: 0.78rem;
   color: #b45309;
 }
+.catalog-hint {
+  margin: 0.35rem 0.9rem 0.6rem;
+  font-size: 0.78rem;
+  color: #1a4731;
+  background: #eef7f0;
+  border: 1px solid #c8e6c9;
+  border-radius: 8px;
+  padding: 0.45rem 0.65rem;
+}
+.inv-qty-secondary { color: #475569; font-weight: 600; }
 .section-label {
   margin: 1rem 0 0.35rem 0.9rem;
   font-size: 0.78rem;

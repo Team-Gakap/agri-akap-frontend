@@ -9,7 +9,15 @@
           <div class="top-bar-info">
             <p class="program-name">{{ program.program_name || 'Subsidy Program' }}</p>
             <p class="program-sub">
-              {{ cropLabel(program.target_crop) }} &middot; {{ program.items_per_hectare || 0 }} {{ program.unit_of_measurement || 'items' }}/ha &middot;
+              <template v-if="program.seed_class && program.item_type">
+                {{ catalogSummary(program.target_crop, program.seed_class, program.item_type) }} &middot;
+                {{ program.items_per_hectare || 0 }} {{ program.unit_of_measurement || 'items' }}/ha
+                <template v-if="program.secondary_unit"> + {{ program.secondary_items_per_hectare || 0 }} {{ program.secondary_unit }}/ha</template>
+                &middot;
+              </template>
+              <template v-else>
+                {{ cropLabel(program.target_crop) }} &middot; {{ program.items_per_hectare || 0 }} {{ program.unit_of_measurement || 'items' }}/ha &middot;
+              </template>
               min {{ program.min_hectares_limit || 0 }} ha &middot;
               cap {{ program.max_hectares_limit || 0 }} ha
               <span v-if="program.status" class="mock-flag">{{ program.status }}</span>
@@ -42,6 +50,17 @@
               </div>
               <div class="progress-track">
                 <div class="progress-fill stock" :class="{ danger: program.is_low_stock }" :style="{ width: stockPct + '%' }"></div>
+              </div>
+            </div>
+            <div v-if="program.secondary_unit" class="stat claimed-progress stock-stat">
+              <div class="progress-head">
+                <span class="stat-value" :class="{ danger: program.is_low_stock }">
+                  {{ fmt(program.secondary_remaining_quantity) }}/{{ fmt(program.secondary_total_quantity) }}
+                </span>
+                <span class="stat-label">{{ program.secondary_unit }} in Stock</span>
+              </div>
+              <div class="progress-track">
+                <div class="progress-fill stock" :style="{ width: secondaryStockPct + '%' }"></div>
               </div>
             </div>
             <ion-button size="small" fill="outline" class="act-btn stock-btn" @click="openRestock">
@@ -128,7 +147,7 @@
                   <td>{{ row.last_name }}, {{ row.first_name }}</td>
                   <td>{{ row.barangay }}</td>
                   <td class="col-num">{{ formatArea(row.farm_area) }}</td>
-                  <td class="col-num">{{ formatAllocation(row.calculated_allocation) }}</td>
+                  <td class="col-num">{{ formatAllocation(row) }}</td>
                   <td>
                     <span class="status-pill" :class="row.status === 'Claimed' ? 'claimed' : 'pending'">
                       {{ row.status }}
@@ -209,19 +228,33 @@
           <p class="modal-hint">
             Current stock:
             <strong>{{ fmt(program.remaining_quantity) }} {{ program.unit_of_measurement }}</strong>
+            <span v-if="program.secondary_unit">
+              &middot; <strong>{{ fmt(program.secondary_remaining_quantity) }} {{ program.secondary_unit }}</strong>
+            </span>
           </p>
           <ion-item class="modal-input">
             <ion-input
               type="number"
               :value="restockQty"
               @ionInput="(e: any) => restockQty = e.detail.value === '' ? null : Number(e.detail.value)"
-              :label="`Units Delivered (${program.unit_of_measurement}) *`"
+              :label="`${program.unit_of_measurement} Delivered *`"
               label-placement="floating"
               placeholder="e.g., 500"
-              min="1"
+              min="0.01"
             ></ion-input>
           </ion-item>
-          <ion-button expand="block" class="send-btn" :disabled="savingRestock || !(Number(restockQty) >= 1)" @click="submitRestock">
+          <ion-item v-if="program.secondary_unit" class="modal-input">
+            <ion-input
+              type="number"
+              :value="restockQtySecondary"
+              @ionInput="(e: any) => restockQtySecondary = e.detail.value === '' ? null : Number(e.detail.value)"
+              :label="`${program.secondary_unit} Delivered`"
+              label-placement="floating"
+              placeholder="e.g., 25"
+              min="0.01"
+            ></ion-input>
+          </ion-item>
+          <ion-button expand="block" class="send-btn" :disabled="savingRestock || !(Number(restockQty) >= 0.01)" @click="submitRestock">
             <ion-icon slot="start" :icon="addCircleOutline"></ion-icon>
             {{ savingRestock ? 'Saving…' : 'Add to Stock' }}
           </ion-button>
@@ -247,6 +280,7 @@ import {
 import apiClient from '@/utils/axios';
 import { cropLabel } from '@/utils/cropLabel';
 import BarangayMultiPicker from '@/components/BarangayMultiPicker.vue';
+import { catalogSummary } from '@/constants/subsidyCatalog';
 
 interface MasterlistRow {
   beneficiary_id: string;
@@ -256,6 +290,7 @@ interface MasterlistRow {
   barangay: string;
   farm_area: number;
   calculated_allocation: number;
+  calculated_allocation_secondary?: number | null;
   status: 'Pending' | 'Claimed';
 }
 
@@ -274,19 +309,27 @@ const isMockData = ref(false);
 const claimingId = ref<string | null>(null);
 const restockOpen = ref(false);
 const restockQty = ref<number | null>(null);
+const restockQtySecondary = ref<number | null>(null);
 const savingRestock = ref(false);
 
 const program = reactive<any>({
   id: '',
   program_name: '',
   target_crop: '',
+  seed_class: null,
+  item_type: null,
   max_hectares_limit: 0,
   items_per_hectare: 0,
+  secondary_items_per_hectare: null,
   status: '',
   unit_of_measurement: 'Bags',
+  secondary_unit: null,
   total_quantity: 0,
   remaining_quantity: 0,
   reorder_level: null,
+  secondary_total_quantity: 0,
+  secondary_remaining_quantity: 0,
+  secondary_reorder_level: null,
   is_low_stock: false,
 });
 
@@ -372,10 +415,22 @@ const claimedPct = computed(() =>
 const stockPct = computed(() =>
   program.total_quantity ? Math.max(0, Math.min(100, Math.round((program.remaining_quantity / program.total_quantity) * 100))) : 0
 );
+const secondaryStockPct = computed(() =>
+  program.secondary_total_quantity
+    ? Math.max(0, Math.min(100, Math.round((program.secondary_remaining_quantity / program.secondary_total_quantity) * 100)))
+    : 0
+);
 
 const fmt = (v: any) => Number(v ?? 0).toLocaleString('en-PH');
 const formatArea = (v: number) => Number(v ?? 0).toFixed(2);
-const formatAllocation = (v: number) => `${v ?? 0} ${Number(v) === 1 ? 'Bag' : 'Bags'}`;
+const formatAllocation = (row: MasterlistRow) => {
+  const unit = program.unit_of_measurement || 'Bags';
+  const primary = `${row.calculated_allocation ?? 0} ${unit}`;
+  if (program.secondary_unit && row.calculated_allocation_secondary != null) {
+    return `${primary} / ${row.calculated_allocation_secondary} ${program.secondary_unit}`;
+  }
+  return primary;
+};
 
 const toast = async (message: string, color: 'success' | 'warning' | 'danger' | 'primary' = 'success') => {
   const t = await toastController.create({ message, duration: 2800, color, position: 'top' });
@@ -403,6 +458,7 @@ const fetchMasterlist = async () => {
       barangay: r.barangay || 'Unspecified',
       farm_area: Number(r.farm_area || 0),
       calculated_allocation: Number(r.calculated_allocation || 0),
+      calculated_allocation_secondary: r.calculated_allocation_secondary != null ? Number(r.calculated_allocation_secondary) : null,
       status: r.status,
     }));
     isMockData.value = false;
@@ -477,9 +533,14 @@ const generateMasterlist = async () => {
 };
 
 const confirmClaim = async (row: MasterlistRow) => {
+  let message = `Release ${row.calculated_allocation} ${program.unit_of_measurement || 'Bags'}`;
+  if (program.secondary_unit && row.calculated_allocation_secondary != null) {
+    message += ` and ${row.calculated_allocation_secondary} ${program.secondary_unit}`;
+  }
+  message += ` to ${row.last_name}, ${row.first_name} (${row.rsbsa_no})? This deducts from the program's warehouse stock.`;
   const alert = await alertController.create({
     header: 'Mark as Claimed',
-    message: `Release ${row.calculated_allocation} ${program.unit_of_measurement || 'Bags'} to ${row.last_name}, ${row.first_name} (${row.rsbsa_no})? This deducts from the program's warehouse stock.`,
+    message,
     buttons: [
       { text: 'Cancel', role: 'cancel' },
       { text: 'Confirm Release', handler: () => claimBeneficiary(row) },
@@ -492,6 +553,9 @@ const claimBeneficiary = async (row: MasterlistRow) => {
   if (isMockData.value) {
     row.status = 'Claimed';
     program.remaining_quantity = Math.max(0, program.remaining_quantity - row.calculated_allocation);
+    if (program.secondary_unit && row.calculated_allocation_secondary != null) {
+      program.secondary_remaining_quantity = Math.max(0, program.secondary_remaining_quantity - row.calculated_allocation_secondary);
+    }
     await toast('Beneficiary marked as Claimed. (Preview data)', 'success');
     return;
   }
@@ -510,14 +574,19 @@ const claimBeneficiary = async (row: MasterlistRow) => {
 
 const openRestock = () => {
   restockQty.value = null;
+  restockQtySecondary.value = null;
   restockOpen.value = true;
 };
 
 const submitRestock = async () => {
-  if (!(Number(restockQty.value) >= 1)) return;
+  if (!(Number(restockQty.value) >= 0.01)) return;
   if (isMockData.value) {
     program.total_quantity += Number(restockQty.value);
     program.remaining_quantity += Number(restockQty.value);
+    if (program.secondary_unit && Number(restockQtySecondary.value) > 0) {
+      program.secondary_total_quantity += Number(restockQtySecondary.value);
+      program.secondary_remaining_quantity += Number(restockQtySecondary.value);
+    }
     restockOpen.value = false;
     await toast('Delivery logged. (Preview data)', 'success');
     return;
@@ -526,6 +595,7 @@ const submitRestock = async () => {
   try {
     const res = await apiClient.post(`/subsidies/${programId.value}/restock`, {
       quantity_added: Number(restockQty.value),
+      secondary_quantity_added: Number(restockQtySecondary.value) > 0 ? Number(restockQtySecondary.value) : undefined,
     });
     Object.assign(program, res.data?.data ?? {});
     await toast(res.data?.message || 'Delivery logged.', 'success');

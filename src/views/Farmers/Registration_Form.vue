@@ -592,7 +592,7 @@ import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 
 import { reactive, ref, onMounted, computed } from "vue";
 import axiosInstance from "@/utils/axios";
-import { apiOrigin } from "@/utils/apiBase";
+import { storageUrl } from "@/utils/storageUrl";
 import { useRouter, useRoute } from "vue-router";
 import SearchableSelect from "@/components/SearchableSelect.vue";
 import { useOfficialBarangays } from "@/composables/useOfficialBarangays";
@@ -835,8 +835,6 @@ const generateTransactionCode = () => {
   return `ECH-${year}${month}-${randomStr}`; // e.g., ECH-202606-A1B2
 };
 
-const API_BASE = apiOrigin();
-
 const applyFarmerRecord = (data: any) => {
   const skip = new Set(['farm_plots', 'farmPlots', 'distributions', 'photo_base64']);
   Object.keys(farmer).forEach((key) => {
@@ -856,7 +854,7 @@ const applyFarmerRecord = (data: any) => {
     computeAge();
   }
   if (data.photo_path) {
-    photoPreview.value = `${API_BASE}/storage/${data.photo_path}`;
+    photoPreview.value = storageUrl(data.photo_path);
   }
   const plots = data.farm_plots || data.farmPlots || [];
   farmPlots.splice(0, farmPlots.length);

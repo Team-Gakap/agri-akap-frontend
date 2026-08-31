@@ -176,6 +176,20 @@
             </ion-select>
             <ion-input class="field" type="number" label="Area Planted (ha)" label-placement="stacked" :value="form.area_planted" @ionInput="onAreaPlantedInput"></ion-input>
             <VarietyField v-model="form.variety" :crop="crop" select-class="field" />
+            <ion-select
+              class="field"
+              label="Crop Stage"
+              label-placement="stacked"
+              interface="popover"
+              :value="form.crop_stage"
+              @ionChange="(e: any) => form.crop_stage = e.detail.value"
+            >
+              <ion-select-option value="">Select stage</ion-select-option>
+              <ion-select-option value="Seedling">Seedling</ion-select-option>
+              <ion-select-option value="Vegetative">Vegetative</ion-select-option>
+              <ion-select-option value="Reproductive">Reproductive</ion-select-option>
+              <ion-select-option value="Maturity">Maturity</ion-select-option>
+            </ion-select>
             <ion-input class="field" type="number" label="Days After Planting" label-placement="stacked" :value="form.days_after_planting" @ionInput="(e: any) => form.days_after_planting = e.detail.value"></ion-input>
             <ion-input class="field" type="number" label="Area Damaged (%)" label-placement="stacked" :value="form.area_damage_pct" @ionInput="onDamagePctInput"></ion-input>
             <ion-input class="field" type="number" label="Area Affected (ha)" label-placement="stacked" :value="form.area_affected_ha" readonly></ion-input>
@@ -209,6 +223,7 @@
               >Flag as potential outbreak</ion-toggle>
             </ion-item>
           </div>
+          <p v-if="harvestReadyHint" class="autofill-hint">{{ harvestReadyHint }}</p>
 
           <ion-button expand="block" class="add-btn" :disabled="!canAdd" @click="addEntry">
             {{ saving ? 'Saving…' : 'Add to Ledger' }}
@@ -253,6 +268,7 @@ import {
   farmerDisplayName,
   type FarmerOption,
 } from '@/composables/useBarangayFarmerSearch';
+import { useActivePlanting, stageSelectValue, isHarvestReady } from '@/composables/useActivePlanting';
 import apiClient from '@/utils/axios';
 import { toast } from '@/utils/toast';
 import { capInputToPlot, plotSizeHa } from '@/utils/plotArea';
@@ -310,6 +326,8 @@ const crop = ref('Corn');
 const farmerSearch = useBarangayFarmerSearch(() => effectiveBarangay.value, {
   commodity: () => crop.value,
 });
+const { fetchActivePlanting } = useActivePlanting();
+const harvestReadyHint = ref('');
 
 const entries = ref<PestEntry[]>([]);
 const viewingPhoto = ref<string | null>(null);
@@ -362,6 +380,7 @@ const form = reactive({
   farm_location: '',
   area_planted: '',
   variety: '',
+  crop_stage: '',
   days_after_planting: '',
   area_damage_pct: '',
   area_affected_ha: '',
@@ -467,7 +486,7 @@ const loadLedger = async () => {
         area_damage_pct: Number(r.area_damage_pct ?? r.incidence) || 0,
         damage_by: r.pest_name || '',
         date_of_inspection: r.date_of_inspection?.slice?.(0, 10) || r.date_of_inspection || '',
-        photo_url: r.photo_url || storageUrl(r.photo_path),
+        photo_url: storageUrl(r.photo_url || r.photo_path),
       } as PestEntry;
     });
   } catch {
@@ -518,15 +537,19 @@ const onSelectFarmer = async (f: FarmerOption) => {
   form.plot_id = '';
   form.farm_location = sel.barangay;
   form.area_planted = '';
+  form.variety = '';
+  form.crop_stage = '';
+  form.days_after_planting = '';
   if (plots.length === 1) {
     form.plot_id = plots[0].id;
     form.farm_location = plots[0].location_brgy || sel.barangay;
     form.area_planted = String(plots[0].size_ha || '');
   }
   syncAffectedHa();
+  await applyPlantingAutofill();
 };
 
-const onPlotChange = (e: any) => {
+const onPlotChange = async (e: any) => {
   form.plot_id = e.detail.value;
   const p = matchingPlots.value.find((x) => x.id === form.plot_id);
   if (p) {
@@ -534,10 +557,36 @@ const onPlotChange = (e: any) => {
     form.area_planted = String(p.size_ha || form.area_planted);
   }
   syncAffectedHa();
+  await applyPlantingAutofill();
+};
+
+const applyPlantingAutofill = async () => {
+  harvestReadyHint.value = '';
+  if (!form.farmer_id) return;
+  const planting = await fetchActivePlanting(form.farmer_id, {
+    farmPlotId: form.plot_id || undefined,
+    commodity: crop.value,
+  });
+  if (!planting) return;
+  if (!form.variety.trim() && planting.variety) form.variety = planting.variety;
+  if (planting.area_planted_ha != null && planting.area_planted_ha > 0) {
+    form.area_planted = capInputToPlot(String(planting.area_planted_ha), selectedPlotSize.value);
+  }
+  if (planting.days_elapsed != null) {
+    form.days_after_planting = String(planting.days_elapsed);
+  }
+  if (planting.computed_stage) {
+    form.crop_stage = stageSelectValue(planting.computed_stage);
+  }
+  if (isHarvestReady(planting.computed_stage)) {
+    harvestReadyHint.value = 'Active planting is ready for harvest.';
+  }
+  syncAffectedHa();
 };
 
 const resetForm = () => {
   farmerSearch.clearSelection();
+  harvestReadyHint.value = '';
   form.farmer_id = '';
   form.rsbsa_no = '';
   form.surname = '';
@@ -551,6 +600,7 @@ const resetForm = () => {
   form.farm_location = '';
   form.area_planted = '';
   form.variety = '';
+  form.crop_stage = '';
   form.days_after_planting = '';
   form.area_damage_pct = '';
   form.area_affected_ha = '';
@@ -577,6 +627,7 @@ const addEntry = async () => {
       farm_plot_id: form.plot_id || undefined,
       crop: crop.value,
       variety: form.variety || undefined,
+      crop_stage: form.crop_stage || undefined,
       area_planted: Number(form.area_planted),
       days_after_planting: Number(form.days_after_planting),
       area_damage_pct: Number(form.area_damage_pct),
@@ -889,6 +940,7 @@ watch(viewMode, (mode) => {
 .crop-hint { margin: -0.35rem 0 0.85rem; font-size: 0.82rem; color: #64748b; }
 .search-box { position: relative; margin-bottom: 0.75rem; }
 .hint { font-size: 0.8rem; color: #94a3b8; margin-top: 4px; }
+.autofill-hint { font-size: 0.8rem; color: #166534; margin: 0.35rem 0 0; }
 .suggest {
   list-style: none; margin: 4px 0 0; padding: 0; border: 1px solid #e2e8f0;
   border-radius: 8px; background: white; max-height: 280px; overflow: auto;

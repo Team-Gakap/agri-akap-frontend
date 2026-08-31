@@ -57,6 +57,7 @@
           <ion-input type="number" label="Area harvested (ha)" label-placement="stacked" :value="form.areaHarvested" @ionInput="onAreaHarvestedInput"></ion-input>
           <ion-input type="number" label="Total yield (MT)" label-placement="stacked" :value="form.totalYield" @ionInput="(e: CustomEvent) => form.totalYield = e.detail.value ?? ''"></ion-input>
           <ion-input type="date" label="Date harvested" label-placement="stacked" :value="form.dateHarvested" @ionInput="(e: CustomEvent) => form.dateHarvested = e.detail.value ?? ''"></ion-input>
+          <p v-if="harvestReadyHint" class="autofill-hint">{{ harvestReadyHint }}</p>
         </ion-card-content>
       </ion-card>
 
@@ -76,6 +77,7 @@ import {
 } from '@ionic/vue';
 import VarietyField from '@/components/VarietyField.vue';
 import { useBarangayFarmerSearch, type FarmerOption } from '@/composables/useBarangayFarmerSearch';
+import { useActivePlanting, isHarvestReady } from '@/composables/useActivePlanting';
 import { presentToast } from '@/utils/toast';
 import { capInputToPlot, plotSizeHa } from '@/utils/plotArea';
 import apiClient from '@/utils/axios';
@@ -86,6 +88,8 @@ const farmerSearch = useBarangayFarmerSearch(() => null, {
   requireBarangay: false,
   commodity: () => form.cropType,
 });
+const { fetchActivePlanting } = useActivePlanting();
+const harvestReadyHint = ref('');
 const router = useRouter();
 const syncStore = useSyncStore();
 const submitting = ref(false);
@@ -119,6 +123,7 @@ const onSelectFarmer = async (f: FarmerOption) => {
   if (!sel) return;
   form.farmerId = sel.id;
   form.farmerName = `${sel.surname}, ${sel.first_name}`;
+  form.variety = '';
   farmerSearch.query.value = form.farmerName;
   farmerSearch.results.value = [];
   const match = plots.value[0];
@@ -130,9 +135,10 @@ const onSelectFarmer = async (f: FarmerOption) => {
     form.plotId = '';
     form.farmLocation = sel.barangay;
   }
+  await applyPlantingAutofill();
 };
 
-const onCropChange = (e: CustomEvent) => {
+const onCropChange = async (e: CustomEvent) => {
   form.cropType = e.detail.value;
   const match = plots.value[0];
   form.plotId = match?.id || '';
@@ -140,14 +146,41 @@ const onCropChange = (e: CustomEvent) => {
     form.farmLocation = match.location_brgy || form.farmLocation;
     form.areaHarvested = String(match.size_ha || form.areaHarvested);
   }
+  await applyPlantingAutofill();
 };
 
-const onPlotChange = (e: CustomEvent) => {
+const onPlotChange = async (e: CustomEvent) => {
   form.plotId = e.detail.value;
   const p = plots.value.find((x) => x.id === form.plotId);
   if (p) {
     form.farmLocation = p.location_brgy || form.farmLocation;
     form.areaHarvested = String(p.size_ha || form.areaHarvested);
+  }
+  await applyPlantingAutofill();
+};
+
+const applyPlantingAutofill = async () => {
+  harvestReadyHint.value = '';
+  if (!form.farmerId) return;
+  const planting = await fetchActivePlanting(form.farmerId, {
+    farmPlotId: form.plotId || undefined,
+    commodity: form.cropType,
+  });
+  if (!planting) return;
+  if (planting.commodity && ['Rice', 'Corn'].includes(planting.commodity)) {
+    form.cropType = planting.commodity;
+  }
+  if (!form.variety.trim() && planting.variety) form.variety = planting.variety;
+  if (planting.area_planted_ha != null && planting.area_planted_ha > 0) {
+    form.areaHarvested = capInputToPlot(String(planting.area_planted_ha), selectedPlotSize.value);
+  }
+  if (planting.estimated_harvest_date) {
+    form.dateHarvested = planting.estimated_harvest_date;
+  }
+  if (isHarvestReady(planting.computed_stage)) {
+    harvestReadyHint.value = planting.estimated_harvest_date
+      ? `Ready for harvest (est. ${planting.estimated_harvest_date}).`
+      : 'Active planting is ready for harvest.';
   }
 };
 
@@ -213,6 +246,7 @@ const submit = async () => {
 .section-card { margin-bottom: 0.75rem; }
 .search-box { position: relative; }
 .hint { font-size: 0.8rem; color: #64748b; margin-top: 4px; }
+.autofill-hint { font-size: 0.8rem; color: #166534; margin: 0.4rem 0 0; }
 .suggest {
   list-style: none; margin: 6px 0 0; padding: 0; background: #fff;
   border: 1px solid #e2e8f0; border-radius: 8px; max-height: 180px; overflow: auto;

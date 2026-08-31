@@ -11,11 +11,17 @@ export interface ReleaseContext {
   farmer_name: string;
   mobile_number?: string | null;
   item_released: string;
+  seed_class?: string | null;
+  item_type?: string | null;
   unit: string;
   total_farm_size: number;
   eligible_size: number;
   quantity: number;
   inventory_remaining: number;
+  /** Second unit bucket for dual-unit catalog items (e.g. Hybrid Seed: kg + bags). */
+  unit_secondary?: string | null;
+  quantity_secondary?: number | null;
+  inventory_remaining_secondary?: number | null;
   plot_lat?: number | null;
   plot_long?: number | null;
   beneficiary_id?: string | null;

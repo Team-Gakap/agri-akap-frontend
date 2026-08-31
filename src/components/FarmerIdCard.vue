@@ -74,7 +74,7 @@ import { computed, ref } from 'vue';
 import { IonIcon } from '@ionic/vue';
 import { personOutline } from 'ionicons/icons';
 import QrcodeVue from 'qrcode.vue';
-import { apiOrigin } from '@/utils/apiBase';
+import { storageUrl } from '@/utils/storageUrl';
 
 const props = withDefaults(
   defineProps<{
@@ -84,7 +84,6 @@ const props = withDefaults(
   { printMode: false },
 );
 
-const API_BASE = apiOrigin();
 const logoFailed = ref(false);
 
 const ageOf = (farmer: Record<string, any>): number | null => {
@@ -120,12 +119,7 @@ const fullName = computed(() => {
   return [f.first_name, mi, f.surname, f.ext_name].filter(Boolean).join(' ');
 });
 
-const photoUrl = computed(() => {
-  const path = props.farmer?.photo_path;
-  if (!path) return '';
-  if (String(path).startsWith('http') || String(path).startsWith('data:')) return path;
-  return `${API_BASE}/storage/${path}`;
-});
+const photoUrl = computed(() => storageUrl(props.farmer?.photo_path) || '');
 </script>
 
 <style scoped>

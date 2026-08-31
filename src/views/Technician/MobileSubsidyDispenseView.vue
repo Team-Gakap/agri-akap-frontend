@@ -82,7 +82,7 @@
               interface="action-sheet"
             >
               <ion-select-option v-for="p in programs" :key="p.id" :value="p.id">
-                {{ p.name || p.program_name }}
+                {{ programOptionLabel(p) }}
               </ion-select-option>
             </ion-select>
           </ion-item>
@@ -95,9 +95,16 @@
               <span>Stock remaining</span>
               <strong>{{ selectedProgram.remaining_quantity?.toLocaleString() }} {{ selectedProgram.unit_of_measurement }}</strong>
             </div>
+            <div v-if="selectedProgram.secondary_unit" class="detail-row">
+              <span>Stock remaining ({{ selectedProgram.secondary_unit }})</span>
+              <strong>{{ selectedProgram.secondary_remaining_quantity?.toLocaleString() }} {{ selectedProgram.secondary_unit }}</strong>
+            </div>
             <div class="detail-row">
               <span>Rate</span>
-              <strong>{{ selectedProgram.per_hectare_allocation || selectedProgram.items_per_hectare }} {{ selectedProgram.unit_of_measurement }}/ha</strong>
+              <strong>
+                {{ selectedProgram.per_hectare_allocation || selectedProgram.items_per_hectare }} {{ selectedProgram.unit_of_measurement }}/ha
+                <template v-if="selectedProgram.secondary_unit"> + {{ selectedProgram.secondary_items_per_hectare }} {{ selectedProgram.secondary_unit }}/ha</template>
+              </strong>
             </div>
           </div>
           
@@ -153,6 +160,7 @@ import { useAuthStore } from '@/stores/authStore';
 import apiClient from '@/utils/axios';
 import { presentToast } from '@/utils/toast';
 import AppHeader from '@/components/Navigation/AppHeader.vue';
+import { catalogSummary } from '@/constants/subsidyCatalog';
 
 const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
 const emit = defineEmits<{ verified: []; saved: [] }>();
@@ -181,6 +189,11 @@ let searchTimer: ReturnType<typeof setTimeout> | undefined;
 const selectedProgram = computed(() =>
   programs.value.find((p) => p.id === selectedProgramId.value) ?? null
 );
+
+const programOptionLabel = (p: any) => {
+  if (p.seed_class && p.item_type) return catalogSummary(p.target_crop, p.seed_class, p.item_type);
+  return p.name || p.program_name;
+};
 
 const isRffaBlocked = computed(() => {
   if (!farmer.value || !selectedProgram.value) return false;
@@ -307,11 +320,16 @@ const buildOfflineContext = (program: any, source: 'subsidy' | 'program') => {
     farmer_name: farmerDisplayName.value,
     mobile_number: farmer.value.mobile_number,
     item_released: program?.name || program?.program_name || 'Subsidy item',
+    seed_class: program?.seed_class ?? null,
+    item_type: program?.item_type ?? null,
     unit: program?.unit_of_measurement || '',
     total_farm_size: 0,
     eligible_size: 0,
     quantity: 0,
     inventory_remaining: program?.remaining_quantity ?? 0,
+    unit_secondary: program?.secondary_unit ?? null,
+    quantity_secondary: null,
+    inventory_remaining_secondary: program?.secondary_remaining_quantity ?? null,
     plot_lat: farmer.value.farm_plots?.[0]?.latitude ?? farmer.value.farmPlots?.[0]?.latitude,
     plot_long: farmer.value.farm_plots?.[0]?.longitude ?? farmer.value.farmPlots?.[0]?.longitude,
     rsbsa_no: rsbsaNo,
@@ -355,11 +373,16 @@ const continueToRelease = async () => {
         farmer_name: data.farmer_name || farmerDisplayName.value,
         mobile_number: data.mobile_number,
         item_released: data.item_released || program.name,
+        seed_class: data.seed_class ?? program.seed_class ?? null,
+        item_type: data.item_type ?? program.item_type ?? null,
         unit: data.unit || program.unit_of_measurement,
         total_farm_size: data.total_farm_size || 0,
         eligible_size: data.eligible_size || 0,
         quantity: data.quantity || 0,
         inventory_remaining: data.inventory_remaining ?? program.remaining_quantity,
+        unit_secondary: data.unit_secondary ?? program.secondary_unit ?? null,
+        quantity_secondary: data.quantity_secondary ?? null,
+        inventory_remaining_secondary: data.inventory_remaining_secondary ?? program.secondary_remaining_quantity ?? null,
         plot_lat: data.plot_lat,
         plot_long: data.plot_long,
         beneficiary_id: data.beneficiary_id,

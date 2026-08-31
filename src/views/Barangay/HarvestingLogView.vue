@@ -82,6 +82,7 @@
             <ion-input class="field" type="number" label="Total Yield Produced (MT)" label-placement="stacked" :value="form.yield_amount" @ionInput="(e: any) => form.yield_amount = e.detail.value"></ion-input>
             <ion-input class="field" type="date" label="Date of Harvest" label-placement="stacked" :value="form.date_of_harvest" @ionInput="(e: any) => form.date_of_harvest = e.detail.value"></ion-input>
           </div>
+          <p v-if="harvestReadyHint" class="autofill-hint">{{ harvestReadyHint }}</p>
 
           <ion-button expand="block" class="add-btn" :disabled="!canAdd" @click="addEntry">
             {{ saving ? 'Saving…' : 'Add to Ledger' }}
@@ -134,6 +135,7 @@ import {
   farmerDisplayName,
   type FarmerOption,
 } from '@/composables/useBarangayFarmerSearch';
+import { useActivePlanting, isHarvestReady } from '@/composables/useActivePlanting';
 import apiClient from '@/utils/axios';
 import { toast } from '@/utils/toast';
 import { capInputToPlot, plotSizeHa } from '@/utils/plotArea';
@@ -172,6 +174,8 @@ const {
 const farmerSearch = useBarangayFarmerSearch(() => effectiveBarangay.value, {
   commodity: () => form.crop_type,
 });
+const { fetchActivePlanting } = useActivePlanting();
+const harvestReadyHint = ref('');
 
 const entries = ref<HarvestEntry[]>([]);
 const saving = ref(false);
@@ -286,6 +290,7 @@ const onSelectFarmer = async (f: FarmerOption) => {
   form.plot_id = '';
   form.farm_location = sel.barangay;
   form.area_harvested = '';
+  form.variety = '';
   if (sel.plots.length === 1) {
     const p = sel.plots[0];
     form.plot_id = p.id;
@@ -293,9 +298,10 @@ const onSelectFarmer = async (f: FarmerOption) => {
     form.area_harvested = String(p.size_ha || '');
     if (['Rice', 'Corn'].includes(p.commodity)) form.crop_type = p.commodity;
   }
+  await applyPlantingAutofill();
 };
 
-const onPlotChange = (e: CustomEvent) => {
+const onPlotChange = async (e: CustomEvent) => {
   form.plot_id = String(e.detail.value);
   const p = farmerSearch.selected.value?.plots.find((x) => x.id === form.plot_id);
   if (p) {
@@ -303,10 +309,37 @@ const onPlotChange = (e: CustomEvent) => {
     form.area_harvested = String(p.size_ha || form.area_harvested);
     if (['Rice', 'Corn'].includes(p.commodity)) form.crop_type = p.commodity;
   }
+  await applyPlantingAutofill();
+};
+
+const applyPlantingAutofill = async () => {
+  harvestReadyHint.value = '';
+  if (!form.farmer_id) return;
+  const planting = await fetchActivePlanting(form.farmer_id, {
+    farmPlotId: form.plot_id || undefined,
+    commodity: form.crop_type,
+  });
+  if (!planting) return;
+  if (planting.commodity && ['Rice', 'Corn'].includes(planting.commodity)) {
+    form.crop_type = planting.commodity;
+  }
+  if (!form.variety.trim() && planting.variety) form.variety = planting.variety;
+  if (planting.area_planted_ha != null && planting.area_planted_ha > 0) {
+    form.area_harvested = capInputToPlot(String(planting.area_planted_ha), selectedPlotSize.value);
+  }
+  if (!form.date_of_harvest && planting.estimated_harvest_date) {
+    form.date_of_harvest = planting.estimated_harvest_date;
+  }
+  if (isHarvestReady(planting.computed_stage)) {
+    harvestReadyHint.value = planting.estimated_harvest_date
+      ? `Ready for harvest (est. ${planting.estimated_harvest_date}).`
+      : 'Active planting is ready for harvest.';
+  }
 };
 
 const resetForm = () => {
   farmerSearch.clearSelection();
+  harvestReadyHint.value = '';
   form.farmer_id = '';
   form.rsbsa_no = '';
   form.surname = '';
@@ -448,6 +481,7 @@ const downloadExcel = async () => {
 .entry-actions li:last-child { border-bottom: none; }
 .search-box { position: relative; margin-bottom: 0.75rem; }
 .hint { font-size: 0.8rem; color: #94a3b8; margin-top: 4px; }
+.autofill-hint { font-size: 0.8rem; color: #166534; margin: 0.35rem 0 0; }
 .suggest {
   list-style: none; margin: 4px 0 0; padding: 0; border: 1px solid #e2e8f0;
   border-radius: 8px; background: white; max-height: 280px; overflow: auto; z-index: 20;

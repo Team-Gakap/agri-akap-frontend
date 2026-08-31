@@ -49,9 +49,15 @@
                 <h2 class="farmer-name-result">{{ releaseResult.data?.farmer_name }}</h2>
                 <div class="dispense-box">
                   <span class="dispense-label">DISPENSED</span>
-                  <span class="dispense-qty">{{ releaseResult.data?.quantity_dispensed }}</span>
+                  <span class="dispense-qty">{{ releaseResult.data?.quantity_dispensed }} {{ releaseResult.data?.unit }}</span>
+                  <span v-if="releaseResult.data?.unit_secondary" class="dispense-qty-secondary">
+                    + {{ releaseResult.data?.quantity_dispensed_secondary }} {{ releaseResult.data?.unit_secondary }}
+                  </span>
                 </div>
-                <p class="remaining-note">Inventory Remaining: <strong>{{ releaseResult.data?.inventory_remaining }}</strong></p>
+                <p class="remaining-note">Inventory Remaining: <strong>{{ releaseResult.data?.inventory_remaining }} {{ releaseResult.data?.unit }}</strong></p>
+                <p v-if="releaseResult.data?.unit_secondary" class="remaining-note">
+                  Inventory Remaining: <strong>{{ releaseResult.data?.inventory_remaining_secondary }} {{ releaseResult.data?.unit_secondary }}</strong>
+                </p>
                 <p class="sms-note">
                   <ion-icon :icon="chatbubbleEllipsesOutline"></ion-icon>
                   SMS receipt sent to the farmer's registered number.
@@ -95,8 +101,12 @@
                   <span class="aqb-label">TO RELEASE</span>
                   <span class="aqb-qty">{{ ctx.quantity }}</span>
                   <span class="aqb-unit">{{ ctx.unit }}</span>
+                  <span v-if="ctx.unit_secondary" class="aqb-secondary">+ {{ ctx.quantity_secondary }} {{ ctx.unit_secondary }}</span>
                 </div>
                 <p class="alloc-remaining">Inventory Remaining: <strong>{{ ctx.inventory_remaining }} {{ ctx.unit }}</strong></p>
+                <p v-if="ctx.unit_secondary" class="alloc-remaining">
+                  Inventory Remaining: <strong>{{ ctx.inventory_remaining_secondary }} {{ ctx.unit_secondary }}</strong>
+                </p>
               </template>
               <div v-else class="offline-note">
                 <ion-icon :icon="cloudOfflineOutline"></ion-icon>
@@ -339,6 +349,7 @@ const queueRelease = async (lat: number | null, long: number | null) => {
 .aqb-label { font-size: 0.72rem; letter-spacing: 2px; opacity: 0.8; }
 .aqb-qty { font-size: 2.8rem; font-weight: 900; line-height: 1; }
 .aqb-unit { font-size: 0.95rem; opacity: 0.85; }
+.aqb-secondary { font-size: 1.1rem; font-weight: 700; opacity: 0.9; margin-top: 2px; }
 .alloc-remaining { font-size: 0.82rem; color: #64748b; text-align: right; margin: 8px 0 0; }
 
 .offline-note { display: flex; align-items: center; gap: 8px; margin-top: 12px; padding: 10px; background: #fff7e6; border: 1px solid #ffe0a3; border-radius: 8px; color: #92600a; font-size: 0.85rem; }
@@ -362,6 +373,7 @@ const queueRelease = async (lat: number | null, long: number | null) => {
 .dispense-box { background: rgba(255,255,255,0.2); border: 2px solid rgba(255,255,255,0.6); border-radius: 10px; padding: 1.2rem; text-align: center; display: flex; flex-direction: column; gap: 4px; }
 .dispense-label { font-size: 0.8rem; letter-spacing: 2px; opacity: 0.85; }
 .dispense-qty { font-size: 2.6rem; font-weight: 900; line-height: 1; }
+.dispense-qty-secondary { font-size: 1.2rem; font-weight: 700; opacity: 0.9; margin-top: 4px; display: block; }
 .remaining-note { font-size: 0.82rem; margin-top: 1rem; opacity: 0.9; }
 .sms-note { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; margin-top: 0.75rem; opacity: 0.9; }
 </style>

@@ -240,6 +240,7 @@ import { addCircleOutline } from 'ionicons/icons';
 import FormExportActions from '@/components/FormExportActions.vue';
 import { exportAdminGridExcel } from '@/utils/statutoryFormExcel';
 import apiClient from '@/utils/axios';
+import { storageUrl } from '@/utils/storageUrl';
 import ReportEncodeModal from '@/components/ReportEncodeModal.vue';
 import MaoFormHeader from '@/components/MaoFormHeader.vue';
 import { useReportScope, type ReportPeriod } from '@/composables/useReportScope';
@@ -258,6 +259,7 @@ interface DamageRow {
   status: string;
   photo_base64?: string;
   photo_url?: string;
+  photo_path?: string;
 }
 
 const loading    = ref(false);
@@ -326,8 +328,7 @@ const fmtDate = (d: string) => {
 
 function photoSrc(row: DamageRow): string | null {
   if (row.photo_base64) return row.photo_base64.startsWith('data:') ? row.photo_base64 : `data:image/jpeg;base64,${row.photo_base64}`;
-  if (row.photo_url) return row.photo_url;
-  return null;
+  return storageUrl(row.photo_url || row.photo_path);
 }
 
 function openPhoto(row: DamageRow) {

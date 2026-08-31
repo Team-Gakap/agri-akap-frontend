@@ -109,6 +109,8 @@
             </ion-select>
           </ion-item>
 
+          <p v-if="harvestReadyHint" class="autofill-hint">{{ harvestReadyHint }}</p>
+
           <ion-item class="field-item" lines="none">
             <ion-input
               type="number"
@@ -236,6 +238,7 @@ import {
   useBarangayFarmerSearch,
   type FarmerOption,
 } from '@/composables/useBarangayFarmerSearch';
+import { useActivePlanting, stageSelectValue, isHarvestReady } from '@/composables/useActivePlanting';
 import VarietyField from '@/components/VarietyField.vue';
 import { damageSeverityFromPct } from '@/constants/cropVarieties';
 import { presentToast } from '@/utils/toast';
@@ -280,6 +283,8 @@ const farmerSearch = useBarangayFarmerSearch(() => null, {
   requireBarangay: false,
   commodity: () => state.cropType,
 });
+const { fetchActivePlanting } = useActivePlanting();
+const harvestReadyHint = ref('');
 const lockingGps = ref(false);
 const capturingPhoto = ref(false);
 const submitting = ref(false);
@@ -422,6 +427,7 @@ const onSelectFarmer = async (f: FarmerOption) => {
   state.farmerName = `${sel.surname}, ${sel.first_name}`;
   state.rsbsaNo = sel.rsbsa_no;
   state.barangay = sel.barangay;
+  if (!state.assessmentId) state.variety = '';
   farmerSearch.query.value = state.farmerName;
   farmerSearch.results.value = [];
   if (sel.plots.length === 1) {
@@ -437,6 +443,37 @@ const onSelectFarmer = async (f: FarmerOption) => {
     state.plotSizeHa = Number(match.size_ha) || 0;
   }
   applyAreaFromYieldLoss(state.yieldLossPct);
+  await applyPlantingAutofill();
+};
+
+const applyPlantingAutofill = async () => {
+  harvestReadyHint.value = '';
+  if (dispatchedFromQueue.value || state.assessmentId) return;
+  if (!state.farmerId) return;
+  const planting = await fetchActivePlanting(state.farmerId, {
+    farmPlotId: state.farmPlotId || undefined,
+    commodity: state.cropType,
+  });
+  if (!planting) return;
+  if (planting.commodity && ['Rice', 'Corn'].includes(planting.commodity)) {
+    state.cropType = planting.commodity;
+  }
+  if (!state.variety.trim() && planting.variety) state.variety = planting.variety;
+  if (planting.computed_stage) {
+    state.cropStage = stageSelectValue(planting.computed_stage);
+  }
+  if (planting.area_planted_ha != null && planting.area_planted_ha > 0) {
+    state.areaPlanted = String(planting.area_planted_ha);
+    const damaged = Number(state.areaDamaged);
+    if (!Number.isNaN(damaged) && damaged > planting.area_planted_ha) {
+      state.areaDamaged = String(planting.area_planted_ha);
+    } else {
+      applyAreaFromYieldLoss(state.yieldLossPct);
+    }
+  }
+  if (isHarvestReady(planting.computed_stage)) {
+    harvestReadyHint.value = 'Active planting is ready for harvest.';
+  }
 };
 
 const onAreaPlantedInput = (e: CustomEvent) => {
@@ -601,6 +638,12 @@ function inferCalamityType(name: string): string {
   margin: 0.35rem 0 0.6rem;
   font-size: 0.88rem;
   color: #475569;
+}
+
+.autofill-hint {
+  margin: 0.35rem 0 0.5rem;
+  font-size: 0.8rem;
+  color: #166534;
 }
 
 .severity-line strong { color: #1a4731; }

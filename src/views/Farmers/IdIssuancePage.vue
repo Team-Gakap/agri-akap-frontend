@@ -94,7 +94,6 @@
                   <th>Priority</th>
                   <th>Photo</th>
                   <th>Status</th>
-                  <th class="col-action">Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -656,8 +655,8 @@ const onPhotoSelected = async (ev: Event) => {
       reader.readAsDataURL(file);
     });
     const res = await axiosInstance.post(`/farmers/${farmer.id}/photo`, { photo_base64: dataUrl });
-    const url = res.data?.data?.photo_url as string | undefined;
-    farmer.photo_path = url || farmer.photo_path || dataUrl;
+    const payload = res.data?.data ?? {};
+    farmer.photo_path = payload.photo_path || payload.photo_url || farmer.photo_path || dataUrl;
     await toast(res.data?.message || 'Farmer photo saved.', 'success');
   } catch (err: any) {
     await toast(err?.response?.data?.message || 'Failed to upload photo.', 'danger');

@@ -52,11 +52,17 @@ function mapSubsidyProgram(p: any) {
     program_name: p.program_name || p.name,
     type: p.target_crop || p.type,
     target_crop: p.target_crop,
+    seed_class: p.seed_class ?? null,
+    item_type: p.item_type ?? null,
     remaining_quantity: Number(p.remaining_quantity) || 0,
     total_quantity: Number(p.total_quantity) || 0,
     unit_of_measurement: p.unit_of_measurement || 'Bags',
+    secondary_unit: p.secondary_unit ?? null,
+    secondary_remaining_quantity: p.secondary_remaining_quantity != null ? Number(p.secondary_remaining_quantity) : null,
+    secondary_total_quantity: p.secondary_total_quantity != null ? Number(p.secondary_total_quantity) : null,
     per_hectare_allocation: Number(p.items_per_hectare ?? p.per_hectare_allocation) || 0,
     items_per_hectare: Number(p.items_per_hectare ?? p.per_hectare_allocation) || 0,
+    secondary_items_per_hectare: p.secondary_items_per_hectare != null ? Number(p.secondary_items_per_hectare) : null,
     max_hectares_limit: Number(p.max_hectares_limit) || 0,
     status: p.status,
     source: 'subsidy' as const,
@@ -72,6 +78,21 @@ export async function cacheFarmer(farmer: any) {
       await db.cachedFarmPlots.put({ id: plot.id, payload: plot, cached_at: new Date().toISOString() });
     }
   }
+}
+
+export async function cacheActivePlanting(key: string, payload: any) {
+  if (!key) return;
+  await db.cachedActivePlanting.put({
+    id: key,
+    payload: payload ?? null,
+    cached_at: new Date().toISOString(),
+  });
+}
+
+export async function getCachedActivePlanting(key: string): Promise<any | undefined> {
+  if (!key) return undefined;
+  const row = await db.cachedActivePlanting.get(key);
+  return row ? row.payload : undefined;
 }
 
 /** Active subsidy campaigns first; fall back to legacy programs table. */

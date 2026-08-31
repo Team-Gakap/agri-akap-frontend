@@ -17,6 +17,8 @@
               <span v-if="selectedProgramName"> &nbsp;|&nbsp; Program: {{ selectedProgramName }}</span>
               <span v-if="filters.barangay"> &nbsp;|&nbsp; Barangay: {{ filters.barangay }}</span>
               <span v-if="filters.cropType"> &nbsp;|&nbsp; Crop: {{ cropLabel(filters.cropType) }}</span>
+              <span v-if="filters.seedClass"> &nbsp;|&nbsp; Seed Class: {{ filters.seedClass }}</span>
+              <span v-if="filters.itemType"> &nbsp;|&nbsp; Item: {{ itemTypeLabel(filters.itemType) }}</span>
               <span v-if="searchQuery"> &nbsp;|&nbsp; Search: {{ searchQuery }}</span>
             </p>
           </template>
@@ -67,6 +69,21 @@
               <option value="Rice">Rice</option>
               <option value="Corn">Corn</option>
               <option value="Both">Rice and Corn</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label class="filter-label">Seed Class</label>
+            <select class="filter-select" v-model="filters.seedClass" @change="fetchRows">
+              <option value="">All</option>
+              <option value="Hybrid">Hybrid</option>
+              <option value="Inbred">Inbred</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label class="filter-label">Item Type</label>
+            <select class="filter-select" v-model="filters.itemType" @change="fetchRows">
+              <option value="">All</option>
+              <option v-for="it in ITEM_TYPES" :key="it" :value="it">{{ itemTypeLabel(it) }}</option>
             </select>
           </div>
           <button class="clear-btn" @click="clearFilters">Clear</button>
@@ -188,6 +205,9 @@ import MaoFormHeader from '@/components/MaoFormHeader.vue';
 import { cropLabel } from '@/utils/cropLabel';
 import { storageUrl } from '@/utils/storageUrl';
 import { useReportScope, type ReportPeriod } from '@/composables/useReportScope';
+import { itemTypeLabel, type ItemType } from '@/constants/subsidyCatalog';
+
+const ITEM_TYPES: ItemType[] = ['seed', 'abono', 'liquid_fertilizer', 'wettable', 'cash'];
 
 interface SubsidyRow {
   rsbsa_no: string;
@@ -195,9 +215,13 @@ interface SubsidyRow {
   barangay: string;
   program_name: string;
   target_crop?: string;
+  seed_class?: string | null;
+  item_type?: string | null;
   item_received: string;
   quantity?: number;
   unit?: string;
+  quantity_secondary?: number | null;
+  unit_secondary?: string | null;
   date_claimed: string;
   photo_url?: string | null;
   photo_path?: string | null;
@@ -220,6 +244,8 @@ const filters = reactive({
   dateTo: '',
   barangay: '',
   cropType: '',
+  seedClass: '',
+  itemType: '',
 });
 const searchQuery = ref('');
 const viewingPhoto = ref<string | null>(null);
@@ -233,13 +259,23 @@ const filteredRows = computed(() => {
 });
 const subsidyTotalsLabel = computed(() => {
   const byUnit = new Map<string, number>();
+  const addQty = (unit: string, qty: number) => byUnit.set(unit, (byUnit.get(unit) || 0) + qty);
+
   filteredRows.value.forEach((r) => {
     const unit = r.unit || (String(r.item_received || '').split(' ').slice(1).join(' ') || 'Bags');
     const qty = Number(r.quantity ?? (String(r.item_received || '').split(' ')[0] || 0));
-    byUnit.set(unit, (byUnit.get(unit) || 0) + qty);
+    if (unit.toLowerCase().startsWith('cash') || unit.includes('₱')) {
+      addQty('₱ (Cash Assistance)', qty);
+    } else {
+      addQty(unit, qty);
+    }
+    if (r.unit_secondary && r.quantity_secondary != null) {
+      addQty(r.unit_secondary, Number(r.quantity_secondary));
+    }
   });
+
   return Array.from(byUnit.entries())
-    .map(([unit, qty]) => `${qty.toLocaleString('en-PH')} ${unit}`)
+    .map(([unit, qty]) => (unit.startsWith('₱') ? `₱${qty.toLocaleString('en-PH')}` : `${qty.toLocaleString('en-PH')} ${unit}`))
     .join(' · ') || '0';
 });
 const encodeOpen = ref(false);
@@ -285,6 +321,8 @@ async function fetchRows() {
         date_to:    filters.dateTo    || undefined,
         barangay:   filters.barangay  || undefined,
         crop_type:  filters.cropType  || undefined,
+        seed_class: filters.seedClass || undefined,
+        item_type:  filters.itemType  || undefined,
       },
     });
     rows.value = res.data?.data?.rows ?? [];
@@ -314,7 +352,7 @@ async function fetchBarangays() {
 }
 
 function photoSrc(row: SubsidyRow): string | null {
-  return row.photo_url || storageUrl(row.photo_path);
+  return storageUrl(row.photo_url || row.photo_path);
 }
 
 function openPhoto(row: SubsidyRow) {
@@ -328,6 +366,8 @@ function clearFilters() {
   filters.dateTo    = '';
   filters.barangay  = lockedBarangay.value || '';
   filters.cropType  = '';
+  filters.seedClass = '';
+  filters.itemType  = '';
   searchQuery.value = '';
   period.value = 'custom';
   fetchRows();
@@ -346,6 +386,8 @@ function reportMetaLine() {
   if (selectedProgramName.value) line += ` | Program: ${selectedProgramName.value}`;
   if (filters.barangay) line += ` | Barangay: ${filters.barangay}`;
   if (filters.cropType) line += ` | Crop: ${cropLabel(filters.cropType)}`;
+  if (filters.seedClass) line += ` | Seed Class: ${filters.seedClass}`;
+  if (filters.itemType) line += ` | Item: ${itemTypeLabel(filters.itemType)}`;
   return line;
 }
 

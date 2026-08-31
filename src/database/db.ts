@@ -289,6 +289,7 @@ class AgriAkapDB extends Dexie {
   offline_harvest_logs!: Table<OfflineHarvestLog, number>;
   offline_standing_crop_logs!: Table<OfflineStandingCropLog, number>;
   cachedQueueLists!: Table<CachedQueueList, string>;
+  cachedActivePlanting!: Table<CachedRecord, string>;
 
   constructor() {
     // IndexedDB name kept as `agri-akap` so existing queued rows survive upgrades.
@@ -382,6 +383,10 @@ class AgriAkapDB extends Dexie {
       offline_harvest_logs: '++id, farmer_id, crop_type, sync_status, client_id, created_at',
       offline_standing_crop_logs: '++id, farmer_id, crop_type, sync_status, client_id, created_at',
       cachedQueueLists: 'kind, cached_at',
+    });
+    // v9 — last-seen active planting log + computed crop stage (offline autofill).
+    this.version(9).stores({
+      cachedActivePlanting: 'id, cached_at',
     });
   }
 }

@@ -213,6 +213,7 @@
               @ionInput="onYieldLossInput"
             ></ion-input>
             <p v-if="autoYieldHint" class="calc-hint">{{ autoYieldHint }}</p>
+            <p v-if="harvestReadyHint" class="autofill-hint">{{ harvestReadyHint }}</p>
           </div>
 
           <ion-button expand="block" class="add-btn" :disabled="!canAdd" @click="addEntry">
@@ -257,6 +258,7 @@ import {
   farmerDisplayName,
   type FarmerOption,
 } from '@/composables/useBarangayFarmerSearch';
+import { useActivePlanting, stageSelectValue, isHarvestReady } from '@/composables/useActivePlanting';
 import apiClient from '@/utils/axios';
 import { toast } from '@/utils/toast';
 import { storageUrl } from '@/utils/storageUrl';
@@ -310,6 +312,8 @@ const {
 const farmerSearch = useBarangayFarmerSearch(() => effectiveBarangay.value, {
   commodity: () => form.crop_type,
 });
+const { fetchActivePlanting } = useActivePlanting();
+const harvestReadyHint = ref('');
 
 const entries = ref<CalamityEntry[]>([]);
 const viewingPhoto = ref<string | null>(null);
@@ -442,7 +446,7 @@ const loadLedger = async () => {
         area_planted: Number(r.area_planted_ha ?? r.farm_plot?.size_ha) || 0,
         area_damaged: Number(r.area_destroyed_ha) || 0,
         est_yield_loss_pct: Number(r.damage_percentage) || 0,
-        photo_url: r.photo_url || storageUrl(r.photo_evidence_path || r.photo_path),
+        photo_url: storageUrl(r.photo_url || r.photo_evidence_path || r.photo_path),
       } as CalamityEntry;
     });
   } catch {
@@ -512,6 +516,7 @@ const onSelectFarmer = async (f: FarmerOption) => {
   form.farm_location = sel.barangay;
   form.area_planted = '';
   form.area_damaged = '';
+  form.variety = '';
   yieldLossManual.value = false;
   form.est_yield_loss_pct = '';
   if (sel.plots.length === 1) {
@@ -522,9 +527,10 @@ const onSelectFarmer = async (f: FarmerOption) => {
     if (['Rice', 'Corn'].includes(p.commodity)) form.crop_type = p.commodity;
     recalcYieldLoss();
   }
+  await applyPlantingAutofill();
 };
 
-const onPlotChange = (e: CustomEvent) => {
+const onPlotChange = async (e: CustomEvent) => {
   form.plot_id = String(e.detail.value);
   const p = farmerSearch.selected.value?.plots.find((x) => x.id === form.plot_id);
   if (p) {
@@ -533,10 +539,40 @@ const onPlotChange = (e: CustomEvent) => {
     if (['Rice', 'Corn'].includes(p.commodity)) form.crop_type = p.commodity;
     recalcYieldLoss();
   }
+  await applyPlantingAutofill();
+};
+
+const applyPlantingAutofill = async () => {
+  harvestReadyHint.value = '';
+  if (!form.farmer_id) return;
+  const planting = await fetchActivePlanting(form.farmer_id, {
+    farmPlotId: form.plot_id || undefined,
+    commodity: form.crop_type,
+  });
+  if (!planting) return;
+  if (planting.commodity && ['Rice', 'Corn'].includes(planting.commodity)) {
+    form.crop_type = planting.commodity;
+  }
+  if (!form.variety.trim() && planting.variety) form.variety = planting.variety;
+  if (planting.computed_stage) {
+    form.crop_stage = stageSelectValue(planting.computed_stage);
+  }
+  if (planting.area_planted_ha != null && planting.area_planted_ha > 0) {
+    form.area_planted = String(planting.area_planted_ha);
+    const damaged = Number(form.area_damaged);
+    if (!Number.isNaN(damaged) && damaged > planting.area_planted_ha) {
+      form.area_damaged = String(planting.area_planted_ha);
+    }
+    recalcYieldLoss();
+  }
+  if (isHarvestReady(planting.computed_stage)) {
+    harvestReadyHint.value = 'Active planting is ready for harvest.';
+  }
 };
 
 const resetFarmerForm = () => {
   farmerSearch.clearSelection();
+  harvestReadyHint.value = '';
   form.farmer_id = '';
   form.rsbsa_no = '';
   form.surname = '';
@@ -854,6 +890,12 @@ watch(viewMode, (mode) => {
 }
 .search-box { position: relative; margin-bottom: 0.75rem; }
 .hint { font-size: 0.8rem; color: #94a3b8; margin-top: 4px; }
+.autofill-hint {
+  flex: 1 1 100%;
+  font-size: 0.8rem;
+  color: #166534;
+  margin: 0;
+}
 .calc-hint {
   flex: 1 1 100%;
   margin: 0;
