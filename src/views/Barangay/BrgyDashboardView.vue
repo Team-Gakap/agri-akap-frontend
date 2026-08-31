@@ -704,7 +704,7 @@ onIonViewWillEnter(() => {
   max-width: min(1400px, 100%);
   margin: 0 auto;
   box-sizing: border-box;
-  align-items: start;
+  align-items: stretch;
 }
 .grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
 .gap-4 { gap: 1rem; }
@@ -743,6 +743,12 @@ onIonViewWillEnter(() => {
 .center-state.error { color: #b91c1c; }
 
 .kpi-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   margin: 0;
   border-radius: 16px;
   border: 1px solid #E2E8F0;
@@ -752,6 +758,7 @@ onIonViewWillEnter(() => {
   padding: 1rem 1.05rem 0.95rem;
   font-family: inherit;
   cursor: pointer;
+  appearance: none;
 }
 .kpi-icon {
   width: 36px;
@@ -803,6 +810,12 @@ onIonViewWillEnter(() => {
 }
 
 .panel-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   margin: 0;
   border-radius: 16px;
   border: 1px solid #E2E8F0;
@@ -829,6 +842,11 @@ onIonViewWillEnter(() => {
   grid-template-columns: 1fr;
   gap: 1rem;
   min-width: 0;
+  height: 100%;
+  align-items: stretch;
+}
+.diag-col .panel-card {
+  height: 100%;
 }
 @media (min-width: 900px) {
   .diag-col { grid-template-columns: 1fr 1fr; }

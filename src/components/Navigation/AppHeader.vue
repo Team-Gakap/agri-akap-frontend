@@ -35,16 +35,6 @@
         </button>
 
         <button
-          type="button"
-          class="icon-btn"
-          aria-label="Refresh telemetry"
-          :disabled="syncStore.isSyncing"
-          @click="refreshTelemetry"
-        >
-          <ion-icon :icon="refreshOutline" :class="{ spin: syncStore.isSyncing }"></ion-icon>
-        </button>
-
-        <button
           id="akap-profile-trigger"
           type="button"
           class="profile-btn"

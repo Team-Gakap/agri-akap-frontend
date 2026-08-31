@@ -660,7 +660,7 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchAll));
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
   gap: 1rem;
-  align-items: start;
+  align-items: stretch;
 }
 .span-3 { grid-column: span 3; }
 .span-5 { grid-column: span 5; }
@@ -668,6 +668,12 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchAll));
 .span-12 { grid-column: span 12; }
 
 .kpi-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   margin: 0;
   border-radius: 16px;
   border: 1px solid #E2E8F0;
@@ -677,6 +683,7 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchAll));
   text-align: left;
   padding: 1rem 1.05rem 0.95rem;
   font-family: inherit;
+  appearance: none;
 }
 .kpi-card-static {
   cursor: default;
@@ -834,6 +841,12 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchAll));
 .sev-dot.moderate { background: #d97706; }
 
 .panel-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   margin: 0;
   border-radius: 16px;
   border: 1px solid #E2E8F0;
@@ -866,11 +879,25 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchAll));
   flex-direction: column;
   gap: 1rem;
   min-width: 0;
+  height: 100%;
+}
+.diag-col :deep(.gis-card) {
+  flex: 0 0 auto;
+  width: 100%;
+}
+.pred-col .panel-card {
+  flex: 1 1 auto;
 }
 .chart-pair {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
+  flex: 1 1 auto;
+  min-height: 0;
+  align-items: stretch;
+}
+.chart-pair .panel-card {
+  height: 100%;
 }
 
 .chart-box { height: 180px; position: relative; }
