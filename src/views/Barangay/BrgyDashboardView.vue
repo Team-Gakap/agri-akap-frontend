@@ -848,6 +848,10 @@ onIonViewWillEnter(() => {
 .diag-col .panel-card {
   height: 100%;
 }
+.climate-card {
+  align-self: start;
+  height: auto;
+}
 @media (min-width: 900px) {
   .diag-col { grid-template-columns: 1fr 1fr; }
 }

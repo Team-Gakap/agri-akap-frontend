@@ -65,27 +65,22 @@
           </button>
 
           <div class="kpi-card span-3 kpi-card-static">
-            <div class="kpi-card-head">
-              <div class="kpi-icon-wrap kpi-tone-danger">
-                <ion-icon :icon="warningOutline"></ion-icon>
-                <span v-if="pestCritical > 0" class="kpi-pulse" aria-hidden="true"></span>
-              </div>
+            <div class="kpi-icon-wrap kpi-tone-danger">
+              <ion-icon :icon="warningOutline"></ion-icon>
+              <span v-if="pestCritical > 0" class="kpi-pulse" aria-hidden="true"></span>
             </div>
-            <p class="kpi-title">Field Threat Triage</p>
             <p class="kpi-value kpi-value-split">
               <span>{{ fmt(pestCount) }} <small>Pests</small></span>
               <span class="kpi-split-dot" aria-hidden="true">·</span>
               <span>{{ fmt(calamityCount) }} <small>Calamities</small></span>
             </p>
             <p class="kpi-label">{{ fmt(threatTotal) }} Active Incidents</p>
-            <button class="kpi-triage-row" type="button" @click="go('/admin/reports/pest-surveillance')">
-              <span class="sev-dot critical"></span>
+            <button class="kpi-meta kpi-link" type="button" @click="go('/admin/reports/pest-surveillance')">
               Pests: {{ fmt(pestCritical) }} Critical · {{ fmt(pestModerate) }} Moderate
-              <em v-if="topPestName">{{ topPestName }}</em>
+              <template v-if="topPestName"> · {{ topPestName }}</template>
             </button>
-            <button class="kpi-triage-row" type="button" @click="go('/admin/reports/damage-calamity')">
-              <span class="sev-dot moderate"></span>
-              Damage: {{ fmt(calamityCount) }} calamity {{ calamityCount === 1 ? 'report' : 'reports' }} pending validation
+            <button class="kpi-hint kpi-link" type="button" @click="go('/admin/reports/damage-calamity')">
+              Damage: {{ fmt(calamityCount) }} calamity {{ calamityCount === 1 ? 'report' : 'reports' }} pending
             </button>
             <p v-if="dispatchesActive" class="kpi-hint">
               {{ fmt(dispatchesActive) }} {{ dispatchesActive === 1 ? 'technician' : 'technicians' }} assigned
@@ -755,33 +750,6 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchAll));
   font-weight: 700;
   font-size: 1.1rem;
 }
-.kpi-triage-row {
-  display: block;
-  width: 100%;
-  margin-top: 0.4rem;
-  padding: 0.35rem 0.45rem;
-  border: 1px solid #E2E8F0;
-  border-radius: 8px;
-  background: #F8FAFC;
-  color: #334155;
-  font-family: inherit;
-  font-size: 0.72rem;
-  font-weight: 700;
-  text-align: left;
-  cursor: pointer;
-  line-height: 1.35;
-}
-.kpi-triage-row em {
-  display: block;
-  margin-top: 0.1rem;
-  font-style: normal;
-  font-weight: 600;
-  color: #64748b;
-}
-.kpi-triage-row:hover {
-  border-color: #1A4731;
-  background: #fff;
-}
 .kpi-tone-green { background: rgba(26, 71, 49, 0.1); color: #1A4731; }
 .kpi-tone-gold { background: rgba(212, 175, 55, 0.16); color: #a3831f; }
 .kpi-tone-danger { background: rgba(220, 38, 38, 0.1); color: #b91c1c; }
@@ -816,6 +784,25 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchAll));
   font-size: 0.72rem;
   color: #64748b;
 }
+.kpi-card > :last-child {
+  margin-top: auto;
+  padding-top: 0.35rem;
+}
+.kpi-link {
+  display: block;
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  appearance: none;
+}
+.kpi-link.kpi-meta { margin-top: 0.35rem; }
+.kpi-link.kpi-hint { margin-top: 0.2rem; }
+.kpi-link:hover { text-decoration: underline; }
 .micro-bar {
   margin-top: 0.5rem;
   height: 6px;
@@ -830,15 +817,6 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchAll));
   border-radius: 99px;
 }
 .micro-bar.gold span { background: #D4AF37; }
-.sev-dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  margin-right: 3px;
-}
-.sev-dot.critical { background: #dc2626; }
-.sev-dot.moderate { background: #d97706; }
 
 .panel-card {
   display: flex;
@@ -879,14 +857,16 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchAll));
   flex-direction: column;
   gap: 1rem;
   min-width: 0;
-  height: 100%;
+}
+.diag-col { height: 100%; }
+.pred-col { align-self: start; height: auto; }
+.pred-col .panel-card {
+  flex: 0 0 auto;
+  height: auto;
 }
 .diag-col :deep(.gis-card) {
   flex: 0 0 auto;
   width: 100%;
-}
-.pred-col .panel-card {
-  flex: 1 1 auto;
 }
 .chart-pair {
   display: grid;
