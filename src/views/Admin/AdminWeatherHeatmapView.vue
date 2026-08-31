@@ -215,7 +215,8 @@ import type { FeatureCollection, Geometry } from 'geojson';
 import apiClient from '@/utils/axios';
 import { toast } from '@/utils/toast';
 import { echagueMapOptions, loadGoogleMaps } from '@/utils/googleMaps';
-import { findRowForGeoName, indexByOfficialName, toOfficialBarangayName } from '@/utils/echagueGeoName';
+import { mountBarangayLabels } from '@/utils/barangayMapLabels';
+import { findRowForGeoName, indexByOfficialName, shortBarangayName as shortName, toOfficialBarangayName } from '@/utils/echagueGeoName';
 
 type MetricKey =
   | 'precipitation_probability'
@@ -260,6 +261,7 @@ const mapLoadError = ref('');
 let map: google.maps.Map | null = null;
 let geoJsonLoaded = false;
 let infoWindow: google.maps.InfoWindow | null = null;
+let unmountBarangayLabels: (() => void) | null = null;
 let echagueGeoJson: FeatureCollection<Geometry, { adm4_name: string; adm4_pcode: string }> | null = null;
 
 const METRIC_META: Record<MetricKey, { label: string; suffix: string; hint: string; chip: string; critical: (v: number) => boolean; reason: string }> = {
@@ -362,10 +364,6 @@ function formatValue(v: number | null | undefined, key: MetricKey = activeMetric
   if (key === 'precipitation_probability') return String(Math.round(n));
   if (key === 'soil_moisture_28cm') return n.toFixed(2);
   return n.toFixed(1);
-}
-
-function shortName(name: string): string {
-  return name.replace(' (Poblacion)', '').replace(' (formerly Atelan)', '');
 }
 
 function levelFor(row: BarangayWeather, key: MetricKey = activeMetric.value): Level {
@@ -740,6 +738,8 @@ async function ensureGeoLayerReady() {
       map.data.addGeoJson(echagueGeoJson as unknown as object);
       geoJsonLoaded = true;
       map.data.setStyle(featureStyle);
+      unmountBarangayLabels?.();
+      unmountBarangayLabels = mountBarangayLabels(map);
     } else {
       refreshMapStyles();
     }
@@ -772,6 +772,8 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('akap:refresh', loadData);
+  unmountBarangayLabels?.();
+  unmountBarangayLabels = null;
   if (map) {
     google.maps.event.clearInstanceListeners(map.data);
     map.data.forEach((feature) => map?.data.remove(feature));

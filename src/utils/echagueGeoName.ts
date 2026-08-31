@@ -26,6 +26,11 @@ export function toOfficialBarangayName(geoName: string): string {
   return GEO_TO_OFFICIAL_ALIASES[key] ?? geoName.trim();
 }
 
+/** Compact label for map overlays and tables — drop PSA disambiguators. */
+export function shortBarangayName(name: string): string {
+  return name.replace(' (Poblacion)', '').replace(' (formerly Atelan)', '');
+}
+
 /**
  * Build a lookup from normalized official barangay name -> row, so polygons
  * can find their weather data regardless of the exact GeoJSON spelling.

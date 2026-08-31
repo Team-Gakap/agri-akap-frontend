@@ -123,6 +123,7 @@ import { checkmarkOutline, warningOutline, waterOutline } from 'ionicons/icons';
 import { MarkerClusterer } from '@googlemaps/markerclusterer';
 import apiClient from '@/utils/axios';
 import { echagueMapOptions, loadGoogleMaps } from '@/utils/googleMaps';
+import { mountBarangayLabels } from '@/utils/barangayMapLabels';
 import { findRowForGeoName, indexByOfficialName, toOfficialBarangayName } from '@/utils/echagueGeoName';
 
 const emit = defineEmits<{
@@ -168,6 +169,7 @@ const selected = ref<SelectedEntity | null>(null);
 let map: google.maps.Map | null = null;
 let geoJsonLoaded = false;
 let skipMapClick = false;
+let unmountBarangayLabels: (() => void) | null = null;
 const lastPayload = ref<any>({
   farm_plots: [],
   plot_totals: { mapped: 0, total: 0 },
@@ -568,6 +570,8 @@ async function loadGeoJson() {
   const geo = await res.json();
   map.data.addGeoJson(geo);
   geoJsonLoaded = true;
+  unmountBarangayLabels?.();
+  unmountBarangayLabels = mountBarangayLabels(map);
   refreshChoropleth();
 }
 
@@ -592,6 +596,8 @@ onMounted(async () => {
 });
 
 onBeforeUnmount(() => {
+  unmountBarangayLabels?.();
+  unmountBarangayLabels = null;
   clearOverlays();
   pestClusterer = null;
   damageClusterer = null;
