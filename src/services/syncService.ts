@@ -533,6 +533,54 @@ type AutoIncTable =
   | 'offline_harvest_logs'
   | 'offline_standing_crop_logs';
 
+/** Point list from a queued geo-tag's JSON coordinates field. */
+function parseQueuedGeoPoints(raw: string): Array<{ lat: number; lng: number }> {
+  try {
+    const decoded = JSON.parse(raw);
+    if (decoded && typeof decoded === 'object' && 'lat' in decoded && 'lng' in decoded) {
+      return [{ lat: Number(decoded.lat), lng: Number(decoded.lng) }];
+    }
+    if (!Array.isArray(decoded)) return [];
+    return decoded
+      .filter((p) => p && typeof p === 'object' && 'lat' in p && 'lng' in p)
+      .map((p) => ({ lat: Number(p.lat), lng: Number(p.lng) }))
+      .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Queued 3-point same-spot walks are stored as polygons with ~0 ha. Send them
+ * as a marker so Sync Now retries instead of hitting the zero-area rejection.
+ */
+function coerceDegenerateGeoTag(row: OfflineGeoTag): {
+  geometry_type: OfflineGeoTag['geometry_type'];
+  coordinates: string;
+} {
+  if (row.geometry_type !== 'polygon') {
+    return { geometry_type: row.geometry_type, coordinates: row.coordinates };
+  }
+
+  const points = parseQueuedGeoPoints(row.coordinates);
+  const gross = Number(row.gross_area_sqm);
+  const finalHa = Number(row.final_area_ha);
+  const zeroArea =
+    points.length < 3
+    || (Number.isFinite(gross) && gross < 1)
+    || (Number.isFinite(finalHa) && finalHa <= 0);
+
+  if (!zeroArea || points.length === 0) {
+    return { geometry_type: 'polygon', coordinates: row.coordinates };
+  }
+
+  const centroid = {
+    lat: points.reduce((s, p) => s + p.lat, 0) / points.length,
+    lng: points.reduce((s, p) => s + p.lng, 0) / points.length,
+  };
+  return { geometry_type: 'marker', coordinates: JSON.stringify(centroid) };
+}
+
 const BULK_SYNC_TIMEOUT_MS = 120_000;
 
 type MissingOutcome = 'synced' | 'pending';
@@ -830,14 +878,16 @@ export async function syncAllPendingData(): Promise<SyncFlushResult> {
         farmer_id: r.farmer_id,
         program_id: r.program_id,
       })),
-      geo_tags: await Promise.all(geo_tags.map(async (r) => ({
+      geo_tags: await Promise.all(geo_tags.map(async (r) => {
+        const coerced = coerceDegenerateGeoTag(r);
+        return {
         client_id: r.client_id,
         farmer_id: r.farmer_id,
         rsbsa_no: r.rsbsa_no,
         farm_plot_id: r.farm_plot_id,
         device_id: getDeviceId(),
-        geometry_type: r.geometry_type,
-        coordinates: r.coordinates,
+        geometry_type: coerced.geometry_type,
+        coordinates: coerced.coordinates,
         crop_planted: r.crop_planted,
         crop_variety: r.crop_variety,
         parcel_name: r.parcel_name,
@@ -845,13 +895,14 @@ export async function syncAllPendingData(): Promise<SyncFlushResult> {
         observations: r.observations,
         photo_base64: await shrinkSyncImage(r.photo_base64),
         accuracy_m: r.accuracy_m,
-        non_productive_area_sqm: r.non_productive_area_sqm,
+        non_productive_area_sqm: coerced.geometry_type === 'polygon' ? r.non_productive_area_sqm : 0,
         has_discrepancy: r.has_discrepancy,
         planting_start_month: r.planting_start_month,
         planting_end_month: r.planting_end_month,
         farmer_signature_base64: await shrinkSyncImage(r.farmer_signature_base64, 1200),
         aew_signature_base64: await shrinkSyncImage(r.aew_signature_base64, 1200),
-      }))),
+        };
+      })),
       geo_tag_refusals: geo_refusals.map((r) => ({
         client_id: r.client_id,
         farmer_id: r.farmer_id,

@@ -1147,6 +1147,23 @@ const completeFarmBoundary = async () => {
 
   drawing.value = false;
   draftPoints.value = [];
+
+  // Same GPS drop repeated: no measurable farm area. Save as a location pin
+  // so defense/testing captures still sync instead of being rejected.
+  const areaSqm = shoelaceAreaSqm(points);
+  if (areaSqm < 1) {
+    const centroid = {
+      lat: points.reduce((s, p) => s + p.lat, 0) / points.length,
+      lng: points.reduce((s, p) => s + p.lng, 0) / points.length,
+    };
+    await toast(
+      'Points are too close to form a farm boundary. Saving as a location pin instead.',
+      'warning',
+    );
+    openMetadataModal({ type: 'marker', points: [centroid] });
+    return;
+  }
+
   openMetadataModal({ type: 'polygon', points });
 };
 
