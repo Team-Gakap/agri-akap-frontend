@@ -204,18 +204,13 @@
                   <ion-icon slot="start" :icon="printOutline"></ion-icon>
                   Print Single ID
                 </ion-button>
-                <ion-button
-                  size="small"
-                  class="preview-act"
-                  :fill="hasPhoto(previewFarmer) ? 'outline' : 'solid'"
-                  :color="hasPhoto(previewFarmer) ? 'medium' : 'warning'"
+                <FarmerPhotoCapture
+                  :has-photo="hasPhoto(previewFarmer)"
                   :disabled="uploadingPhoto"
-                  @click="triggerPhotoUpload"
-                >
-                  <ion-icon slot="start" :icon="cameraOutline"></ion-icon>
-                  {{ uploadingPhoto ? 'Uploading…' : hasPhoto(previewFarmer) ? 'Replace Photo' : 'Upload Photo' }}
-                </ion-button>
+                  @captured="onPhotoCaptured"
+                />
               </div>
+              <p v-if="uploadingPhoto" class="upload-status">Saving photo…</p>
               <p v-if="selectedCount > 1" class="batch-hint">
                 {{ selectedCount }} selected for batch print.
                 <button type="button" class="text-link" @click="previewFarmer = null">View batch summary</button>
@@ -265,14 +260,6 @@
         </section>
       </div>
 
-      <input
-        ref="photoInput"
-        class="hidden-file"
-        type="file"
-        accept="image/*"
-        @change="onPhotoSelected"
-      />
-
       <div class="print-container print-only" id="print-batch">
         <div
           v-for="farmer in printableFarmers"
@@ -302,6 +289,7 @@ import {
 import axiosInstance from '@/utils/axios';
 import EmptyState from '@/components/EmptyState.vue';
 import FarmerIdCard from '@/components/FarmerIdCard.vue';
+import FarmerPhotoCapture from '@/components/FarmerPhotoCapture.vue';
 import { exportAdminGridExcel } from '@/utils/statutoryFormExcel';
 
 const route = useRoute();
@@ -324,7 +312,6 @@ const idStatusFilter = ref<IdStatusFilter>('');
 
 const selectedIds = reactive(new Set<string>());
 const previewFarmer = ref<any>(null);
-const photoInput = ref<HTMLInputElement | null>(null);
 const uploadingPhoto = ref(false);
 
 const loadPrintedIds = (): Set<string> => {
@@ -634,26 +621,11 @@ const exportIdList = async () => {
   }
 };
 
-const triggerPhotoUpload = () => {
-  photoInput.value?.click();
-};
-
-const onPhotoSelected = async (ev: Event) => {
-  const input = ev.target as HTMLInputElement;
-  const file = input.files?.[0];
+const onPhotoCaptured = async (dataUrl: string) => {
   const farmer = previewFarmer.value;
-  if (!file || !farmer?.id) {
-    input.value = '';
-    return;
-  }
+  if (!farmer?.id) return;
   uploadingPhoto.value = true;
   try {
-    const dataUrl = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(String(reader.result || ''));
-      reader.onerror = () => reject(new Error('Could not read the image file.'));
-      reader.readAsDataURL(file);
-    });
     const res = await axiosInstance.post(`/farmers/${farmer.id}/photo`, { photo_base64: dataUrl });
     const payload = res.data?.data ?? {};
     farmer.photo_path = payload.photo_path || payload.photo_url || farmer.photo_path || dataUrl;
@@ -662,7 +634,6 @@ const onPhotoSelected = async (ev: Event) => {
     await toast(err?.response?.data?.message || 'Failed to upload photo.', 'danger');
   } finally {
     uploadingPhoto.value = false;
-    input.value = '';
   }
 };
 
@@ -1115,9 +1086,19 @@ onUnmounted(() => {
 
 .preview-actions {
   display: flex;
+  flex-direction: column;
   justify-content: center;
+  align-items: center;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.upload-status {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #1a4731;
+  text-align: center;
 }
 
 .preview-act {

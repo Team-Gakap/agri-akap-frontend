@@ -138,6 +138,7 @@ const routes: Array<RouteRecordRaw> = [
       { path: "", redirect: "/brgy/dashboard" },
       { path: "dashboard", name: "BrgyDashboard", component: () => import("@/views/Barangay/BrgyDashboardView.vue"), meta: { title: "Dashboard" } },
       { path: "farmers", name: "BrgyFarmerMasterlist", component: () => import("@/views/Barangay/BrgyFarmerMasterlistView.vue"), meta: { title: "Farmers" } },
+      { path: "id-issuance", name: "BrgyIdIssuance", component: () => import("@/views/Barangay/BrgyIdIssuanceView.vue"), meta: { title: "ID Cards" } },
       { path: "crop-records", name: "BrgyCropHub", component: () => import("@/views/Barangay/BrgyCropHubView.vue"), meta: { title: "Crop Production" } },
       { path: "planting-ledger", redirect: { path: "/brgy/crop-records", query: { kind: "planting" } } },
       { path: "standing-crop", redirect: { path: "/brgy/crop-records", query: { kind: "standing" } } },

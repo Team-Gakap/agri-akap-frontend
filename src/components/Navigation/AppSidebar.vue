@@ -224,6 +224,7 @@ const groups = computed<NavGroup[]>(() => {
         items: [
           { title: 'Dashboard', url: '/brgy/dashboard', icon: gridOutline, exact: true },
           { title: 'Farmers', url: '/brgy/farmers', icon: peopleOutline },
+          { title: 'ID Cards', url: '/brgy/id-issuance', icon: idCardOutline },
         ],
       },
       {

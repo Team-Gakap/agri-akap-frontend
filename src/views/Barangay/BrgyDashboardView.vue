@@ -30,6 +30,12 @@
           <p class="kpi-sub">
             {{ fmt(dashboardData.verified_farmers) }} Verified · {{ fmt(dashboardData.pending_farmers) }} Pending RSBSA
           </p>
+          <p
+            class="kpi-hint kpi-photo-link"
+            @click.stop="go('/brgy/id-issuance?chip=missing-photo')"
+          >
+            {{ fmt(dashboardData.missing_id_photos) }} missing ID photos
+          </p>
         </button>
 
         <button class="kpi-card lg:col-span-3" type="button" @click="go('/brgy/planting-ledger')">
@@ -299,6 +305,7 @@ interface DashboardData {
   total_farmers: number;
   verified_farmers: number;
   pending_farmers: number;
+  missing_id_photos: number;
   total_hectares: number;
   rice_hectares: number;
   corn_hectares: number;
@@ -350,6 +357,7 @@ const dashboardData = reactive<DashboardData>({
   total_farmers: 0,
   verified_farmers: 0,
   pending_farmers: 0,
+  missing_id_photos: 0,
   total_hectares: 0,
   rice_hectares: 0,
   corn_hectares: 0,
@@ -631,6 +639,7 @@ const fetchDashboard = async () => {
       total_farmers: Number(desc.total_farmers ?? 0),
       verified_farmers: Number(desc.verified_farmers ?? 0),
       pending_farmers: Number(desc.pending_farmers ?? 0),
+      missing_id_photos: Number(desc.missing_id_photos ?? 0),
       total_hectares: Number(desc.total_hectares ?? desc.active_hectares ?? 0),
       rice_hectares: Number(desc.rice_hectares ?? 0),
       corn_hectares: Number(desc.corn_hectares ?? 0),
@@ -795,6 +804,12 @@ onIonViewWillEnter(() => {
   color: #1A4731;
 }
 .kpi-hint { color: #64748b; font-weight: 600; }
+.kpi-photo-link {
+  color: #c2410c;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
 .micro-bar {
   margin-top: 0.5rem;
   height: 6px;

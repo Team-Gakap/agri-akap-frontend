@@ -27,30 +27,62 @@
             <p>{{ error }}</p>
             <ion-button size="small" @click="fetchFarmers()">Retry</ion-button>
           </div>
-          <div v-else class="table-scroll">
-            <table class="excel-table">
-              <thead>
-                <tr>
-                  <th class="col-no">No</th>
-                  <th>RSBSA No.</th>
-                  <th>Farmer Name</th>
-                  <th>Birthdate</th>
-                  <th>Mobile</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-if="!farmers.length">
-                  <td colspan="5" class="empty-row">No farmers found for your barangay.</td>
-                </tr>
-                <tr v-for="(f, i) in farmers" :key="f.id">
-                  <td class="col-no">{{ (meta.current_page - 1) * 15 + i + 1 }}</td>
-                  <td class="mono">{{ f.rsbsa_no || '—' }}</td>
-                  <td>{{ formatName(f) }}</td>
-                  <td>{{ formatDate(f.birthdate) }}</td>
-                  <td>{{ f.mobile_number || '—' }}</td>
-                </tr>
-              </tbody>
-            </table>
+          <div v-else>
+            <div class="table-scroll desktop-list">
+              <table class="excel-table">
+                <thead>
+                  <tr>
+                    <th class="col-no">No</th>
+                    <th>Photo</th>
+                    <th>RSBSA No.</th>
+                    <th>Farmer Name</th>
+                    <th>Birthdate</th>
+                    <th>Mobile</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-if="!farmers.length">
+                    <td colspan="6" class="empty-row">No farmers found for your barangay.</td>
+                  </tr>
+                  <tr
+                    v-for="(f, i) in farmers"
+                    :key="f.id"
+                    class="click-row"
+                    @click="openIdCard(f)"
+                  >
+                    <td class="col-no">{{ (meta.current_page - 1) * 15 + i + 1 }}</td>
+                    <td>
+                      <span class="photo-flag" :class="f.photo_path ? 'ok' : 'miss'">
+                        {{ f.photo_path ? 'Ready' : 'Needs photo' }}
+                      </span>
+                    </td>
+                    <td class="mono">{{ f.rsbsa_no || '—' }}</td>
+                    <td>{{ formatName(f) }}</td>
+                    <td>{{ formatDate(f.birthdate) }}</td>
+                    <td>{{ f.mobile_number || '—' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <ul class="mobile-cards">
+              <li v-if="!farmers.length" class="empty-card">No farmers found for your barangay.</li>
+              <li v-for="f in farmers" :key="'m-' + f.id">
+                <button type="button" class="farmer-card" @click="openIdCard(f)">
+                  <img v-if="thumbUrl(f)" :src="thumbUrl(f)!" alt="" class="card-thumb" />
+                  <div v-else class="card-thumb placeholder">
+                    <ion-icon :icon="personOutline"></ion-icon>
+                  </div>
+                  <div class="card-meta">
+                    <strong>{{ formatName(f) }}</strong>
+                    <span class="mono">{{ f.rsbsa_no || 'RSBSA pending' }}</span>
+                    <span class="photo-flag" :class="f.photo_path ? 'ok' : 'miss'">
+                      {{ f.photo_path ? 'Photo ready' : 'Needs photo' }}
+                    </span>
+                  </div>
+                </button>
+              </li>
+            </ul>
           </div>
 
           <div class="pager" v-if="meta.last_page > 1">
@@ -81,12 +113,15 @@
 <script setup lang="ts">
 import AppHeader from '@/components/Navigation/AppHeader.vue';
 import { ref, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import {
-  IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
-  IonButton, IonSearchbar, IonSpinner,
+  IonPage, IonToolbar, IonContent, IonButton, IonSearchbar, IonSpinner, IonIcon,
 } from '@ionic/vue';
+import { personOutline } from 'ionicons/icons';
 import apiClient from '@/utils/axios';
+import { storageUrl } from '@/utils/storageUrl';
 
+const router = useRouter();
 const farmers = ref<any[]>([]);
 const loading = ref(false);
 const error = ref('');
@@ -107,11 +142,16 @@ const formatDate = (v: any) => {
   }
 };
 
+const thumbUrl = (f: any) => storageUrl(f?.photo_path);
+
+const openIdCard = (f: any) => {
+  void router.push({ path: '/brgy/id-issuance', query: { farmer_id: f.id } });
+};
+
 const fetchFarmers = async (page = 1) => {
   loading.value = true;
   error.value = '';
   try {
-    // Backend auto-scopes to assigned_barangay via Sanctum token
     const res = await apiClient.get('/farmers', {
       params: {
         page,
@@ -213,7 +253,7 @@ onMounted(() => fetchFarmers());
   z-index: 2;
 }
 .excel-table tbody tr:nth-child(even) { background: #f8fafc; }
-.excel-table tbody tr:hover { background: #eef5ee; }
+.excel-table tbody tr.click-row:hover { background: #eef5ee; cursor: pointer; }
 .col-no { text-align: right; width: 44px; }
 .mono { font-family: 'Courier New', monospace; }
 .empty-row { text-align: center; color: #94a3b8; padding: 2rem 0; font-style: italic; }
@@ -231,5 +271,75 @@ onMounted(() => fetchFarmers());
   font-size: 0.85rem;
   color: #64748b;
   font-weight: 600;
+}
+
+.photo-flag {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.photo-flag.ok { color: #15803d; }
+.photo-flag.miss { color: #c2410c; }
+
+.mobile-cards {
+  display: none;
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  gap: 8px;
+}
+.empty-card {
+  padding: 1.5rem 1rem;
+  text-align: center;
+  color: #94a3b8;
+  font-style: italic;
+}
+.farmer-card {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  min-height: 72px;
+}
+.card-thumb {
+  width: 52px;
+  height: 52px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: #e2e8f0;
+}
+.card-thumb.placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  font-size: 1.4rem;
+}
+.card-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.card-meta strong { font-size: 0.92rem; color: #0f172a; }
+
+@media (max-width: 700px) {
+  .rpt-shell { padding: 0.5rem 0.65rem 1rem; }
+  .desktop-list { display: none; }
+  .mobile-cards {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: auto;
+  }
 }
 </style>
