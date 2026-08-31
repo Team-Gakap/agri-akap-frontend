@@ -9,7 +9,13 @@
       :placeholder="placeholder"
       @ionChange="onSelect"
     >
-      <ion-select-option v-for="v in options" :key="v" :value="v">{{ v }}</ion-select-option>
+      <template v-for="group in groups" :key="group.label">
+        <ion-select-option :value="headerValue(group.label)" disabled>
+          {{ group.label }}
+        </ion-select-option>
+        <ion-select-option v-for="v in group.varieties" :key="v" :value="v">{{ v }}</ion-select-option>
+      </template>
+      <ion-select-option :value="OTHER_VARIETY">{{ OTHER_VARIETY }}</ion-select-option>
     </ion-select>
     <ion-input
       v-if="selection === OTHER_VARIETY"
@@ -26,7 +32,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { IonSelect, IonSelectOption, IonInput } from '@ionic/vue';
-import { OTHER_VARIETY, isKnownVariety, varietiesForCrop } from '@/constants/cropVarieties';
+import {
+  OTHER_VARIETY,
+  isKnownVariety,
+  varietyGroupsForCrop,
+} from '@/constants/cropVarieties';
 
 const props = withDefaults(defineProps<{
   modelValue: string;
@@ -48,7 +58,9 @@ const emit = defineEmits<{
 }>();
 
 const custom = ref('');
-const options = computed(() => varietiesForCrop(props.crop));
+const groups = computed(() => varietyGroupsForCrop(props.crop));
+
+const headerValue = (label: string) => `__hdr:${label}`;
 
 const selection = computed(() => {
   if (!props.modelValue) return '';
@@ -77,6 +89,7 @@ watch(
 
 const onSelect = (e: CustomEvent) => {
   const next = String(e.detail.value ?? '');
+  if (next.startsWith('__hdr:')) return;
   if (next === OTHER_VARIETY) {
     emit('update:modelValue', custom.value.trim());
     return;
