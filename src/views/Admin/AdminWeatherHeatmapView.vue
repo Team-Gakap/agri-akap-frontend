@@ -46,6 +46,13 @@
           </div>
         </div>
 
+        <div v-if="syncMeta && !loading" class="freshness-row" :class="{ stale: isHourlyStale }">
+          <span>Forecast date: <strong>{{ forecastDate || '—' }}</strong></span>
+          <span v-if="syncMeta.daily_synced_at">Daily: {{ formatSyncTime(syncMeta.daily_synced_at) }}</span>
+          <span v-if="syncMeta.hourly_synced_at">Hourly: {{ formatSyncTime(syncMeta.hourly_synced_at) }}</span>
+          <span v-if="isHourlyStale" class="stale-badge">Hourly data may be stale</span>
+        </div>
+
         <div v-if="loading" class="loading-box">
           <ion-spinner name="crescent" color="primary"></ion-spinner>
           <p>Loading barangay climate data…</p>
@@ -67,7 +74,18 @@
                 <button type="button" :class="{ on: basemap === 'terrain' }" @click="setBasemap('terrain')">
                   Terrain
                 </button>
+                <button type="button" :class="{ on: radarEnabled }" @click="toggleRadar">
+                  Radar (PAGASA)
+                </button>
               </div>
+            </div>
+
+            <div v-show="viewMode === 'map' && radarEnabled" class="radar-controls">
+              <label>
+                Radar opacity
+                <input v-model.number="radarOpacity" type="range" min="0.15" max="0.85" step="0.05" @input="applyRadarOverlay" />
+              </label>
+              <span class="radar-attr">Radar © PAGASA / DOST</span>
             </div>
 
             <div v-show="viewMode === 'map'" class="map-shell">
@@ -92,7 +110,7 @@
                 <thead>
                   <tr>
                     <th><button type="button" @click="sortBy('name')">Barangay</button></th>
-                    <th><button type="button" @click="sortBy('precipitation_probability')">Rain %</button></th>
+                    <th><button type="button" @click="sortBy('precipitation_probability')">Rain % (6h max)</button></th>
                     <th><button type="button" @click="sortBy('soil_moisture_28cm')">Soil</button></th>
                     <th><button type="button" @click="sortBy('wind_speed_10m')">Wind</button></th>
                     <th><button type="button" @click="sortBy('evapotranspiration')">ET0</button></th>
@@ -107,7 +125,7 @@
                     @click="selectedBarangay = row.barangay_name"
                   >
                     <td class="name-cell">{{ shortName(row.barangay_name) }}</td>
-                    <td>{{ formatValue(row.precipitation_probability, 'precipitation_probability') }}%</td>
+                    <td>{{ formatValue(metricValue(row, 'precipitation_probability'), 'precipitation_probability') }}%</td>
                     <td>{{ formatValue(row.soil_moisture_28cm, 'soil_moisture_28cm') }}</td>
                     <td>{{ formatValue(row.wind_speed_10m, 'wind_speed_10m') }} km/h</td>
                     <td>{{ formatValue(row.evapotranspiration, 'evapotranspiration') }} mm</td>
@@ -119,6 +137,23 @@
           </section>
 
           <aside class="insights-panel">
+            <details class="national-advisories" :open="hasNationalAdvisories">
+              <summary>National advisories (PAGASA-scale)</summary>
+              <p v-if="nationalLoading" class="empty-alerts">Loading advisories…</p>
+              <template v-else-if="hasNationalAdvisories">
+                <div v-for="(item, i) in nationalAdvisories.rainfall_advisories" :key="'rain-' + i" class="nat-adv-row">
+                  <strong>Rainfall</strong>
+                  <p>{{ advisoryText(item) }}</p>
+                </div>
+                <div v-for="(item, i) in nationalAdvisories.cyclone_bulletins" :key="'cyc-' + i" class="nat-adv-row">
+                  <strong>Cyclone</strong>
+                  <p>{{ advisoryText(item) }}</p>
+                </div>
+                <p class="nat-attr">{{ nationalAdvisories.attribution }}</p>
+              </template>
+              <p v-else class="empty-alerts">No active PAGASA-scale advisories.</p>
+            </details>
+
             <h3>Critical Advisories</h3>
             <p class="insights-sub">
               {{ criticalBarangays.length }} barangay(s) above threshold for
@@ -165,14 +200,42 @@
             </ul>
 
             <div v-if="selectedRow" class="selected-card">
-              <h4>Selected: {{ selectedRow.barangay_name }}</h4>
+              <h4>Selected: {{ shortName(selectedRow.barangay_name) }}</h4>
               <p v-if="selectedPin(selectedRow)" class="selected-pin">{{ selectedPin(selectedRow) }}</p>
+
+              <div v-if="selectedRow.current_conditions" class="now-strip">
+                <p class="now-kicker">Model now-cast</p>
+                <div class="now-metrics">
+                  <span>{{ fmtNum(selectedRow.current_conditions.temperature, 0) }}°C</span>
+                  <span>{{ selectedRow.current_conditions.status }}</span>
+                  <span>{{ selectedRow.current_conditions.precipitation_probability ?? 0 }}% rain</span>
+                  <span>{{ fmtNum(selectedRow.current_conditions.precipitation, 1) }} mm</span>
+                </div>
+              </div>
+
+              <p v-if="radarEnabled && radarQpe != null" class="radar-qpe">Radar QPE: {{ radarQpe }} mm/hr</p>
+
+              <p class="hour-caption">Next 6 hours</p>
+              <div v-if="hourlyForecast.length" class="hour-pills">
+                <div
+                  v-for="hour in hourlyForecast"
+                  :key="hour.id || hour.forecast_datetime"
+                  class="hour-pill"
+                  :class="hourTone(hour)"
+                >
+                  <span class="hour-time">{{ formatHour(hour.forecast_datetime) }}</span>
+                  <span class="hour-rain">{{ hour.precipitation_probability ?? 0 }}%</span>
+                  <span class="hour-wind">{{ fmtNum(hour.wind_speed, 0) }} km/h</span>
+                </div>
+              </div>
+              <p v-else class="empty-inline">Hourly slots not cached yet.</p>
+
               <dl>
                 <div>
-                  <dt>Rain</dt>
-                  <dd>{{ selectedRow.precipitation_probability ?? '—' }}%</dd>
+                  <dt>Rain (6h max)</dt>
+                  <dd>{{ formatValue(metricValue(selectedRow, 'precipitation_probability'), 'precipitation_probability') }}%</dd>
                   <span class="qual">{{ rainQual(selectedRow) }}</span>
-                  <div class="meter"><i :style="{ width: barPct('precipitation_probability', selectedRow.precipitation_probability) + '%' }"></i></div>
+                  <div class="meter"><i :style="{ width: barPct('precipitation_probability', metricValue(selectedRow, 'precipitation_probability')) + '%' }"></i></div>
                 </div>
                 <div>
                   <dt>Root moisture</dt>
@@ -226,10 +289,24 @@ type MetricKey =
 
 type Level = 'safe' | 'watch' | 'warn' | 'danger';
 
+interface CurrentConditions {
+  observed_at?: string;
+  temperature?: number | null;
+  precipitation?: number | null;
+  rain?: number | null;
+  precipitation_probability?: number | null;
+  wind_speed?: number | null;
+  weather_code?: number | null;
+  status?: string;
+  source?: string;
+}
+
 interface BarangayWeather {
   barangay_name: string;
   forecast_date?: string;
   precipitation_probability: number | null;
+  precipitation_probability_daily?: number | null;
+  precipitation_probability_next_6h?: number | null;
   soil_moisture_28cm: number | null;
   wind_speed_10m: number | null;
   evapotranspiration: number | null;
@@ -237,13 +314,60 @@ interface BarangayWeather {
   status?: string;
   latitude?: number | null;
   longitude?: number | null;
+  current_conditions?: CurrentConditions | null;
+}
+
+interface HourlySlot {
+  id?: string;
+  forecast_datetime: string;
+  precipitation_probability?: number | null;
+  wind_speed?: number | null;
+  temperature?: number | null;
+}
+
+interface SyncMeta {
+  timezone?: string;
+  daily_synced_at?: string | null;
+  hourly_synced_at?: string | null;
+  current_synced_at?: string | null;
+  generated_at?: string | null;
+}
+
+interface RadarFrame {
+  observed_at: string;
+  image_url: string;
+  index: number;
+}
+
+interface RadarPayload {
+  product: string;
+  attribution: string;
+  frames: RadarFrame[];
+  bounds: { north: number; south: number; east: number; west: number };
+  available: boolean;
+}
+
+interface NationalAdvisories {
+  source: string;
+  attribution: string;
+  rainfall_advisories: Record<string, unknown>[];
+  cyclone_bulletins: Record<string, unknown>[];
+  available: boolean;
 }
 
 const router = useRouter();
 const loading = ref(true);
 const usingMock = ref(false);
 const forecastDate = ref('');
+const syncMeta = ref<SyncMeta | null>(null);
 const barangays = ref<BarangayWeather[]>([]);
+const hourlyForecast = ref<HourlySlot[]>([]);
+const nationalAdvisories = ref<NationalAdvisories | null>(null);
+const nationalLoading = ref(false);
+const radarPayload = ref<RadarPayload | null>(null);
+const radarEnabled = ref(false);
+const radarOpacity = ref(0.4);
+const radarQpe = ref<number | null>(null);
 const activeMetric = ref<MetricKey>('precipitation_probability');
 const selectedBarangay = ref<string | null>(null);
 const sendingBarangay = ref<string | null>(null);
@@ -259,6 +383,7 @@ const mapEl = ref<HTMLDivElement | null>(null);
 const geoLoading = ref(true);
 const mapLoadError = ref('');
 let map: google.maps.Map | null = null;
+let radarOverlay: google.maps.GroundOverlay | null = null;
 let geoJsonLoaded = false;
 let infoWindow: google.maps.InfoWindow | null = null;
 let unmountBarangayLabels: (() => void) | null = null;
@@ -269,7 +394,7 @@ const METRIC_META: Record<MetricKey, { label: string; suffix: string; hint: stri
     label: 'Precipitation Risk',
     suffix: '%',
     chip: 'Rain',
-    hint: 'Flood / lodging risk. Critical when rain chance ≥ 80%.',
+    hint: 'Next 6-hour max rain chance. Critical when rain chance ≥ 80%.',
     critical: (v) => v >= 80,
     reason: 'Heavy rain risk',
   },
@@ -315,6 +440,19 @@ const selectedRow = computed(() =>
   barangays.value.find((b) => b.barangay_name === selectedBarangay.value) ?? null,
 );
 
+const isHourlyStale = computed(() => {
+  const ts = syncMeta.value?.hourly_synced_at;
+  if (!ts) return true;
+  const ageMs = Date.now() - new Date(ts).getTime();
+  return ageMs > 5 * 60 * 60 * 1000;
+});
+
+const hasNationalAdvisories = computed(() => {
+  const adv = nationalAdvisories.value;
+  if (!adv?.available) return false;
+  return (adv.rainfall_advisories?.length ?? 0) > 0 || (adv.cyclone_bulletins?.length ?? 0) > 0;
+});
+
 function selectedPin(row: BarangayWeather): string | null {
   const lat = Number(row.latitude);
   const lng = Number(row.longitude);
@@ -353,7 +491,12 @@ const sortedRows = computed(() => {
 });
 
 function metricValue(row: BarangayWeather, key: MetricKey = activeMetric.value): number | null {
-  const raw = row[key];
+  let raw: number | null | undefined;
+  if (key === 'precipitation_probability') {
+    raw = row.precipitation_probability_next_6h ?? row.precipitation_probability;
+  } else {
+    raw = row[key];
+  }
   if (raw == null || Number.isNaN(Number(raw))) return null;
   return Number(raw);
 }
@@ -424,7 +567,7 @@ function alertReason(row: BarangayWeather): string {
 }
 
 function rainQual(row: BarangayWeather): string {
-  const v = row.precipitation_probability ?? 0;
+  const v = metricValue(row, 'precipitation_probability') ?? 0;
   if (v >= 80) return 'High rain risk';
   if (v >= 60) return 'Elevated rain risk';
   if (v >= 35) return 'Watch rainfall';
@@ -463,7 +606,7 @@ function barPct(key: MetricKey, raw: number | null | undefined): number {
 
 function fieldAdvice(row: BarangayWeather): string {
   const issues: string[] = [];
-  const rain = row.precipitation_probability ?? 0;
+  const rain = metricValue(row, 'precipitation_probability') ?? 0;
   const soil = row.soil_moisture_28cm ?? 0;
   const wind = row.wind_speed_10m ?? 0;
   const et0 = row.evapotranspiration ?? 0;
@@ -522,10 +665,152 @@ function buildMockBarangays(): BarangayWeather[] {
     barangay_name: name,
     forecast_date: today,
     precipitation_probability: rain,
+    precipitation_probability_next_6h: rain,
     soil_moisture_28cm: soil,
     wind_speed_10m: wind,
     evapotranspiration: et0,
   }));
+}
+
+function fmtNum(v: number | null | undefined, digits = 1): string {
+  if (v == null || Number.isNaN(Number(v))) return '—';
+  return Number(v).toFixed(digits);
+}
+
+function formatSyncTime(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat('en-PH', {
+      timeZone: 'Asia/Manila',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
+}
+
+function formatHour(iso: string): string {
+  try {
+    return new Intl.DateTimeFormat('en-PH', {
+      timeZone: 'Asia/Manila',
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(new Date(iso));
+  } catch {
+    return iso;
+  }
+}
+
+function hourTone(hour: HourlySlot): string {
+  const rain = hour.precipitation_probability ?? 0;
+  const wind = hour.wind_speed ?? 0;
+  if (rain >= 80) return 'flood';
+  if (rain >= 70 || wind > 15) return 'warn';
+  return 'ok';
+}
+
+function advisoryText(item: Record<string, unknown>): string {
+  const parts = [
+    item.title,
+    item.headline,
+    item.message,
+    item.summary,
+    item.cyclone_name,
+    item.description,
+  ].filter((v) => typeof v === 'string' && String(v).trim() !== '');
+  if (parts.length) return String(parts[0]);
+  return JSON.stringify(item).slice(0, 180);
+}
+
+async function loadNationalAdvisories() {
+  nationalLoading.value = true;
+  try {
+    const res = await apiClient.get('/weather/national-advisories');
+    nationalAdvisories.value = res.data?.data ?? null;
+  } catch {
+    nationalAdvisories.value = null;
+  } finally {
+    nationalLoading.value = false;
+  }
+}
+
+async function loadRadarFrames() {
+  try {
+    const res = await apiClient.get('/weather/radar');
+    radarPayload.value = res.data?.data ?? null;
+    if (radarEnabled.value) applyRadarOverlay();
+  } catch {
+    radarPayload.value = null;
+  }
+}
+
+async function loadHourlyForSelected(name: string) {
+  try {
+    const encoded = encodeURIComponent(name);
+    const res = await apiClient.get(`/weather/hourly/${encoded}`);
+    hourlyForecast.value = (res.data?.data?.hours ?? []) as HourlySlot[];
+  } catch {
+    hourlyForecast.value = [];
+  }
+}
+
+async function loadRadarPoint(row: BarangayWeather) {
+  const lat = Number(row.latitude);
+  const lng = Number(row.longitude);
+  if (!radarEnabled.value || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+    radarQpe.value = null;
+    return;
+  }
+  try {
+    const res = await apiClient.get('/weather/radar/point', { params: { lat, lng } });
+    radarQpe.value = res.data?.data?.rainfall_mm_hr ?? null;
+  } catch {
+    radarQpe.value = null;
+  }
+}
+
+function removeRadarOverlay() {
+  if (radarOverlay) {
+    radarOverlay.setMap(null);
+    radarOverlay = null;
+  }
+}
+
+function applyRadarOverlay() {
+  if (!map || !radarEnabled.value || !radarPayload.value?.available) {
+    removeRadarOverlay();
+    return;
+  }
+  const frames = radarPayload.value.frames;
+  if (!frames.length) {
+    removeRadarOverlay();
+    return;
+  }
+  const latest = frames[frames.length - 1];
+  const b = radarPayload.value.bounds;
+  const bounds = new google.maps.LatLngBounds(
+    { lat: b.south, lng: b.west },
+    { lat: b.north, lng: b.east },
+  );
+  removeRadarOverlay();
+  radarOverlay = new google.maps.GroundOverlay(latest.image_url, bounds, {
+    opacity: radarOpacity.value,
+  });
+  radarOverlay.setMap(map);
+}
+
+async function toggleRadar() {
+  radarEnabled.value = !radarEnabled.value;
+  if (radarEnabled.value) {
+    if (!radarPayload.value) await loadRadarFrames();
+    applyRadarOverlay();
+    if (selectedRow.value) await loadRadarPoint(selectedRow.value);
+  } else {
+    removeRadarOverlay();
+    radarQpe.value = null;
+  }
 }
 
 async function loadData() {
@@ -536,6 +821,7 @@ async function loadData() {
     const payload = res.data?.data;
     const rows = (payload?.barangays ?? []) as BarangayWeather[];
     forecastDate.value = payload?.forecast_date ?? '';
+    syncMeta.value = payload?.meta ?? null;
     if (rows.length) {
       barangays.value = rows;
     } else {
@@ -760,13 +1046,27 @@ function setViewMode(mode: 'map' | 'table') {
 watch(activeMetric, () => refreshMapStyles());
 watch(exceptionsOnly, () => refreshMapStyles());
 watch(selectedBarangay, () => refreshMapStyles());
+watch(selectedBarangay, async (name) => {
+  if (!name) {
+    hourlyForecast.value = [];
+    radarQpe.value = null;
+    return;
+  }
+  await loadHourlyForSelected(name);
+  const row = barangays.value.find((b) => b.barangay_name === name);
+  if (row) await loadRadarPoint(row);
+});
+
 watch(barangays, () => refreshMapStyles());
 
 onMounted(async () => {
-  await loadData();
+  await Promise.all([loadData(), loadNationalAdvisories(), loadRadarFrames()]);
   await nextTick();
   await initMap();
   await ensureGeoLayerReady();
+  if (selectedBarangay.value) {
+    await loadHourlyForSelected(selectedBarangay.value);
+  }
   window.addEventListener('akap:refresh', loadData);
 });
 
@@ -774,6 +1074,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('akap:refresh', loadData);
   unmountBarangayLabels?.();
   unmountBarangayLabels = null;
+  removeRadarOverlay();
   if (map) {
     google.maps.event.clearInstanceListeners(map.data);
     map.data.forEach((feature) => map?.data.remove(feature));
@@ -1174,6 +1475,87 @@ onBeforeUnmount(() => {
   font-weight: 600;
   line-height: 1.4;
 }
+
+.freshness-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-bottom: 0.75rem;
+}
+.freshness-row.stale { color: #b45309; }
+.stale-badge {
+  background: #fef3c7;
+  color: #a16207;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+}
+
+.radar-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.6rem;
+  font-size: 0.72rem;
+  color: #475569;
+}
+.radar-controls label { display: flex; align-items: center; gap: 0.4rem; font-weight: 600; }
+.radar-attr { color: #94a3b8; font-size: 0.68rem; }
+
+.national-advisories {
+  margin-bottom: 1rem;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 0.75rem;
+}
+.national-advisories summary {
+  cursor: pointer;
+  font-weight: 800;
+  color: #1a4731;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+.nat-adv-row {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  padding: 0.45rem 0.55rem;
+  margin-bottom: 0.45rem;
+  font-size: 0.75rem;
+}
+.nat-adv-row strong { display: block; color: #c2410c; font-size: 0.68rem; text-transform: uppercase; }
+.nat-adv-row p { margin: 0.2rem 0 0; color: #7c2d12; line-height: 1.35; }
+.nat-attr { margin: 0.35rem 0 0; font-size: 0.65rem; color: #94a3b8; }
+
+.now-strip {
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  padding: 0.5rem 0.6rem;
+  margin-bottom: 0.6rem;
+}
+.now-kicker { margin: 0 0 0.25rem; font-size: 0.62rem; font-weight: 700; text-transform: uppercase; color: #166534; }
+.now-metrics { display: flex; flex-wrap: wrap; gap: 0.5rem; font-size: 0.78rem; font-weight: 700; color: #14532d; }
+.radar-qpe { margin: 0 0 0.5rem; font-size: 0.75rem; font-weight: 700; color: #0369a1; }
+.hour-caption { margin: 0 0 0.35rem; font-size: 0.68rem; font-weight: 700; text-transform: uppercase; color: #64748b; }
+.hour-pills { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.35rem; margin-bottom: 0.65rem; }
+.hour-pill {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.35rem;
+  font-size: 0.68rem;
+  text-align: center;
+}
+.hour-pill.flood { background: #fee2e2; border-color: #fecaca; }
+.hour-pill.warn { background: #ffedd5; border-color: #fed7aa; }
+.hour-time { display: block; font-weight: 700; color: #334155; }
+.hour-rain, .hour-wind { display: block; color: #64748b; font-weight: 600; }
+.empty-inline { margin: 0 0 0.65rem; font-size: 0.75rem; color: #94a3b8; }
 
 /* Google Maps renders InfoWindow content outside this component's DOM subtree. */
 :global(.geo-tooltip) {
