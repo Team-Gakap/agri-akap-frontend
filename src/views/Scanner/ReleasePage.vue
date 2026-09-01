@@ -78,7 +78,7 @@
               <h2 class="alloc-farmer" v-else>Farmer (offline)</h2>
 
               <div class="alloc-item">
-                <span class="ai-label">Item</span>
+                <span class="ai-label">Program Name</span>
                 <strong>{{ ctx.item_released }}</strong>
               </div>
 

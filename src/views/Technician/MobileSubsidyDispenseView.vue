@@ -19,21 +19,21 @@
         <div class="icon-wrap">
           <ion-icon :icon="qrCodeOutline"></ion-icon>
         </div>
-        <h2>{{ hasProgram ? 'Scan &amp; Release' : 'Choose a campaign' }}</h2>
+        <h2>{{ hasProgram ? 'Scan &amp; Release' : 'Choose a program' }}</h2>
         <p v-if="!hasProgram">Pick the subsidy program first. After that, scan farmers one after another.</p>
-        <p v-else>Scan the next farmer’s ID, or search by name / RSBSA. The campaign stays selected.</p>
+        <p v-else>Scan the next farmer’s ID, or search by name / RSBSA. The program stays selected.</p>
       </div>
 
       <ion-card v-if="showProgramPicker" class="program-card">
         <ion-card-header>
           <ion-card-subtitle>Subsidy program</ion-card-subtitle>
-          <ion-card-title>Select campaign</ion-card-title>
+          <ion-card-title>Select program</ion-card-title>
         </ion-card-header>
         <ion-card-content>
           <ion-item class="program-select-item" lines="none">
             <ion-select
               :value="selectedProgramId"
-              placeholder="Choose an active campaign…"
+              placeholder="Choose an active program…"
               interface="action-sheet"
               @ionChange="onProgramChange"
             >
@@ -43,6 +43,14 @@
             </ion-select>
           </ion-item>
           <div v-if="selectedProgram" class="program-details">
+            <div class="detail-row">
+              <span>Program</span>
+              <strong>{{ programOptionLabel(selectedProgram) }}</strong>
+            </div>
+            <div v-if="programCatalogDetail(selectedProgram)" class="detail-row">
+              <span>Item</span>
+              <strong>{{ programCatalogDetail(selectedProgram) }}</strong>
+            </div>
             <div class="detail-row">
               <span>Crop</span>
               <strong>{{ selectedProgram.target_crop || selectedProgram.type || '—' }}</strong>
@@ -64,7 +72,7 @@
             </div>
           </div>
           <p v-if="!programs.length" class="hint danger">
-            No active subsidy programs. Ask MAO admin to activate a campaign.
+            No active subsidy programs. Ask MAO admin to activate a program.
           </p>
         </ion-card-content>
       </ion-card>
@@ -75,8 +83,9 @@
         class="program-chip"
         @click="changingProgram = true"
       >
-        <span class="chip-label">Campaign</span>
+        <span class="chip-label">Program</span>
         <strong>{{ programOptionLabel(selectedProgram) }}</strong>
+        <span v-if="programCatalogDetail(selectedProgram)" class="chip-detail">{{ programCatalogDetail(selectedProgram) }}</span>
         <span class="chip-change">Change</span>
       </button>
 
@@ -92,7 +101,7 @@
             <template v-if="lastClaim.barangay"> · {{ lastClaim.barangay }}</template>
           </p>
           <div v-if="lastClaim.campaign" class="detail-row">
-            <span>Campaign</span>
+            <span>Program</span>
             <strong>{{ lastClaim.campaign }}</strong>
           </div>
           <div v-if="showFarmSize" class="detail-row">
@@ -248,9 +257,13 @@ const selectedProgram = computed(() =>
 const hasProgram = computed(() => !!selectedProgramId.value);
 const showProgramPicker = computed(() => !hasProgram.value || changingProgram.value);
 
-const programOptionLabel = (p: any) => {
-  if (p.seed_class && p.item_type) return catalogSummary(p.target_crop, p.seed_class, p.item_type);
-  return p.name || p.program_name;
+const programOptionLabel = (p: any) => p.program_name || p.name || 'Subsidy program';
+
+const programCatalogDetail = (p: any) => {
+  if (p?.seed_class && p?.item_type) {
+    return catalogSummary(p.target_crop, p.seed_class, p.item_type);
+  }
+  return '';
 };
 
 const isRffaBlocked = computed(() => {
@@ -381,7 +394,7 @@ const buildOfflineContext = (program: any, source: 'subsidy' | 'program'): Relea
     program_id: selectedProgramId.value,
     farmer_name: farmerDisplayName.value,
     mobile_number: farmer.value.mobile_number,
-    item_released: program?.name || program?.program_name || 'Subsidy item',
+    item_released: program?.program_name || program?.name || 'Subsidy item',
     seed_class: program?.seed_class ?? null,
     item_type: program?.item_type ?? null,
     unit: program?.unit_of_measurement || '',
@@ -412,7 +425,7 @@ const verifyOnline = async (program: any, source: 'subsidy' | 'program'): Promis
       program_id: data.program_id || selectedProgramId.value,
       farmer_name: data.farmer_name || farmerDisplayName.value,
       mobile_number: data.mobile_number,
-      item_released: data.item_released || program.name,
+      item_released: data.item_released || program.program_name || program.name,
       seed_class: data.seed_class ?? program.seed_class ?? null,
       item_type: data.item_type ?? program.item_type ?? null,
       unit: data.unit || program.unit_of_measurement,
@@ -442,7 +455,7 @@ const verifyOnline = async (program: any, source: 'subsidy' | 'program'): Promis
     program_id: data.program_id || selectedProgramId.value,
     farmer_name: data.farmer_name || farmerDisplayName.value,
     mobile_number: data.mobile_number,
-    item_released: data.item_released || program?.name,
+    item_released: data.item_released || program?.program_name || program?.name,
     unit: data.unit || program?.unit_of_measurement,
     total_farm_size: data.total_farm_size || 0,
     eligible_size: data.eligible_size || 0,
@@ -566,7 +579,7 @@ const stopScan = async () => {
 
 const startScan = async () => {
   if (!hasProgram.value) {
-    await toast('Choose a subsidy campaign first.', 'warning');
+    await toast('Choose a subsidy program first.', 'warning');
     return;
   }
   if (isScanning.value || lookingUp.value || claiming.value) return;
@@ -780,6 +793,13 @@ onBeforeUnmount(() => {
   flex: 1;
   color: #1a4731;
   font-size: 0.95rem;
+}
+
+.program-chip .chip-detail {
+  width: 100%;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #64748b;
 }
 
 .program-chip .chip-change {

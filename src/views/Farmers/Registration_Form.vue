@@ -23,16 +23,6 @@
               <div class="lh-main">{{ isEdit ? 'RSBSA Record Update' : 'RSBSA Enrollment Form' }}</div>
             </div>
           </div>
-          <div class="lh-right">
-            <div class="photo-capture-box" @click="capturePhoto">
-              <img v-if="photoPreview" :src="photoPreview" class="photo-preview-img" />
-              <template v-else>
-                <span style="font-size:1.5rem;color:var(--c-border)">📷</span>
-                <span class="photo-cap-lbl">2x2 PHOTO</span>
-                <span class="photo-cap-sub">Tap to capture</span>
-              </template>
-            </div>
-          </div>
         </div>
         <div class="tx-row">
           <div class="field-wrap">
@@ -149,16 +139,31 @@
               </div>
               <div class="fgrid g3 mt6">
                 <div class="field-wrap">
-                  <label class="flabel req">MUNICIPALITY / CITY</label>
-                  <ion-input v-model="farmer.permanent_city" class="finput" />
+                  <SearchableSelect
+                    v-model="farmer.permanent_city"
+                    label="Municipality / City"
+                    placeholder="Select city…"
+                    :options="cityOptions"
+                    required
+                  />
                 </div>
                 <div class="field-wrap">
-                  <label class="flabel req">PROVINCE</label>
-                  <ion-input v-model="farmer.permanent_province" class="finput" />
+                  <SearchableSelect
+                    v-model="farmer.permanent_province"
+                    label="Province"
+                    placeholder="Select province…"
+                    :options="provinceOptions"
+                    required
+                  />
                 </div>
                 <div class="field-wrap">
-                  <label class="flabel req">REGION</label>
-                  <ion-input v-model="farmer.permanent_region" class="finput" />
+                  <SearchableSelect
+                    v-model="farmer.permanent_region"
+                    label="Region"
+                    placeholder="Select region…"
+                    :options="regionOptions"
+                    required
+                  />
                 </div>
               </div>
               <div class="ncr-note">
@@ -194,16 +199,31 @@
               </div>
               <div class="fgrid g3 mt6">
                 <div class="field-wrap">
-                  <label class="flabel">MUNICIPALITY / CITY</label>
-                  <ion-input v-model="farmer.provincial_city" class="finput" :disabled="sameAddress" />
+                  <SearchableSelect
+                    v-model="farmer.provincial_city"
+                    label="Municipality / City"
+                    placeholder="Select city…"
+                    :options="cityOptions"
+                    :disabled="sameAddress"
+                  />
                 </div>
                 <div class="field-wrap">
-                  <label class="flabel">PROVINCE</label>
-                  <ion-input v-model="farmer.provincial_province" class="finput" :disabled="sameAddress" />
+                  <SearchableSelect
+                    v-model="farmer.provincial_province"
+                    label="Province"
+                    placeholder="Select province…"
+                    :options="provinceOptions"
+                    :disabled="sameAddress"
+                  />
                 </div>
                 <div class="field-wrap">
-                  <label class="flabel">REGION</label>
-                  <ion-input v-model="farmer.provincial_region" class="finput" :disabled="sameAddress" />
+                  <SearchableSelect
+                    v-model="farmer.provincial_region"
+                    label="Region"
+                    placeholder="Select region…"
+                    :options="regionOptions"
+                    :disabled="sameAddress"
+                  />
                 </div>
               </div>
             </div>
@@ -398,7 +418,7 @@
 
           <div class="part-banner">
             <div class="part-label">PART III</div>
-            <div class="part-title">FARM PARCEL INFORMATION</div>
+            <div class="part-title">FARM PLOT INFORMATION</div>
           </div>
 
           <div v-for="(plot, idx) in farmPlots" :key="idx" class="plot-card">
@@ -413,7 +433,7 @@
 
             <!-- Location -->
             <div class="subsection">
-              <div class="subsection-title">LOCATION OF FARM PARCEL</div>
+              <div class="subsection-title">LOCATION OF FARM PLOT</div>
               <div class="subsection-body">
                 <div class="fgrid g3">
                   <div class="field-wrap">
@@ -427,12 +447,22 @@
                     />
                   </div>
                   <div class="field-wrap">
-                    <label class="flabel req">MUNICIPALITY / CITY</label>
-                    <ion-input v-model="plot.location_city" class="finput" />
+                    <SearchableSelect
+                      v-model="plot.location_city"
+                      label="Municipality / City"
+                      placeholder="Select city…"
+                      :options="cityOptions"
+                      required
+                    />
                   </div>
                   <div class="field-wrap">
-                    <label class="flabel req">PROVINCE</label>
-                    <ion-input v-model="plot.location_province" class="finput" />
+                    <SearchableSelect
+                      v-model="plot.location_province"
+                      label="Province"
+                      placeholder="Select province…"
+                      :options="provinceOptions"
+                      required
+                    />
                   </div>
                 </div>
               </div>
@@ -444,7 +474,7 @@
               <div class="subsection-body">
                 <div class="fgrid g2">
                   <div class="field-wrap">
-                    <label class="flabel req">TOTAL PARCEL AREA (ha)</label>
+                    <label class="flabel req">AREA (ha)</label>
                     <ion-input type="number" v-model="plot.total_parcel_area_ha" class="finput" placeholder="0.0000" />
                   </div>
                   <div class="field-wrap">
@@ -588,14 +618,13 @@ import {
   IonBackButton, IonCheckbox, IonTextarea,
   toastController,
 } from "@ionic/vue";
-import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 
 import { reactive, ref, onMounted, computed } from "vue";
 import axiosInstance from "@/utils/axios";
-import { storageUrl } from "@/utils/storageUrl";
 import { useRouter, useRoute } from "vue-router";
 import SearchableSelect from "@/components/SearchableSelect.vue";
 import { useOfficialBarangays } from "@/composables/useOfficialBarangays";
+import { useOfficialLocations } from "@/composables/useOfficialLocations";
 import {
   COMMODITY_OPTIONS,
   ECHAGUE_CITY,
@@ -606,6 +635,10 @@ import {
 const router = useRouter();
 const route = useRoute();
 const { barangays: barangayOptions } = useOfficialBarangays();
+const { locations: locationCatalog } = useOfficialLocations();
+const regionOptions = computed(() => locationCatalog.value.regions);
+const provinceOptions = computed(() => locationCatalog.value.provinces);
+const cityOptions = computed(() => locationCatalog.value.cities);
 
 const editId = computed(() => String(route.query.id || "").trim());
 const isEdit = computed(() => !!editId.value);
@@ -620,7 +653,6 @@ const isSubmitting  = ref(false);
 const errorMsg      = ref("");
 const sameAddress   = ref(false);
 const computedAge   = ref<number | "">("");
-const photoPreview  = ref<string | null>(null);
 
 const showToast = async (msg: string, color: 'success' | 'danger' | 'warning' = 'success') => {
   const toast = await toastController.create({
@@ -630,21 +662,6 @@ const showToast = async (msg: string, color: 'success' | 'danger' | 'warning' = 
     position: 'top',
   });
   await toast.present();
-};
-
-const capturePhoto = async () => {
-  try {
-    const photo = await Camera.getPhoto({
-      quality: 80,
-      allowEditing: true,
-      resultType: CameraResultType.Base64,
-      source: CameraSource.Prompt,
-    });
-    photoPreview.value = `data:image/jpeg;base64,${photo.base64String}`;
-    (farmer as any).photo_base64 = photoPreview.value;
-  } catch {
-    // user cancelled
-  }
 };
 
 /* options  */
@@ -852,9 +869,6 @@ const applyFarmerRecord = (data: any) => {
   if (data.birthdate) {
     farmer.birthdate = String(data.birthdate).slice(0, 10);
     computeAge();
-  }
-  if (data.photo_path) {
-    photoPreview.value = storageUrl(data.photo_path);
   }
   const plots = data.farm_plots || data.farmPlots || [];
   farmPlots.splice(0, farmPlots.length);

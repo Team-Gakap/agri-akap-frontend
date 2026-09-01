@@ -117,7 +117,9 @@
                 <tr>
                   <th class="col-no">No</th>
                   <th>RSBSA No.</th>
-                  <th>Farmer Name</th>
+                  <th>Last Name</th>
+                  <th>First Name</th>
+                  <th>Middle Name</th>
                   <th>Barangay</th>
                   <th>Subsidy Program</th>
                   <th>Crop</th>
@@ -128,12 +130,14 @@
               </thead>
               <tbody>
                 <tr v-if="!filteredRows.length">
-                  <td colspan="9" class="empty-row">No claimed subsidy records found for the selected filters.</td>
+                  <td colspan="11" class="empty-row">No claimed subsidy records found for the selected filters.</td>
                 </tr>
                 <tr v-for="(row, i) in filteredRows" :key="i">
                   <td class="col-no">{{ i + 1 }}</td>
                   <td class="mono">{{ row.rsbsa_no }}</td>
-                  <td>{{ row.farmer_name }}</td>
+                  <td>{{ row.surname || '—' }}</td>
+                  <td>{{ row.first_name || '—' }}</td>
+                  <td>{{ row.middle_name || '—' }}</td>
                   <td>{{ row.barangay }}</td>
                   <td>{{ row.program_name }}</td>
                   <td>{{ cropLabel(row.target_crop) }}</td>
@@ -151,7 +155,7 @@
                   </td>
                 </tr>
                 <tr v-if="filteredRows.length" class="totals-row">
-                  <td colspan="6" class="totals-label">TOTALS</td>
+                  <td colspan="8" class="totals-label">TOTALS</td>
                   <td colspan="3">{{ subsidyTotalsLabel }}</td>
                 </tr>
               </tbody>
@@ -205,13 +209,17 @@ import MaoFormHeader from '@/components/MaoFormHeader.vue';
 import { cropLabel } from '@/utils/cropLabel';
 import { storageUrl } from '@/utils/storageUrl';
 import { useReportScope, type ReportPeriod } from '@/composables/useReportScope';
+import { rowMatchesNameSearch } from '@/utils/farmerNameColumns';
 import { itemTypeLabel, type ItemType } from '@/constants/subsidyCatalog';
 
 const ITEM_TYPES: ItemType[] = ['seed', 'abono', 'liquid_fertilizer', 'wettable', 'cash'];
 
 interface SubsidyRow {
   rsbsa_no: string;
-  farmer_name: string;
+  surname?: string;
+  first_name?: string;
+  middle_name?: string;
+  farmer_name?: string;
   barangay: string;
   program_name: string;
   target_crop?: string;
@@ -254,7 +262,7 @@ const filteredRows = computed(() => {
   const q = searchQuery.value.trim().toLowerCase();
   if (!q) return rows.value;
   return rows.value.filter((r) =>
-    r.farmer_name.toLowerCase().includes(q) || String(r.rsbsa_no || '').toLowerCase().includes(q)
+    rowMatchesNameSearch(r, q) || String(r.rsbsa_no || '').toLowerCase().includes(q)
   );
 });
 const subsidyTotalsLabel = computed(() => {
@@ -399,7 +407,9 @@ async function downloadExcel() {
     columns: [
       { key: 'no', label: 'No' },
       { key: 'rsbsa_no', label: 'RSBSA No.' },
-      { key: 'farmer_name', label: 'Farmer Name' },
+      { key: 'surname', label: 'Last Name' },
+      { key: 'first_name', label: 'First Name' },
+      { key: 'middle_name', label: 'Middle Name' },
       { key: 'barangay', label: 'Barangay' },
       { key: 'program_name', label: 'Subsidy Program' },
       { key: 'target_crop', label: 'Crop' },

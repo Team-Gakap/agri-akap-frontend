@@ -128,7 +128,9 @@
                   <th class="col-no">No</th>
                   <th>Date Reported</th>
                   <th>Barangay</th>
-                  <th>Farmer Name</th>
+                  <th>Last Name</th>
+                  <th>First Name</th>
+                  <th>Middle Name</th>
                   <th>Farm Location</th>
                   <th>Crop</th>
                   <th>Calamity Type</th>
@@ -140,13 +142,15 @@
               </thead>
               <tbody>
                 <tr v-if="!filteredRows.length">
-                  <td colspan="11" class="empty-row">No damage &amp; calamity records match the current filters.</td>
+                  <td colspan="13" class="empty-row">No damage &amp; calamity records match the current filters.</td>
                 </tr>
                 <tr v-for="(row, i) in filteredRows" :key="i">
                   <td class="col-no">{{ i + 1 }}</td>
                   <td class="mono">{{ fmtDate(row.date_reported) }}</td>
                   <td>{{ row.barangay }}</td>
-                  <td>{{ row.farmer_name }}</td>
+                  <td>{{ row.surname || '—' }}</td>
+                  <td>{{ row.first_name || '—' }}</td>
+                  <td>{{ row.middle_name || '—' }}</td>
                   <td>{{ row.farm_location }}</td>
                   <td>{{ row.crop }}</td>
                   <td>
@@ -173,7 +177,7 @@
               <!-- Totals row -->
               <tfoot v-if="filteredRows.length">
                 <tr class="totals-row">
-                  <td colspan="7" class="totals-label">TOTALS</td>
+                  <td colspan="9" class="totals-label">TOTALS</td>
                   <td class="col-num">{{ totalAreaAffected }}</td>
                   <td class="col-num">{{ totalDamageValue }}</td>
                   <td colspan="2"></td>
@@ -244,13 +248,17 @@ import { storageUrl } from '@/utils/storageUrl';
 import ReportEncodeModal from '@/components/ReportEncodeModal.vue';
 import MaoFormHeader from '@/components/MaoFormHeader.vue';
 import { useReportScope, type ReportPeriod } from '@/composables/useReportScope';
+import { rowMatchesNameSearch } from '@/utils/farmerNameColumns';
 
 const DamageForm = defineAsyncComponent(() => import('@/views/Barangay/CalamityAssessmentLogView.vue'));
 
 interface DamageRow {
   date_reported: string;
   barangay: string;
-  farmer_name: string;
+  surname?: string;
+  first_name?: string;
+  middle_name?: string;
+  farmer_name?: string;
   farm_location: string;
   crop: string;
   calamity_type: string;
@@ -304,7 +312,7 @@ const filteredRows    = computed(() => {
   const q = searchQuery.value.trim().toLowerCase();
   if (!q) return rows.value;
   return rows.value.filter((r) =>
-    r.farmer_name.toLowerCase().includes(q)
+    rowMatchesNameSearch(r, q)
     || String(r.calamity_type || '').toLowerCase().includes(q)
     || String(r.barangay || '').toLowerCase().includes(q)
   );
@@ -402,7 +410,9 @@ async function downloadExcel() {
       { key: 'no', label: 'No' },
       { key: 'date_reported', label: 'Date Reported' },
       { key: 'barangay', label: 'Barangay' },
-      { key: 'farmer_name', label: 'Farmer Name' },
+      { key: 'surname', label: 'Last Name' },
+      { key: 'first_name', label: 'First Name' },
+      { key: 'middle_name', label: 'Middle Name' },
       { key: 'farm_location', label: 'Farm Location' },
       { key: 'crop', label: 'Crop' },
       { key: 'calamity_type', label: 'Calamity Type' },

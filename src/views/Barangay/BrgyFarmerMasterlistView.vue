@@ -35,14 +35,16 @@
                     <th class="col-no">No</th>
                     <th>Photo</th>
                     <th>RSBSA No.</th>
-                    <th>Farmer Name</th>
+                    <th>Last Name</th>
+                    <th>First Name</th>
+                    <th>Middle Name</th>
                     <th>Birthdate</th>
                     <th>Mobile</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-if="!farmers.length">
-                    <td colspan="6" class="empty-row">No farmers found for your barangay.</td>
+                    <td colspan="8" class="empty-row">No farmers found for your barangay.</td>
                   </tr>
                   <tr
                     v-for="(f, i) in farmers"
@@ -57,7 +59,9 @@
                       </span>
                     </td>
                     <td class="mono">{{ f.rsbsa_no || '—' }}</td>
-                    <td>{{ formatName(f) }}</td>
+                    <td>{{ f.surname || '—' }}</td>
+                    <td>{{ f.first_name || '—' }}</td>
+                    <td>{{ f.middle_name || '—' }}</td>
                     <td>{{ formatDate(f.birthdate) }}</td>
                     <td>{{ f.mobile_number || '—' }}</td>
                   </tr>

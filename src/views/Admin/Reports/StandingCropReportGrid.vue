@@ -77,7 +77,9 @@
             <tr>
               <th class="col-no">No</th>
               <th>RSBSA No.</th>
-              <th>Name</th>
+              <th>Last Name</th>
+              <th>First Name</th>
+              <th>Middle Name</th>
               <th>Farm Location</th>
               <th>Crop</th>
               <th>Variety</th>
@@ -88,12 +90,14 @@
           </thead>
           <tbody>
             <tr v-if="!filteredRows.length">
-              <td colspan="9" class="empty-row">No standing crop records match the current filters.</td>
+              <td colspan="11" class="empty-row">No standing crop records match the current filters.</td>
             </tr>
             <tr v-for="(row, i) in filteredRows" :key="row.id || i">
               <td class="col-no">{{ i + 1 }}</td>
               <td class="mono">{{ row.rsbsa_no }}</td>
-              <td>{{ row.name }}</td>
+              <td>{{ row.surname || '—' }}</td>
+              <td>{{ row.first_name || '—' }}</td>
+              <td>{{ row.middle_name || '—' }}</td>
               <td>{{ row.farm_location }}</td>
               <td>{{ row.crop }}</td>
               <td>{{ row.variety }}</td>
@@ -102,7 +106,7 @@
               <td class="mono">{{ fmtDate(row.est_harvest_date) }}</td>
             </tr>
             <tr v-if="filteredRows.length" class="totals-row">
-              <td colspan="6" class="totals-label">TOTALS</td>
+              <td colspan="8" class="totals-label">TOTALS</td>
               <td class="col-num">{{ totalAreaHa }}</td>
               <td colspan="2"></td>
             </tr>
@@ -130,13 +134,17 @@ import { exportAdminGridExcel } from '@/utils/statutoryFormExcel';
 import apiClient from '@/utils/axios';
 import ReportEncodeModal from '@/components/ReportEncodeModal.vue';
 import { useReportScope, type ReportPeriod } from '@/composables/useReportScope';
+import { rowMatchesNameSearch } from '@/utils/farmerNameColumns';
 
 const StandingForm = defineAsyncComponent(() => import('@/views/Barangay/StandingCropLogView.vue'));
 
 interface StandingRow {
   id?: string;
   rsbsa_no: string;
-  name: string;
+  surname?: string;
+  first_name?: string;
+  middle_name?: string;
+  name?: string;
   farm_location: string;
   crop: string;
   variety: string;
@@ -177,7 +185,7 @@ const filteredRows = computed(() => {
   const q = searchQuery.value.trim().toLowerCase();
   if (!q) return rows.value;
   return rows.value.filter((r) =>
-    r.name.toLowerCase().includes(q) || String(r.rsbsa_no || '').toLowerCase().includes(q)
+    rowMatchesNameSearch(r, q) || String(r.rsbsa_no || '').toLowerCase().includes(q)
   );
 });
 const totalAreaHa = computed(() =>
@@ -211,6 +219,9 @@ async function fetchRows() {
       return {
         id: r.id,
         rsbsa_no: farmer.rsbsa_no || '',
+        surname: farmer.surname || '',
+        first_name: farmer.first_name || '',
+        middle_name: farmer.middle_name || '',
         name: trim(`${farmer.first_name || ''} ${farmer.surname || ''}`),
         farm_location: r.farm_location || r.farm_plot?.location_brgy || farmer.permanent_brgy || '',
         crop: r.crop_type || '',
@@ -256,7 +267,9 @@ async function downloadExcel() {
     columns: [
       { key: 'no', label: 'No' },
       { key: 'rsbsa_no', label: 'RSBSA No.' },
-      { key: 'name', label: 'Name' },
+      { key: 'surname', label: 'Last Name' },
+      { key: 'first_name', label: 'First Name' },
+      { key: 'middle_name', label: 'Middle Name' },
       { key: 'farm_location', label: 'Farm Location' },
       { key: 'crop', label: 'Crop' },
       { key: 'variety', label: 'Variety' },

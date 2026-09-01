@@ -27,24 +27,28 @@
             <tr>
               <th class="col-no">No</th>
               <th>RSBSA No.</th>
-              <th>Farmer Name</th>
+              <th>Last Name</th>
+              <th>First Name</th>
+              <th>Middle Name</th>
               <th>Barangay</th>
               <th>Contact</th>
-              <th>Parcels</th>
+              <th>Area (ha)</th>
               <th>Status</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="!printRows.length">
-              <td colspan="7" class="empty-row">No farmers match the current filters.</td>
+              <td colspan="9" class="empty-row">No farmers match the current filters.</td>
             </tr>
             <tr v-for="(f, i) in printRows" :key="f.id">
               <td class="col-no">{{ i + 1 }}</td>
               <td class="mono">{{ f.rsbsa_no || '—' }}</td>
-              <td>{{ formatName(f) }}</td>
+              <td>{{ f.surname || '—' }}</td>
+              <td>{{ f.first_name || '—' }}</td>
+              <td>{{ f.middle_name || '—' }}</td>
               <td>{{ f.permanent_brgy || '—' }}</td>
               <td>{{ f.mobile_number || '—' }}</td>
-              <td class="col-no">{{ f.farm_plots_count ?? 0 }}</td>
+              <td class="col-num">{{ fmtHa(f.total_farm_area_ha) }}</td>
               <td>{{ farmerStatusText(f) }}</td>
             </tr>
           </tbody>
@@ -147,17 +151,19 @@
                   </th>
                   <th class="col-no">No</th>
                   <th>RSBSA No.</th>
-                  <th>Farmer Name</th>
+                  <th>Last Name</th>
+                  <th>First Name</th>
+                  <th>Middle Name</th>
                   <th>Barangay</th>
                   <th>Contact</th>
-                  <th>Parcels</th>
+                  <th>Area (ha)</th>
                   <th>Status</th>
                   <th class="col-actions no-print">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="!farmers.length">
-                  <td :colspan="9" class="empty-row">No farmers found. Import an RSBSA Excel file or enroll a walk-in farmer.</td>
+                  <td :colspan="11" class="empty-row">No farmers found. Import an RSBSA Excel file or enroll a walk-in farmer.</td>
                 </tr>
                 <tr
                   v-for="(f, i) in farmers"
@@ -174,10 +180,12 @@
                   </td>
                   <td class="col-no">{{ rowNumber(i) }}</td>
                   <td class="mono">{{ f.rsbsa_no || '—' }}</td>
-                  <td>{{ formatName(f) }}</td>
+                  <td>{{ f.surname || '—' }}</td>
+                  <td>{{ f.first_name || '—' }}</td>
+                  <td>{{ f.middle_name || '—' }}</td>
                   <td>{{ f.permanent_brgy || '—' }}</td>
                   <td>{{ f.mobile_number || '—' }}</td>
-                  <td class="col-no">{{ f.farm_plots_count ?? 0 }}</td>
+                  <td class="col-num">{{ fmtHa(f.total_farm_area_ha) }}</td>
                   <td class="col-status">
                     <span v-if="f.verification_status === 'rts'" class="chip rts">RTS</span>
                     <span v-else-if="f.verification_status === 'approved'" class="chip ok">Approved</span>
@@ -754,19 +762,23 @@ const downloadExcel = async () => {
       columns: [
         { key: 'no', label: 'No' },
         { key: 'rsbsa_no', label: 'RSBSA No.' },
-        { key: 'farmer_name', label: 'Farmer Name' },
+        { key: 'surname', label: 'Last Name' },
+        { key: 'first_name', label: 'First Name' },
+        { key: 'middle_name', label: 'Middle Name' },
         { key: 'barangay', label: 'Barangay' },
         { key: 'contact', label: 'Contact' },
-        { key: 'parcels', label: 'Parcels' },
+        { key: 'area_ha', label: 'Area (ha)' },
         { key: 'status', label: 'Status' },
       ],
       rows,
       getCellValue(row, key, index) {
         if (key === 'no') return index + 1;
-        if (key === 'farmer_name') return formatName(row);
+        if (key === 'surname') return String(row.surname ?? '');
+        if (key === 'first_name') return String(row.first_name ?? '');
+        if (key === 'middle_name') return String(row.middle_name ?? '');
         if (key === 'barangay') return String(row.permanent_brgy ?? '');
         if (key === 'contact') return String(row.mobile_number ?? '');
-        if (key === 'parcels') return Number(row.farm_plots_count ?? 0);
+        if (key === 'area_ha') return fmtHa(row.total_farm_area_ha);
         if (key === 'status') return farmerStatusText(row);
         return String(row[key] ?? '');
       },

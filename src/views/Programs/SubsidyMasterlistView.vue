@@ -132,7 +132,9 @@
                 <tr>
                   <th class="col-num">#</th>
                   <th>RSBSA No.</th>
-                  <th>Farmer Name</th>
+                  <th>Last Name</th>
+                  <th>First Name</th>
+                  <th>Middle Name</th>
                   <th>Brgy</th>
                   <th class="col-num">Farm Area (ha)</th>
                   <th class="col-num">Allocation</th>
@@ -144,7 +146,9 @@
                 <tr v-for="(row, i) in filteredRows" :key="row.rsbsa_no + i">
                   <td class="col-num">{{ i + 1 }}</td>
                   <td class="mono">{{ row.rsbsa_no }}</td>
-                  <td>{{ row.last_name }}, {{ row.first_name }}</td>
+                  <td>{{ row.last_name || '—' }}</td>
+                  <td>{{ row.first_name || '—' }}</td>
+                  <td>{{ row.middle_name || '—' }}</td>
                   <td>{{ row.barangay }}</td>
                   <td class="col-num">{{ formatArea(row.farm_area) }}</td>
                   <td class="col-num">{{ formatAllocation(row) }}</td>
@@ -169,7 +173,7 @@
                   </td>
                 </tr>
                 <tr v-if="!filteredRows.length">
-                  <td colspan="8" class="empty-row">{{ emptyMessage }}</td>
+                  <td colspan="10" class="empty-row">{{ emptyMessage }}</td>
                 </tr>
               </tbody>
             </table>
@@ -287,6 +291,7 @@ interface MasterlistRow {
   rsbsa_no: string;
   last_name: string;
   first_name: string;
+  middle_name?: string;
   barangay: string;
   farm_area: number;
   calculated_allocation: number;
@@ -393,7 +398,7 @@ const filteredRows = computed(() => {
     if (filterBarangay.value && r.barangay !== filterBarangay.value) return false;
     if (filterStatus.value && r.status !== filterStatus.value) return false;
     if (term) {
-      const haystack = `${r.rsbsa_no} ${r.last_name} ${r.first_name}`.toLowerCase();
+      const haystack = `${r.rsbsa_no} ${r.last_name} ${r.first_name} ${r.middle_name || ''}`.toLowerCase();
       if (!haystack.includes(term)) return false;
     }
     return true;
@@ -455,6 +460,7 @@ const fetchMasterlist = async () => {
       rsbsa_no: r.rsbsa_no,
       last_name: r.last_name,
       first_name: r.first_name,
+      middle_name: r.middle_name,
       barangay: r.barangay || 'Unspecified',
       farm_area: Number(r.farm_area || 0),
       calculated_allocation: Number(r.calculated_allocation || 0),

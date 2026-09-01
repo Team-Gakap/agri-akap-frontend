@@ -119,7 +119,9 @@
                 <tr>
                   <th class="col-no">No</th>
                   <th>RSBSA No.</th>
-                  <th>Name</th>
+                  <th>Last Name</th>
+                  <th>First Name</th>
+                  <th>Middle Name</th>
                   <th>Farm Location</th>
                   <th>Crop</th>
                   <th>Variety</th>
@@ -131,12 +133,14 @@
               </thead>
               <tbody>
                 <tr v-if="!filteredRows.length">
-                  <td colspan="10" class="empty-row">No planting data records match the current filters.</td>
+                  <td colspan="12" class="empty-row">No planting data records match the current filters.</td>
                 </tr>
                 <tr v-for="(row, i) in filteredRows" :key="i">
                   <td class="col-no">{{ i + 1 }}</td>
                   <td class="mono">{{ row.rsbsa_no }}</td>
-                  <td>{{ row.name }}</td>
+                  <td>{{ row.surname || '—' }}</td>
+                  <td>{{ row.first_name || '—' }}</td>
+                  <td>{{ row.middle_name || '—' }}</td>
                   <td>{{ row.farm_location }}</td>
                   <td>{{ row.crop }}</td>
                   <td>{{ row.variety }}</td>
@@ -146,7 +150,7 @@
                   <td>{{ row.water_source || '—' }}</td>
                 </tr>
                 <tr v-if="filteredRows.length" class="totals-row">
-                  <td colspan="6" class="totals-label">TOTALS</td>
+                  <td colspan="8" class="totals-label">TOTALS</td>
                   <td class="col-num">{{ totalPlantedHa }}</td>
                   <td colspan="3"></td>
                 </tr>
@@ -159,7 +163,9 @@
                 <tr>
                   <th class="col-no">No</th>
                   <th>RSBSA No.</th>
-                  <th>Name</th>
+                  <th>Last Name</th>
+                  <th>First Name</th>
+                  <th>Middle Name</th>
                   <th>Farm Location</th>
                   <th>Crop</th>
                   <th>Variety</th>
@@ -170,12 +176,14 @@
               </thead>
               <tbody>
                 <tr v-if="!filteredRows.length">
-                  <td colspan="9" class="empty-row">No harvest data records match the current filters.</td>
+                  <td colspan="11" class="empty-row">No harvest data records match the current filters.</td>
                 </tr>
                 <tr v-for="(row, i) in filteredRows" :key="i">
                   <td class="col-no">{{ i + 1 }}</td>
                   <td class="mono">{{ row.rsbsa_no }}</td>
-                  <td>{{ row.name }}</td>
+                  <td>{{ row.surname || '—' }}</td>
+                  <td>{{ row.first_name || '—' }}</td>
+                  <td>{{ row.middle_name || '—' }}</td>
                   <td>{{ row.farm_location }}</td>
                   <td>{{ row.crop }}</td>
                   <td>{{ row.variety }}</td>
@@ -184,7 +192,7 @@
                   <td class="mono">{{ fmtDate(row.date_harvested) }}</td>
                 </tr>
                 <tr v-if="filteredRows.length" class="totals-row">
-                  <td colspan="7" class="totals-label">TOTALS</td>
+                  <td colspan="9" class="totals-label">TOTALS</td>
                   <td class="col-num">{{ totalYieldMt }}</td>
                   <td></td>
                 </tr>
@@ -235,6 +243,7 @@ import ReportEncodeModal from '@/components/ReportEncodeModal.vue';
 import MaoFormHeader from '@/components/MaoFormHeader.vue';
 import StandingCropReportGrid from '@/views/Admin/Reports/StandingCropReportGrid.vue';
 import { useReportScope, type ReportPeriod } from '@/composables/useReportScope';
+import { rowMatchesNameSearch } from '@/utils/farmerNameColumns';
 
 const PlantingForm = defineAsyncComponent(() => import('@/views/Barangay/PlantingLedgerView.vue'));
 const HarvestForm = defineAsyncComponent(() => import('@/views/Barangay/HarvestingLogView.vue'));
@@ -243,7 +252,10 @@ type Mode = 'planting' | 'standing' | 'harvest';
 
 interface PlantingRow {
   rsbsa_no: string;
-  name: string;
+  surname?: string;
+  first_name?: string;
+  middle_name?: string;
+  name?: string;
   farm_location: string;
   crop: string;
   variety: string;
@@ -255,7 +267,10 @@ interface PlantingRow {
 
 interface HarvestRow {
   rsbsa_no: string;
-  name: string;
+  surname?: string;
+  first_name?: string;
+  middle_name?: string;
+  name?: string;
   farm_location: string;
   crop: string;
   variety?: string;
@@ -319,7 +334,7 @@ const filteredRows = computed(() => {
   const q = searchQuery.value.trim().toLowerCase();
   if (!q) return rows.value;
   return rows.value.filter((r) =>
-    String(r.name || '').toLowerCase().includes(q)
+    rowMatchesNameSearch(r, q)
     || String(r.rsbsa_no || '').toLowerCase().includes(q)
   );
 });
@@ -415,7 +430,9 @@ async function downloadExcel() {
       ? [
           { key: 'no', label: 'No' },
           { key: 'rsbsa_no', label: 'RSBSA No.' },
-          { key: 'name', label: 'Name' },
+          { key: 'surname', label: 'Last Name' },
+          { key: 'first_name', label: 'First Name' },
+          { key: 'middle_name', label: 'Middle Name' },
           { key: 'farm_location', label: 'Farm Location' },
           { key: 'crop', label: 'Crop' },
           { key: 'variety', label: 'Variety' },
@@ -427,7 +444,9 @@ async function downloadExcel() {
       : [
           { key: 'no', label: 'No' },
           { key: 'rsbsa_no', label: 'RSBSA No.' },
-          { key: 'name', label: 'Name' },
+          { key: 'surname', label: 'Last Name' },
+          { key: 'first_name', label: 'First Name' },
+          { key: 'middle_name', label: 'Middle Name' },
           { key: 'farm_location', label: 'Farm Location' },
           { key: 'crop', label: 'Crop' },
           { key: 'variety', label: 'Variety' },

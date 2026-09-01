@@ -16,7 +16,7 @@
 
         <div v-else-if="!programs.length" class="empty-panel">
           <h2>No subsidy programs yet</h2>
-          <p>Create a Rice, Corn, or Rice and Corn campaign to start building an auto-generated beneficiary masterlist.</p>
+          <p>Create a Rice, Corn, or Rice and Corn program to start building an auto-generated beneficiary masterlist.</p>
           <ion-button class="create-btn" @click="openCreate">+ New Program</ion-button>
         </div>
 
@@ -82,6 +82,7 @@
                 <tr>
                   <th>Program</th>
                   <th>Crop</th>
+                  <th>Scope</th>
                   <th>Status</th>
                   <th>Inventory</th>
                   <th class="col-actions">Actions</th>
@@ -94,6 +95,7 @@
                     <div class="row-meta">{{ allocationMeta(p) }}</div>
                   </td>
                   <td class="crop-cell">{{ cropLabel(p.target_crop) }}</td>
+                  <td class="scope-cell">{{ scopeLabel(p) }}</td>
                   <td>
                     <span class="status-pill" :class="statusClass(p.status)">{{ p.status }}</span>
                   </td>
@@ -306,7 +308,7 @@
                 :value="form.items_per_hectare"
                 @ionInput="(e: any) => form.items_per_hectare = Number(e.detail.value)"
                 min="0.01"
-                :max="isCashItem ? CASH_CAP : 100000"
+                max="100000"
                 step="0.01"
               ></ion-input>
             </ion-item>
@@ -321,9 +323,16 @@
                 step="0.01"
               ></ion-input>
             </ion-item>
-            <p v-if="isCashItem" class="cash-cap-hint">
-              Cash programs cannot exceed ₱{{ CASH_CAP.toLocaleString('en-PH') }} per hectare or per farmer.
-            </p>
+
+            <h3 class="section-label">Beneficiary scope</h3>
+            <div class="brgy-picker-wrap">
+              <BarangayMultiPicker
+                v-model="targetBarangays"
+                v-model:select-all="targetBarangaysSelectAll"
+                :barangays="barangayOptions"
+              />
+            </div>
+
             <ion-item>
               <ion-select
                 label="Initial Status"
@@ -574,7 +583,8 @@ import {
 } from 'ionicons/icons';
 import apiClient from '@/utils/axios';
 import { cropLabel } from '@/utils/cropLabel';
-import { CASH_CAP } from '@/utils/subsidyCash';
+import BarangayMultiPicker from '@/components/BarangayMultiPicker.vue';
+import { useOfficialBarangays } from '@/composables/useOfficialBarangays';
 import {
   SEED_CLASSES, itemTypesFor, getCatalogEntry, isDualUnit as catalogIsDualUnit,
   isCashItemType, itemTypeLabel, catalogSummary, type SeedClass, type ItemType,
@@ -586,6 +596,7 @@ interface SubsidyProgramRow {
   id: string;
   program_name: string;
   target_crop: string;
+  target_barangays?: string[] | null;
   seed_class?: SeedClass | null;
   item_type?: ItemType | null;
   max_hectares_limit: number;
@@ -608,6 +619,7 @@ interface SubsidyProgramRow {
 }
 
 const router = useRouter();
+const { barangays: barangayOptions } = useOfficialBarangays();
 const programs = ref<SubsidyProgramRow[]>([]);
 const loading = ref(true);
 const saving = ref(false);
@@ -621,6 +633,8 @@ const statusFilter = ref('');
 const error = ref('');
 const formError = ref('');
 const createOpen = ref(false);
+const targetBarangaysSelectAll = ref(true);
+const targetBarangays = ref<string[]>([]);
 
 const activeProgram = ref<SubsidyProgramRow | null>(null);
 const restockOpen = ref(false);
@@ -735,6 +749,13 @@ const allocationMeta = (p: SubsidyProgramRow) => {
   return parts.join(' · ');
 };
 
+const scopeLabel = (p: SubsidyProgramRow) => {
+  const list = p.target_barangays;
+  if (!list || !list.length) return 'All barangays';
+  if (list.length <= 2) return list.join(', ');
+  return `${list.length} barangays`;
+};
+
 const fetchPrograms = async () => {
   loading.value = true;
   error.value = '';
@@ -763,6 +784,8 @@ const openCreate = () => {
   form.reorder_level = null;
   form.secondary_total_quantity = 0;
   form.secondary_reorder_level = null;
+  targetBarangaysSelectAll.value = true;
+  targetBarangays.value = [];
   formError.value = '';
   createOpen.value = true;
 };
@@ -801,8 +824,8 @@ const createProgram = async () => {
     formError.value = `${secondaryUnitLabel.value} per hectare must be greater than 0.`;
     return;
   }
-  if (isCashItem.value && form.items_per_hectare > CASH_CAP) {
-    formError.value = `Cash rate cannot exceed ₱${CASH_CAP.toLocaleString('en-PH')} per hectare.`;
+  if (!targetBarangaysSelectAll.value && !targetBarangays.value.length) {
+    formError.value = 'Select at least one barangay, or use Select all barangays.';
     return;
   }
 
@@ -811,6 +834,7 @@ const createProgram = async () => {
     const res = await apiClient.post('/subsidies', {
       program_name: form.program_name.trim(),
       target_crop: form.target_crop,
+      target_barangays: targetBarangaysSelectAll.value ? [] : targetBarangays.value,
       seed_class: form.seed_class,
       item_type: form.item_type,
       max_hectares_limit: form.max_hectares_limit,
@@ -1136,6 +1160,11 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchPrograms))
   line-height: 1.4;
 }
 .crop-cell { color: #334155; font-weight: 500; white-space: nowrap; }
+.scope-cell {
+  font-size: 0.82rem;
+  color: #475569;
+  max-width: 10rem;
+}
 .empty-row { text-align: center; color: #64748b; padding: 1.4rem !important; }
 .status-pill {
   display: inline-flex;
@@ -1240,11 +1269,6 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchPrograms))
   border-color: #cbd5e1;
 }
 .more-btn ion-icon { font-size: 1.05rem; }
-.cash-cap-hint {
-  margin: 0.35rem 0.9rem 0;
-  font-size: 0.78rem;
-  color: #b45309;
-}
 .catalog-hint {
   margin: 0.35rem 0.9rem 0.6rem;
   font-size: 0.78rem;
@@ -1262,6 +1286,9 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchPrograms))
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: #94a3b8;
+}
+.brgy-picker-wrap {
+  margin: 0 0.9rem 0.75rem;
 }
 .modal-program { font-weight: 800; color: #1a4731; font-size: 1.15rem; margin: 0 0 4px; }
 .modal-hint { color: #64748b; font-size: 0.85rem; margin: 4px 0 1rem; }

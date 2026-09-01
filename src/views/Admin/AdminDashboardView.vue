@@ -44,7 +44,7 @@
               <div class="kpi-icon-wrap kpi-tone-green">
                 <ion-icon :icon="cubeOutline"></ion-icon>
               </div>
-              <span v-if="activeCampaigns" class="kpi-badge">{{ fmt(activeCampaigns) }} Active Campaigns</span>
+              <span v-if="activeCampaigns" class="kpi-badge">{{ fmt(activeCampaigns) }} Active Programs</span>
             </div>
             <p class="kpi-title">Subsidy Disbursement</p>
             <p class="kpi-value">{{ fmtPct(subsidyUptake) }}<small>%</small></p>
@@ -55,7 +55,7 @@
             <p v-if="activeCampaigns" class="kpi-meta">
               {{ fmt(beneficiariesClaimed) }} / {{ fmt(beneficiariesEnrolled) }} Beneficiaries Claimed
             </p>
-            <p v-else class="kpi-meta">No active campaigns</p>
+            <p v-else class="kpi-meta">No active programs</p>
             <p v-if="topCampaignName" class="kpi-hint">
               Top: {{ topCampaignName }} ({{ fmtPct(topCampaignPercent) }}%)
             </p>
@@ -119,7 +119,7 @@
                 <div v-if="distributionRows.length" class="chart-box">
                   <Bar :data="uptakeChartData" :options="barOptions" />
                 </div>
-                <p v-if="!distributionRows.length" class="empty-note">No active campaign allocations yet.</p>
+                <p v-if="!distributionRows.length" class="empty-note">No active program allocations yet.</p>
               </section>
             </div>
           </div>
@@ -250,7 +250,7 @@
           <li>Planted: {{ fmtHa(descriptive.total_hectares) }} ha (Rice {{ fmtHa(descriptive.rice_hectares) }} · Corn {{ fmtHa(descriptive.corn_hectares) }})</li>
           <li>
             Subsidy: {{ fmt(beneficiariesClaimed) }} / {{ fmt(beneficiariesEnrolled) }} beneficiaries
-            ({{ fmtPct(subsidyUptake) }}%) · {{ fmt(activeCampaigns) }} active campaigns
+            ({{ fmtPct(subsidyUptake) }}%) · {{ fmt(activeCampaigns) }} active programs
           </li>
           <li>
             Threats: {{ fmt(pestCount) }} pests ({{ fmt(pestCritical) }} critical)

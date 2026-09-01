@@ -27,7 +27,7 @@
             >
               <ion-icon slot="start" :icon="item.icon" class="nav-icon"></ion-icon>
               <ion-label class="nav-label">{{ item.title }}</ion-label>
-              <span v-if="item.badge === 'pests' && pests > 0" class="count-pill">{{ pests }}</span>
+              <span v-if="item.badge && badgeCount(item.badge) > 0" class="count-pill">{{ badgeCount(item.badge) }}</span>
             </ion-item>
           </ion-menu-toggle>
 
@@ -58,7 +58,7 @@
                   >
                     <ion-icon slot="start" :icon="child.icon || chevronForwardOutline" class="nav-icon child-icon"></ion-icon>
                     <ion-label class="nav-label">{{ child.title }}</ion-label>
-                    <span v-if="child.badge === 'pests' && pests > 0" class="count-pill">{{ pests }}</span>
+                    <span v-if="child.badge && badgeCount(child.badge) > 0" class="count-pill">{{ badgeCount(child.badge) }}</span>
                   </ion-item>
                 </ion-menu-toggle>
               </div>
@@ -77,7 +77,7 @@
             >
               <ion-icon slot="start" :icon="item.icon" class="nav-icon"></ion-icon>
               <ion-label class="nav-label">{{ item.title }}</ion-label>
-              <span v-if="item.badge === 'pests' && pests > 0" class="count-pill">{{ pests }}</span>
+              <span v-if="item.badge && badgeCount(item.badge) > 0" class="count-pill">{{ badgeCount(item.badge) }}</span>
             </ion-item>
           </ion-menu-toggle>
         </template>
@@ -127,7 +127,11 @@ const props = defineProps<{ portal: PortalKind }>();
 
 const route = useRoute();
 const authStore = useAuthStore();
-const { pests, fetchAlerts } = usePortalAlerts();
+const { pests, calamities, fetchAlerts } = usePortalAlerts();
+
+function badgeCount(badge: 'pests' | 'calamities') {
+  return badge === 'pests' ? pests.value : calamities.value;
+}
 
 const contentId = computed(() => ({
   admin: 'admin-content',
@@ -168,7 +172,7 @@ interface NavItem {
   url: string;
   icon: string;
   exact?: boolean;
-  badge?: 'pests';
+  badge?: 'pests' | 'calamities';
 }
 interface NavAccordion {
   key: string;
@@ -189,7 +193,7 @@ const reportChildrenAdmin: NavItem[] = [
   { title: 'Subsidy Distribution', url: '/admin/reports/subsidies', icon: cubeOutline },
   { title: 'Crop Production', url: '/admin/reports/crop-production', icon: leafOutline },
   { title: 'Pest Surveillance', url: '/admin/reports/pest-surveillance', icon: bugOutline, badge: 'pests' },
-  { title: 'Damage & Calamity', url: '/admin/reports/damage-calamity', icon: thunderstormOutline },
+  { title: 'Damage & Calamity', url: '/admin/reports/damage-calamity', icon: thunderstormOutline, badge: 'calamities' },
 ];
 
 const groups = computed<NavGroup[]>(() => {
@@ -234,7 +238,7 @@ const groups = computed<NavGroup[]>(() => {
           { title: 'Subsidy Claims', url: '/brgy/reports/subsidies', icon: documentsOutline },
           { title: 'Crop Records', url: '/brgy/crop-records', icon: leafOutline },
           { title: 'Pest Reports', url: '/brgy/pest-monitoring', icon: bugOutline, badge: 'pests' },
-          { title: 'Disaster Reports', url: '/brgy/calamity-assessment', icon: thunderstormOutline },
+          { title: 'Disaster Reports', url: '/brgy/calamity-assessment', icon: thunderstormOutline, badge: 'calamities' },
         ],
       },
     ];

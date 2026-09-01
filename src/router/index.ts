@@ -82,7 +82,7 @@ const routes: Array<RouteRecordRaw> = [
       { path: "farmers/register", name: "FarmersRegister", component: () => import("@/views/Farmers/Registration_Form.vue"), meta: { title: "RSBSA Enrollment" } },
       { path: "farmers/legacy", redirect: "/admin/farmers" },
       { path: "id-issuance", name: "IdIssuance", component: () => import("@/views/Farmers/IdIssuancePage.vue"), meta: { title: "ID Card Production" } },
-      { path: "subsidies", name: "SubsidyPrograms", component: () => import("@/views/Programs/SubsidyProgramsView.vue"), meta: { title: "Subsidy Campaigns" } },
+      { path: "subsidies", name: "SubsidyPrograms", component: () => import("@/views/Programs/SubsidyProgramsView.vue"), meta: { title: "Subsidy Programs" } },
       { path: "subsidies/:id/masterlist", name: "SubsidyMasterlist", component: () => import("@/views/Programs/SubsidyMasterlistView.vue"), meta: { title: "Subsidy Masterlist" } },
       { path: "broadcasts", name: "Broadcasts", component: () => import("@/views/Communication/BroadcastCenterPage.vue"), meta: { title: "Outreach & SMS" } },
       { path: "intelligence", redirect: "/admin/dashboard" },
