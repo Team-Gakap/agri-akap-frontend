@@ -202,6 +202,12 @@ const openValidation = (report: PendingCalamityReport) => {
       rsbsa: report.rsbsaNo,
       name: report.farmerName,
       barangay: report.barangay,
+      calamity: report.calamityEvent,
+      plot: report.farmPlotId,
+      crop: report.cropType,
+      variety: report.variety,
+      stage: report.cropStage,
+      area: report.areaPlanted ? String(report.areaPlanted) : undefined,
     },
   });
 };

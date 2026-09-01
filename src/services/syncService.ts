@@ -73,8 +73,20 @@ function mapSubsidyProgram(p: any) {
 
 export async function cacheFarmer(farmer: any) {
   if (!farmer?.id) return;
-  await db.cachedFarmers.put({ id: farmer.id, payload: farmer, cached_at: new Date().toISOString() });
-  for (const plot of farmer.farm_plots ?? farmer.farmPlots ?? []) {
+  const incomingPlots = farmer.farm_plots ?? farmer.farmPlots ?? [];
+  const existing = await db.cachedFarmers.get(farmer.id);
+  const existingPlots = existing?.payload?.farm_plots ?? existing?.payload?.farmPlots ?? [];
+  const plots = (Array.isArray(incomingPlots) && incomingPlots.length)
+    ? incomingPlots
+    : (Array.isArray(existingPlots) ? existingPlots : []);
+  const payload = {
+    ...existing?.payload,
+    ...farmer,
+    farm_plots: plots,
+    farmPlots: plots,
+  };
+  await db.cachedFarmers.put({ id: farmer.id, payload, cached_at: new Date().toISOString() });
+  for (const plot of plots) {
     if (plot?.id) {
       await db.cachedFarmPlots.put({ id: plot.id, payload: plot, cached_at: new Date().toISOString() });
     }
@@ -581,6 +593,46 @@ function coerceDegenerateGeoTag(row: OfflineGeoTag): {
   return { geometry_type: 'marker', coordinates: JSON.stringify(centroid) };
 }
 
+function farmerCacheName(payload: any): string {
+  return `${payload?.surname || ''}, ${payload?.first_name || ''}`.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+/** Fill blank farmer_id from the local farmer cache so retried bulk rows still resolve. */
+async function enrichQueuedFarmer(row: {
+  farmer_id?: string;
+  rsbsa_no?: string;
+  farmer_name?: string;
+}): Promise<{ farmer_id?: string; rsbsa_no?: string }> {
+  const farmerId = String(row.farmer_id || '').trim();
+  const rsbsa = String(row.rsbsa_no || '').trim();
+  if (farmerId) {
+    return { farmer_id: farmerId, rsbsa_no: rsbsa || undefined };
+  }
+
+  const cached = await db.cachedFarmers.toArray();
+  if (rsbsa) {
+    const match = cached.find(
+      (r) => String(r.payload?.rsbsa_no || '').trim().toLowerCase() === rsbsa.toLowerCase(),
+    );
+    if (match?.payload?.id) {
+      return { farmer_id: String(match.payload.id), rsbsa_no: rsbsa };
+    }
+  }
+
+  const name = String(row.farmer_name || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  if (name) {
+    const match = cached.find((r) => farmerCacheName(r.payload) === name);
+    if (match?.payload?.id) {
+      return {
+        farmer_id: String(match.payload.id),
+        rsbsa_no: rsbsa || String(match.payload.rsbsa_no || '').trim() || undefined,
+      };
+    }
+  }
+
+  return { farmer_id: undefined, rsbsa_no: rsbsa || undefined };
+}
+
 const BULK_SYNC_TIMEOUT_MS = 120_000;
 
 type MissingOutcome = 'synced' | 'pending';
@@ -831,11 +883,13 @@ export async function syncAllPendingData(): Promise<SyncFlushResult> {
         device_id: a.device_id,
         photo_base64: await shrinkSyncImage(a.photo_base64),
       }))),
-      planting_logs: planting_logs.map((r) => ({
+      planting_logs: await Promise.all(planting_logs.map(async (r) => {
+        const farmer = await enrichQueuedFarmer(r);
+        return {
         client_id: r.client_id,
-        farmer_id: r.farmer_id,
+        farmer_id: farmer.farmer_id,
         farm_plot_id: r.farm_plot_id || undefined,
-        rsbsa_no: r.rsbsa_no,
+        rsbsa_no: farmer.rsbsa_no,
         crop_type: r.crop_type,
         variety: r.variety,
         area_planted: r.area_planted,
@@ -844,6 +898,7 @@ export async function syncAllPendingData(): Promise<SyncFlushResult> {
         water_source: r.water_source,
         latitude: r.latitude ?? null,
         longitude: r.longitude ?? null,
+        };
       })),
       pest_reports: await Promise.all(pest_reports.map(async (r) => ({
         client_id: r.client_id,
@@ -911,11 +966,13 @@ export async function syncAllPendingData(): Promise<SyncFlushResult> {
         attempt_number: r.attempt_number,
         reason: r.reason,
       })),
-      harvest_logs: harvest_logs.map((r) => ({
+      harvest_logs: await Promise.all(harvest_logs.map(async (r) => {
+        const farmer = await enrichQueuedFarmer(r);
+        return {
         client_id: r.client_id,
-        farmer_id: r.farmer_id,
+        farmer_id: farmer.farmer_id,
         farm_plot_id: r.farm_plot_id || undefined,
-        rsbsa_no: r.rsbsa_no,
+        rsbsa_no: farmer.rsbsa_no,
         crop_type: r.crop_type,
         variety: r.variety,
         area_harvested: r.area_harvested,
@@ -923,18 +980,22 @@ export async function syncAllPendingData(): Promise<SyncFlushResult> {
         yield_unit: r.yield_unit,
         date_harvested: r.date_harvested,
         farm_location: r.farm_location,
+        };
       })),
-      standing_crop_logs: standing_crop_logs.map((r) => ({
+      standing_crop_logs: await Promise.all(standing_crop_logs.map(async (r) => {
+        const farmer = await enrichQueuedFarmer(r);
+        return {
         client_id: r.client_id,
-        farmer_id: r.farmer_id,
+        farmer_id: farmer.farmer_id,
         farm_plot_id: r.farm_plot_id || undefined,
-        rsbsa_no: r.rsbsa_no,
+        rsbsa_no: farmer.rsbsa_no,
         crop_type: r.crop_type,
         variety: r.variety,
         area_ha: r.area_ha,
         growth_stage: r.growth_stage,
         est_harvest_date: r.est_harvest_date,
         farm_location: r.farm_location,
+        };
       })),
     };
 
