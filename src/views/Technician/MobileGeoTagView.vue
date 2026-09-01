@@ -1283,6 +1283,9 @@ const promptRefusalReason = async (attemptNumber: GeoTagRefusalAttempt) => {
             reason,
           });
           await syncStore.refreshCount();
+          if (isOnline()) {
+            void syncAllPendingData().then(() => syncStore.refreshCount());
+          }
           await toast(
             attemptNumber >= 3
               ? 'Refusal logged (3rd attempt) — flagged for DA exclusion review.'

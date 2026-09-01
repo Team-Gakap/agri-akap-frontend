@@ -51,6 +51,13 @@ export function isNetworkError(err: any): boolean {
   return !!err && !err.response;
 }
 
+/** Queue and retry: no response, or the server crashed (5xx). Do not queue 4xx. */
+export function isRetryableSyncError(err: any): boolean {
+  if (isNetworkError(err)) return true;
+  const status = Number(err?.response?.status);
+  return Number.isFinite(status) && status >= 500;
+}
+
 /** A successful API call is itself proof the backend is reachable. */
 export function markReachable(): void {
   consecutiveFailures = 0;

@@ -214,8 +214,7 @@ import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import apiClient from '@/utils/axios';
 import { formatFarmerName } from '@/data/technicianDispatchQueues';
 import { fetchRealLocation } from '@/composables/useNativeHardware';
-import { db, newUuid } from '@/database/db';
-import { syncAllPendingData, isOnline, isNetworkError } from '@/services/syncService';
+import { isOnline, isRetryableSyncError, queuePestReport, syncAllPendingData } from '@/services/syncService';
 import { loadPestCatalog, threatsForCrop } from '@/utils/pestCatalog';
 import { useSyncStore } from '@/stores/syncStore';
 import { presentToast } from '@/utils/toast';
@@ -407,8 +406,7 @@ const lockGpsCoordinates = async () => {
 };
 
 const queueThisReport = async (rsbsaId: string) => {
-  await db.offline_pest_reports.add({
-    client_id: newUuid(),
+  await queuePestReport({
     rsbsa_id: rsbsaId,
     farmer_id: state.target.farmerId || undefined,
     crop: state.target.crop,
@@ -422,8 +420,6 @@ const queueThisReport = async (rsbsaId: string) => {
     lng: state.longitude,
     report_id: state.target.reportId,
     server_id: state.serverRecordId || undefined,
-    sync_status: 'pending',
-    created_at: new Date().toISOString(),
   });
   await syncStore.refreshCount();
 };
@@ -453,9 +449,9 @@ const submitReport = async () => {
         });
         savedOnline = true;
       } catch (err: any) {
-        if (!isNetworkError(err)) throw err;
-        // Connection dropped mid-submit even though the device looked online — queue instead of losing the report.
+        if (!isRetryableSyncError(err)) throw err;
         await queueThisReport(rsbsaId);
+        void syncAllPendingData().then(() => syncStore.refreshCount());
       }
     } else {
       await queueThisReport(rsbsaId);

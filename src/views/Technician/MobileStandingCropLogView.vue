@@ -86,7 +86,7 @@ import { useActivePlanting, stageSelectValue, isHarvestReady } from '@/composabl
 import { presentToast } from '@/utils/toast';
 import { capInputToPlot, plotSizeHa } from '@/utils/plotArea';
 import apiClient from '@/utils/axios';
-import { isOnline, isNetworkError, queueStandingCropLog, syncAllPendingData } from '@/services/syncService';
+import { isOnline, isRetryableSyncError, queueStandingCropLog, syncAllPendingData } from '@/services/syncService';
 import { useSyncStore } from '@/stores/syncStore';
 
 const farmerSearch = useBarangayFarmerSearch(() => null, {
@@ -102,6 +102,7 @@ const submitting = ref(false);
 const form = reactive({
   farmerId: '',
   farmerName: '',
+  rsbsaNo: '',
   plotId: '',
   farmLocation: '',
   cropType: 'Rice',
@@ -128,6 +129,7 @@ const onSelectFarmer = async (f: FarmerOption) => {
   if (!sel) return;
   form.farmerId = sel.id;
   form.farmerName = `${sel.surname}, ${sel.first_name}`;
+  form.rsbsaNo = sel.rsbsa_no;
   form.variety = '';
   farmerSearch.query.value = form.farmerName;
   farmerSearch.results.value = [];
@@ -194,7 +196,8 @@ const applyPlantingAutofill = async () => {
 
 const queueThisStandingCrop = () => queueStandingCropLog({
   farmer_id: form.farmerId,
-  farm_plot_id: form.plotId,
+  farm_plot_id: form.plotId || undefined,
+  rsbsa_no: form.rsbsaNo,
   farmer_name: form.farmerName,
   crop_type: form.cropType,
   variety: form.variety.trim(),
@@ -220,7 +223,7 @@ const submit = async () => {
       await apiClient.post('/standing-crop-logs', {
         id: crypto.randomUUID(),
         farmer_id: form.farmerId,
-        farm_plot_id: form.plotId,
+        farm_plot_id: form.plotId || undefined,
         crop_type: form.cropType,
         variety: form.variety.trim(),
         area_ha: Number(form.areaHa),
@@ -231,7 +234,7 @@ const submit = async () => {
       await presentToast('Standing crop saved.');
       await router.replace('/tech/dashboard');
     } catch (err: any) {
-      if (!isNetworkError(err)) throw err;
+      if (!isRetryableSyncError(err)) throw err;
       await queueThisStandingCrop();
       await syncStore.refreshCount();
       void syncAllPendingData().then(() => syncStore.refreshCount());

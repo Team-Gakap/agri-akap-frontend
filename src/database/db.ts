@@ -231,6 +231,7 @@ export interface OfflineHarvestLog {
   yield_unit: string;
   date_harvested: string;
   farm_location?: string;
+  rsbsa_no?: string;
   sync_status: OfflineSyncStatus;
   error?: string;
   created_at: string;
@@ -249,6 +250,7 @@ export interface OfflineStandingCropLog {
   growth_stage: string;
   est_harvest_date: string;
   farm_location?: string;
+  rsbsa_no?: string;
   sync_status: OfflineSyncStatus;
   error?: string;
   created_at: string;
@@ -394,7 +396,7 @@ class AgriAkapDB extends Dexie {
 export const db = new AgriAkapDB();
 
 /** Count unsynced field records across all offline queues. */
-const PENDING_OR_FAILED_STATUSES: OfflineSyncStatus[] = ['pending', 'failed'];
+const PENDING_OR_FAILED_STATUSES: OfflineSyncStatus[] = ['pending', 'failed', 'syncing'];
 
 export async function pendingQueueCount(): Promise<number> {
   const [distributions, assessments, planting, pests, farms, fieldDist, geoTags, geoRefusals, harvest, standing] = await Promise.all([

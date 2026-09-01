@@ -85,7 +85,8 @@ import VarietyField from '@/components/VarietyField.vue';
 import { useBarangayFarmerSearch, type FarmerOption } from '@/composables/useBarangayFarmerSearch';
 import { presentToast } from '@/utils/toast';
 import { capInputToPlot, plotSizeHa } from '@/utils/plotArea';
-import { queuePlantingLog, syncAllPendingData } from '@/services/syncService';
+import apiClient from '@/utils/axios';
+import { isOnline, isRetryableSyncError, queuePlantingLog, syncAllPendingData } from '@/services/syncService';
 import { useSyncStore } from '@/stores/syncStore';
 
 const farmerSearch = useBarangayFarmerSearch(() => null, {
@@ -160,28 +161,54 @@ const onPlotChange = (e: CustomEvent) => {
   }
 };
 
+const queueThisPlanting = () => queuePlantingLog({
+  farmer_id: form.farmerId,
+  farm_plot_id: form.plotId || undefined,
+  rsbsa_no: form.rsbsaNo,
+  farmer_name: form.farmerName,
+  crop_type: form.cropType,
+  variety: form.variety.trim(),
+  area_planted: Number(form.areaPlanted),
+  date_planted: form.datePlanted,
+  status: form.status,
+  water_source: form.waterSource,
+});
+
 const submit = async () => {
   if (!canSubmit.value) return;
   submitting.value = true;
   try {
-    await queuePlantingLog({
-      farmer_id: form.farmerId,
-      farm_plot_id: form.plotId || undefined,
-      rsbsa_no: form.rsbsaNo,
-      farmer_name: form.farmerName,
-      crop_type: form.cropType,
-      variety: form.variety.trim(),
-      area_planted: Number(form.areaPlanted),
-      date_planted: form.datePlanted,
-      status: form.status,
-      water_source: form.waterSource,
-    });
-    await syncStore.refreshCount();
-    if (navigator.onLine) {
-      void syncAllPendingData().then(() => syncStore.refreshCount());
+    if (!isOnline()) {
+      await queueThisPlanting();
+      await syncStore.refreshCount();
+      await presentToast('Saved locally. Will sync automatically when back online.');
+      await router.replace('/tech/dashboard');
+      return;
     }
-    await presentToast(navigator.onLine ? 'Planting saved.' : 'Saved locally. Will sync when online.');
-    await router.replace('/tech/dashboard');
+
+    try {
+      await apiClient.post('/planting-logs', {
+        id: crypto.randomUUID(),
+        farmer_id: form.farmerId,
+        farm_plot_id: form.plotId || undefined,
+        crop_type: form.cropType,
+        variety: form.variety.trim(),
+        area_planted: Number(form.areaPlanted),
+        date_planted: form.datePlanted,
+        status: form.status,
+        water_source: form.waterSource,
+        farm_location: form.farmLocation,
+      });
+      await presentToast('Planting saved.');
+      await router.replace('/tech/dashboard');
+    } catch (err: any) {
+      if (!isRetryableSyncError(err)) throw err;
+      await queueThisPlanting();
+      await syncStore.refreshCount();
+      void syncAllPendingData().then(() => syncStore.refreshCount());
+      await presentToast('Connection lost. Saved locally — will sync automatically.', 'warning');
+      await router.replace('/tech/dashboard');
+    }
   } catch (e: any) {
     await presentToast(e?.response?.data?.message || 'Could not save planting log.', 'danger');
   } finally {

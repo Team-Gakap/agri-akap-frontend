@@ -1,6 +1,6 @@
 import { Geolocation } from '@capacitor/geolocation';
 import apiClient from '@/utils/axios';
-import { isOnline, isNetworkError, queueDistribution, syncAllPendingData } from '@/services/syncService';
+import { isOnline, isRetryableSyncError, queueDistribution, syncAllPendingData } from '@/services/syncService';
 import { useSyncStore } from '@/stores/syncStore';
 import type { ReleaseContext } from '@/stores/distributionStore';
 
@@ -81,7 +81,7 @@ export async function claimSubsidyRelease(ctx: ReleaseContext): Promise<SubsidyC
     });
     return { offline: false, data: response.data?.data ?? {} };
   } catch (err: any) {
-    if (isNetworkError(err)) {
+    if (isRetryableSyncError(err)) {
       return queue();
     }
     throw err;

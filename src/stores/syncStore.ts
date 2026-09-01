@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { isOnline, syncAllPendingData, pendingCount } from '@/services/syncService';
+import { isOnline, syncAllPendingData, pendingCount, resetSyncingToPending } from '@/services/syncService';
 import { initConnectivity, onConnectivityChange, refreshConnectivity } from '@/services/connectivity';
 
 export const useSyncStore = defineStore('sync', () => {
@@ -48,8 +48,11 @@ export const useSyncStore = defineStore('sync', () => {
       if (cameOnline) void sync();
     });
 
-    refreshCount();
-    if (online.value) sync();
+    void (async () => {
+      await resetSyncingToPending();
+      await refreshCount();
+      if (online.value) void sync();
+    })();
 
     if (flushTimer) clearInterval(flushTimer);
     flushTimer = setInterval(() => {

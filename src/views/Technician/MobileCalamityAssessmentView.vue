@@ -244,7 +244,7 @@ import { damageSeverityFromPct } from '@/constants/cropVarieties';
 import { presentToast } from '@/utils/toast';
 import apiClient from '@/utils/axios';
 import { formatFarmerName } from '@/data/technicianDispatchQueues';
-import { isOnline, isNetworkError, queueAssessment, syncAllPendingData } from '@/services/syncService';
+import { isOnline, isRetryableSyncError, queueAssessment, syncAllPendingData } from '@/services/syncService';
 import { useSyncStore } from '@/stores/syncStore';
 
 interface CalamityAssessmentState {
@@ -579,8 +579,8 @@ const submitAssessment = async () => {
       } else {
         await apiClient.post('/damage-assessments', {
           id: crypto.randomUUID(),
-          farm_plot_id: state.farmPlotId,
-          farmer_id: state.farmerId,
+          farm_plot_id: state.farmPlotId || undefined,
+          farmer_id: state.farmerId || undefined,
           calamity_type: inferCalamityType(state.calamityEvent),
           calamity_name: state.calamityEvent,
           crop_stage: state.cropStage || undefined,
@@ -598,7 +598,7 @@ const submitAssessment = async () => {
       await presentToast('Assessment saved. Added to the MAO rehabilitation masterlist.', 'success', 3200);
       await router.replace(backHref.value);
     } catch (err: any) {
-      if (!isNetworkError(err)) throw err;
+      if (!isRetryableSyncError(err)) throw err;
       // Connection dropped mid-submit even though the device looked online — queue instead of losing the report.
       await queueThisAssessment();
       await syncStore.refreshCount();

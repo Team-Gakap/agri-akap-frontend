@@ -81,7 +81,7 @@ import { useActivePlanting, isHarvestReady } from '@/composables/useActivePlanti
 import { presentToast } from '@/utils/toast';
 import { capInputToPlot, plotSizeHa } from '@/utils/plotArea';
 import apiClient from '@/utils/axios';
-import { isOnline, isNetworkError, queueHarvestLog, syncAllPendingData } from '@/services/syncService';
+import { isOnline, isRetryableSyncError, queueHarvestLog, syncAllPendingData } from '@/services/syncService';
 import { useSyncStore } from '@/stores/syncStore';
 
 const farmerSearch = useBarangayFarmerSearch(() => null, {
@@ -97,6 +97,7 @@ const submitting = ref(false);
 const form = reactive({
   farmerId: '',
   farmerName: '',
+  rsbsaNo: '',
   plotId: '',
   farmLocation: '',
   cropType: 'Rice',
@@ -123,6 +124,7 @@ const onSelectFarmer = async (f: FarmerOption) => {
   if (!sel) return;
   form.farmerId = sel.id;
   form.farmerName = `${sel.surname}, ${sel.first_name}`;
+  form.rsbsaNo = sel.rsbsa_no;
   form.variety = '';
   farmerSearch.query.value = form.farmerName;
   farmerSearch.results.value = [];
@@ -186,7 +188,8 @@ const applyPlantingAutofill = async () => {
 
 const queueThisHarvest = () => queueHarvestLog({
   farmer_id: form.farmerId,
-  farm_plot_id: form.plotId,
+  farm_plot_id: form.plotId || undefined,
+  rsbsa_no: form.rsbsaNo,
   farmer_name: form.farmerName,
   crop_type: form.cropType,
   variety: form.variety.trim(),
@@ -213,7 +216,7 @@ const submit = async () => {
       await apiClient.post('/harvest-logs', {
         id: crypto.randomUUID(),
         farmer_id: form.farmerId,
-        farm_plot_id: form.plotId,
+        farm_plot_id: form.plotId || undefined,
         crop_type: form.cropType,
         variety: form.variety.trim(),
         area_harvested: Number(form.areaHarvested),
@@ -225,7 +228,7 @@ const submit = async () => {
       await presentToast('Harvest saved.');
       await router.replace('/tech/dashboard');
     } catch (err: any) {
-      if (!isNetworkError(err)) throw err;
+      if (!isRetryableSyncError(err)) throw err;
       await queueThisHarvest();
       await syncStore.refreshCount();
       void syncAllPendingData().then(() => syncStore.refreshCount());

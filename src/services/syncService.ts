@@ -16,7 +16,7 @@ import {
   type OfflineStandingCropLog,
   type OfflineSyncStatus,
 } from '@/database/db';
-import { isOnline as connectivityIsOnline, isNetworkError, markReachable, markUnreachable } from './connectivity';
+import { isOnline as connectivityIsOnline, isNetworkError, isRetryableSyncError, markReachable, markUnreachable } from './connectivity';
 import { shrinkSyncImage } from '@/utils/resizeImageForId';
 
 export interface SyncOutcome {
@@ -30,7 +30,7 @@ export function isOnline(): boolean {
   return connectivityIsOnline();
 }
 
-export { isNetworkError };
+export { isNetworkError, isRetryableSyncError };
 
 /* ----------------------------- Read caching ----------------------------- */
 
@@ -685,7 +685,7 @@ async function applyAllBulkResults(
   }
 }
 
-async function resetSyncingToPending() {
+export async function resetSyncingToPending() {
   await db.pendingDistributions.where('status').equals('syncing').modify({ status: 'pending' });
   await db.pendingAssessments.where('status').equals('syncing').modify({ status: 'pending' });
   await db.offline_planting_logs.where('sync_status').equals('syncing').modify({ sync_status: 'pending' });
@@ -798,7 +798,7 @@ export async function syncAllPendingData(): Promise<SyncFlushResult> {
 
     const payload = {
       device_id: getDeviceId(),
-      distributions: claimDistributions.map((d) => ({
+      distributions: await Promise.all(claimDistributions.map(async (d) => ({
         client_id: d.client_id,
         source: d.source ?? 'program',
         farmer_id: d.farmer_id,
@@ -809,9 +809,9 @@ export async function syncAllPendingData(): Promise<SyncFlushResult> {
         claimed_at: d.claimed_at,
         geo_tag_lat: d.geo_tag_lat,
         geo_tag_long: d.geo_tag_long,
-        photo_proof_base64: d.photo_proof_base64,
-      })),
-      assessments: assessments.map((a) => ({
+        photo_proof_base64: await shrinkSyncImage(d.photo_proof_base64),
+      }))),
+      assessments: await Promise.all(assessments.map(async (a) => ({
         id: a.client_id,
         assessment_id: a.assessment_id,
         farm_plot_id: a.farm_plot_id,
@@ -829,12 +829,12 @@ export async function syncAllPendingData(): Promise<SyncFlushResult> {
         latitude: a.latitude,
         longitude: a.longitude,
         device_id: a.device_id,
-        photo_base64: a.photo_base64,
-      })),
+        photo_base64: await shrinkSyncImage(a.photo_base64),
+      }))),
       planting_logs: planting_logs.map((r) => ({
         client_id: r.client_id,
         farmer_id: r.farmer_id,
-        farm_plot_id: r.farm_plot_id,
+        farm_plot_id: r.farm_plot_id || undefined,
         rsbsa_no: r.rsbsa_no,
         crop_type: r.crop_type,
         variety: r.variety,
@@ -845,7 +845,7 @@ export async function syncAllPendingData(): Promise<SyncFlushResult> {
         latitude: r.latitude ?? null,
         longitude: r.longitude ?? null,
       })),
-      pest_reports: pest_reports.map((r) => ({
+      pest_reports: await Promise.all(pest_reports.map(async (r) => ({
         client_id: r.client_id,
         farmer_id: r.farmer_id || r.rsbsa_id,
         rsbsa_no: r.rsbsa_id,
@@ -855,14 +855,14 @@ export async function syncAllPendingData(): Promise<SyncFlushResult> {
         severity: r.severity,
         advisory: r.advisory,
         is_outbreak: r.is_outbreak,
-        photo_base64: r.photo_base64,
+        photo_base64: await shrinkSyncImage(r.photo_base64),
         lat: r.lat,
         lng: r.lng,
         report_id: r.report_id,
         server_id: r.server_id,
         item_distributed: r.item_distributed,
         quantity: r.quantity,
-      })),
+      }))),
       farm_profiles: farm_profiles.map((r) => ({
         client_id: r.client_id,
         farmer_id: r.farmer_id,
@@ -914,7 +914,8 @@ export async function syncAllPendingData(): Promise<SyncFlushResult> {
       harvest_logs: harvest_logs.map((r) => ({
         client_id: r.client_id,
         farmer_id: r.farmer_id,
-        farm_plot_id: r.farm_plot_id,
+        farm_plot_id: r.farm_plot_id || undefined,
+        rsbsa_no: r.rsbsa_no,
         crop_type: r.crop_type,
         variety: r.variety,
         area_harvested: r.area_harvested,
@@ -926,7 +927,8 @@ export async function syncAllPendingData(): Promise<SyncFlushResult> {
       standing_crop_logs: standing_crop_logs.map((r) => ({
         client_id: r.client_id,
         farmer_id: r.farmer_id,
-        farm_plot_id: r.farm_plot_id,
+        farm_plot_id: r.farm_plot_id || undefined,
+        rsbsa_no: r.rsbsa_no,
         crop_type: r.crop_type,
         variety: r.variety,
         area_ha: r.area_ha,
@@ -955,12 +957,12 @@ export async function syncAllPendingData(): Promise<SyncFlushResult> {
     }
     markReachable();
 
-    await applyAllBulkResults(res.data?.results ?? {}, bulkRows, counters, 'synced');
+    await applyAllBulkResults(res.data?.results ?? {}, bulkRows, counters, 'pending');
 
     return counters;
   } catch (err) {
     const errorBody = axiosResponseData(err);
-    if (errorBody?.results && !/rolled back/i.test(errorBody.message ?? '')) {
+    if (errorBody?.results) {
       await applyAllBulkResults(errorBody.results, {
         claimDistributions,
         assessments,

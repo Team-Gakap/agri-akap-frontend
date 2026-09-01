@@ -80,43 +80,44 @@
         <span class="chip-change">Change</span>
       </button>
 
-      <ion-card v-if="lastClaim" :color="lastClaim.offline ? 'warning' : 'success'" class="result-card">
-        <ion-card-header>
-          <ion-icon
-            :icon="lastClaim.offline ? cloudOfflineOutline : checkmarkCircleOutline"
-            class="result-icon"
-          ></ion-icon>
-          <ion-card-title class="text-white">
-            {{ lastClaim.offline ? 'Queued Offline' : 'Release Recorded' }}
-          </ion-card-title>
-        </ion-card-header>
-        <ion-card-content class="text-white">
-          <template v-if="lastClaim.offline">
-            <h2 class="farmer-name-result">{{ lastClaim.farmerName }}</h2>
-            <p>Saved on this device. Eligibility and inventory are verified when it syncs.</p>
-          </template>
-          <template v-else>
-            <h2 class="farmer-name-result">{{ lastClaim.data?.farmer_name || lastClaim.farmerName }}</h2>
-            <div class="dispense-box">
-              <span class="dispense-label">DISPENSED</span>
-              <span class="dispense-qty">{{ dispensedLabel }}</span>
-              <span v-if="lastClaim.data?.unit_secondary" class="dispense-qty-secondary">
-                + {{ lastClaim.data?.quantity_dispensed_secondary }} {{ lastClaim.data?.unit_secondary }}
-              </span>
-            </div>
-            <p v-if="lastClaim.data?.inventory_remaining != null" class="remaining-note">
-              Inventory Remaining:
-              <strong>{{ lastClaim.data?.inventory_remaining }} {{ lastClaim.data?.unit || selectedProgram?.unit_of_measurement }}</strong>
-            </p>
-            <p v-if="lastClaim.data?.unit_secondary" class="remaining-note">
-              Inventory Remaining:
-              <strong>{{ lastClaim.data?.inventory_remaining_secondary }} {{ lastClaim.data?.unit_secondary }}</strong>
-            </p>
-            <p class="sms-note">
-              <ion-icon :icon="chatbubbleEllipsesOutline"></ion-icon>
-              SMS receipt sent to the farmer's registered number.
-            </p>
-          </template>
+      <ion-card v-if="lastClaim" class="result-card" :class="{ offline: lastClaim.offline }">
+        <ion-card-content>
+          <div class="receipt-status">
+            <ion-icon :icon="lastClaim.offline ? cloudOfflineOutline : checkmarkCircleOutline"></ion-icon>
+            <span>{{ lastClaim.offline ? 'Queued offline' : 'Released' }}</span>
+          </div>
+          <h2 class="farmer-name-result">{{ lastClaim.farmerName }}</h2>
+          <p class="receipt-id">
+            {{ lastClaim.rsbsa || 'No RSBSA' }}
+            <template v-if="lastClaim.barangay"> · {{ lastClaim.barangay }}</template>
+          </p>
+          <div v-if="lastClaim.campaign" class="detail-row">
+            <span>Campaign</span>
+            <strong>{{ lastClaim.campaign }}</strong>
+          </div>
+          <div v-if="showFarmSize" class="detail-row">
+            <span>Eligible area</span>
+            <strong>
+              {{ formatHa(lastClaim.eligibleSize) }} ha
+              <template v-if="lastClaim.totalFarmSize"> / {{ formatHa(lastClaim.totalFarmSize) }} ha farm</template>
+            </strong>
+          </div>
+          <div v-if="hasDispensedAmount" class="dispense-box">
+            <span class="dispense-label">Dispensed</span>
+            <span class="dispense-qty">{{ dispensedLabel }}</span>
+            <span v-if="secondaryDispensedLabel" class="dispense-qty-secondary">{{ secondaryDispensedLabel }}</span>
+          </div>
+          <p v-else-if="lastClaim.offline" class="receipt-pending">
+            Eligibility and quantity confirm when this syncs.
+          </p>
+          <div v-if="inventoryPrimaryLabel" class="detail-row">
+            <span>Inventory remaining</span>
+            <strong>{{ inventoryPrimaryLabel }}</strong>
+          </div>
+          <div v-if="inventorySecondaryLabel" class="detail-row">
+            <span>Inventory remaining</span>
+            <strong>{{ inventorySecondaryLabel }}</strong>
+          </div>
         </ion-card-content>
       </ion-card>
 
@@ -194,7 +195,7 @@ import {
   qrCodeOutline, alertCircleOutline, checkmarkCircleOutline,
   cloudOfflineOutline, chatbubbleEllipsesOutline,
 } from 'ionicons/icons';
-import { getPrograms, lookupFarmer, searchFarmers, isOnline, isNetworkError } from '@/services/syncService';
+import { getPrograms, lookupFarmer, searchFarmers, isOnline, isRetryableSyncError } from '@/services/syncService';
 import { scanFarmerQr, showScannerBackground, stopLiveQrScan } from '@/composables/useNativeHardware';
 import { claimSubsidyRelease, type SubsidyClaimData } from '@/composables/useSubsidyClaim';
 import { useDistributionStore, type ReleaseContext } from '@/stores/distributionStore';
@@ -226,7 +227,18 @@ const searchResults = ref<any[]>([]);
 const farmer = ref<any | null>(null);
 const programs = ref<any[]>([]);
 const selectedProgramId = ref('');
-const lastClaim = ref<{ offline: boolean; farmerName: string; data?: SubsidyClaimData } | null>(null);
+interface LastClaimReceipt {
+  offline: boolean;
+  farmerName: string;
+  rsbsa?: string | null;
+  barangay?: string | null;
+  campaign: string;
+  eligibleSize?: number;
+  totalFarmSize?: number;
+  data?: SubsidyClaimData;
+}
+
+const lastClaim = ref<LastClaimReceipt | null>(null);
 let searchTimer: ReturnType<typeof setTimeout> | undefined;
 
 const selectedProgram = computed(() =>
@@ -248,11 +260,55 @@ const isRffaBlocked = computed(() => {
   return isRffa && farmer.value.is_rffa_eligible === false;
 });
 
+const formatHa = (n?: number) => {
+  if (n == null || Number.isNaN(Number(n))) return '—';
+  return Number(n).toLocaleString(undefined, { maximumFractionDigits: 4 });
+};
+
+const qtyNumber = (value: number | string | null | undefined) => {
+  if (value == null || value === '') return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+};
+
+const hasDispensedAmount = computed(() => {
+  const data = lastClaim.value?.data;
+  const primary = qtyNumber(data?.quantity_dispensed);
+  const secondary = qtyNumber(data?.quantity_dispensed_secondary);
+  return (primary != null && primary > 0) || (secondary != null && secondary > 0);
+});
+
 const dispensedLabel = computed(() => {
   const data = lastClaim.value?.data;
   if (!data) return '';
-  if (data.unit) return `${data.quantity_dispensed ?? ''} ${data.unit}`.trim();
-  return String(data.quantity_dispensed ?? '');
+  const qty = data.quantity_dispensed ?? '';
+  if (data.unit) return `${qty} ${data.unit}`.trim();
+  return String(qty);
+});
+
+const secondaryDispensedLabel = computed(() => {
+  const data = lastClaim.value?.data;
+  if (!data?.unit_secondary || data.quantity_dispensed_secondary == null) return '';
+  return `+ ${data.quantity_dispensed_secondary} ${data.unit_secondary}`;
+});
+
+const inventoryPrimaryLabel = computed(() => {
+  const data = lastClaim.value?.data;
+  if (data?.inventory_remaining == null) return '';
+  const unit = data.unit || selectedProgram.value?.unit_of_measurement || '';
+  return `${data.inventory_remaining} ${unit}`.trim();
+});
+
+const inventorySecondaryLabel = computed(() => {
+  const data = lastClaim.value?.data;
+  if (!data?.unit_secondary || data.inventory_remaining_secondary == null) return '';
+  return `${data.inventory_remaining_secondary} ${data.unit_secondary}`;
+});
+
+const showFarmSize = computed(() => {
+  const elig = lastClaim.value?.eligibleSize ?? 0;
+  const total = lastClaim.value?.totalFarmSize ?? 0;
+  return elig > 0 || total > 0;
 });
 
 const formatName = (f: any) => {
@@ -430,7 +486,7 @@ const claimForCurrentFarmer = async () => {
       try {
         ctx = await verifyOnline(program, source);
       } catch (err: any) {
-        if (!isNetworkError(err)) {
+        if (!isRetryableSyncError(err)) {
           await toast(err?.response?.data?.message || 'Could not verify eligibility.', 'danger');
           return;
         }
@@ -441,10 +497,25 @@ const claimForCurrentFarmer = async () => {
 
     distributionStore.setContext(ctx);
     const result = await claimSubsidyRelease(ctx);
+    const farmerRow = farmer.value;
     lastClaim.value = {
       offline: result.offline,
-      farmerName,
-      data: result.data,
+      farmerName: result.data?.farmer_name || farmerName,
+      rsbsa: ctx.rsbsa_no || farmerRow?.rsbsa_no || farmerRow?.rsbsaNo || null,
+      barangay: farmerRow?.permanent_brgy || farmerRow?.barangay || null,
+      campaign: program ? programOptionLabel(program) : (ctx.item_released || ''),
+      eligibleSize: ctx.eligible_size,
+      totalFarmSize: ctx.total_farm_size,
+      data: {
+        farmer_name: result.data?.farmer_name || farmerName,
+        quantity_dispensed: result.data?.quantity_dispensed ?? (ctx.quantity || undefined),
+        unit: result.data?.unit || ctx.unit,
+        inventory_remaining: result.data?.inventory_remaining ?? ctx.inventory_remaining,
+        quantity_dispensed_secondary: result.data?.quantity_dispensed_secondary ?? ctx.quantity_secondary,
+        unit_secondary: result.data?.unit_secondary ?? ctx.unit_secondary ?? null,
+        inventory_remaining_secondary:
+          result.data?.inventory_remaining_secondary ?? ctx.inventory_remaining_secondary ?? null,
+      },
     };
     applyStockFromClaim(result.data);
     distributionStore.clear();
@@ -768,26 +839,106 @@ onBeforeUnmount(() => {
 .result-card {
   margin: 0 0 1rem;
   border-radius: 14px;
+  --background: #f0f7f2;
+  --color: #0f172a;
+  background: #f0f7f2;
+  border: 2px solid #1a4731;
+  box-shadow: none;
 }
 
-.text-white { color: white !important; }
-.result-icon { font-size: 2.4rem; margin-bottom: 0.35rem; }
-.farmer-name-result { font-weight: 900; font-size: 1.35rem; margin: 0 0 0.75rem; }
-.dispense-box {
-  background: rgba(255,255,255,0.2);
-  border: 2px solid rgba(255,255,255,0.6);
+.result-card.offline {
+  --background: #fffbeb;
+  background: #fffbeb;
+  border-color: #b45309;
+}
+
+.receipt-status {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #1a4731;
+}
+
+.result-card.offline .receipt-status {
+  color: #92400e;
+}
+
+.receipt-status ion-icon {
+  font-size: 1.15rem;
+}
+
+.farmer-name-result {
+  font-weight: 900;
+  font-size: 1.35rem;
+  color: #0f172a;
+  margin: 0 0 0.25rem;
+}
+
+.receipt-id {
+  margin: 0 0 0.75rem;
+  font-size: 0.88rem;
+  color: #64748b;
+}
+
+.receipt-pending {
+  margin: 0.65rem 0 0;
+  padding: 0.75rem 0.85rem;
+  background: #fff;
+  border: 1px dashed #d97706;
   border-radius: 10px;
-  padding: 1rem;
+  color: #92400e;
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.dispense-box {
+  background: #1a4731;
+  color: #fff;
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
   text-align: center;
   display: flex;
   flex-direction: column;
   gap: 4px;
+  margin: 0.65rem 0 0.35rem;
 }
-.dispense-label { font-size: 0.75rem; letter-spacing: 2px; opacity: 0.85; }
-.dispense-qty { font-size: 2.1rem; font-weight: 900; line-height: 1; }
-.dispense-qty-secondary { font-size: 1.05rem; font-weight: 700; opacity: 0.9; }
-.remaining-note { font-size: 0.82rem; margin-top: 0.75rem; opacity: 0.9; }
-.sms-note { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; margin-top: 0.65rem; opacity: 0.9; }
+
+.result-card.offline .dispense-box {
+  background: #92400e;
+}
+
+.dispense-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.dispense-qty {
+  font-size: 1.85rem;
+  font-weight: 900;
+  line-height: 1.1;
+}
+
+.dispense-qty-secondary {
+  font-size: 1.02rem;
+  font-weight: 700;
+  opacity: 0.92;
+}
+
+.sms-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  margin: 0.75rem 0 0;
+  color: #334155;
+}
 
 .scan-overlay {
   position: absolute;
