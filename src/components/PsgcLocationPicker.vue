@@ -1,6 +1,6 @@
 <template>
-  <div class="psgc-picker" :class="{ disabled }">
-    <div class="toggle-row">
+  <div class="psgc-picker" :class="{ disabled, 'psgc-birthplace': isBirthplace }">
+    <div v-if="showOutsideToggle" class="toggle-row">
       <ion-checkbox
         :checked="outsideEchague"
         :disabled="disabled"
@@ -9,9 +9,9 @@
       <span class="toggle-label">Address is outside Echague</span>
     </div>
 
-    <template v-if="!outsideEchague">
-      <div class="locked-grid" :class="{ 'no-region': !includeRegion }">
-        <div v-if="includeRegion" class="locked-field">
+    <template v-if="!isNationalCascade">
+      <div class="locked-grid" :class="{ 'no-region': !effectiveIncludeRegion }">
+        <div v-if="effectiveIncludeRegion" class="locked-field">
           <span class="locked-label">Region</span>
           <span class="locked-value">{{ echague.region }}</span>
         </div>
@@ -36,9 +36,9 @@
     </template>
 
     <template v-else>
-      <div class="cascade-grid" :class="{ 'no-region': !includeRegion }">
+      <div class="cascade-grid" :class="cascadeGridClass">
         <SearchableSelect
-          v-if="includeRegion"
+          v-if="effectiveIncludeRegion"
           :model-value="region"
           label="Region"
           placeholder="Select region…"
@@ -49,16 +49,16 @@
         />
         <SearchableSelect
           :model-value="province"
-          label="Province"
+          :label="isBirthplace ? 'Place of Birth (Province)' : 'Province'"
           placeholder="Select province…"
           :options="provinceNames"
           :required="required"
-          :disabled="disabled || (includeRegion && !regionCode)"
+          :disabled="disabled || (effectiveIncludeRegion && !regionCode)"
           @update:model-value="onProvincePick"
         />
         <SearchableSelect
           :model-value="city"
-          label="Municipality / City"
+          :label="isBirthplace ? 'Place of Birth (City/Municipality)' : 'Municipality / City'"
           placeholder="Select city…"
           :options="cityNames"
           :required="required"
@@ -66,6 +66,7 @@
           @update:model-value="onCityPick"
         />
         <SearchableSelect
+          v-if="showBarangay"
           :model-value="barangay"
           label="Barangay"
           placeholder="Search barangay…"
@@ -86,6 +87,7 @@ import SearchableSelect from '@/components/SearchableSelect.vue';
 import { usePsgcLocations, type PsgcItem } from '@/composables/usePsgcLocations';
 
 const props = withDefaults(defineProps<{
+  mode?: 'address' | 'birthplace';
   region?: string;
   province?: string;
   city?: string;
@@ -95,6 +97,7 @@ const props = withDefaults(defineProps<{
   required?: boolean;
   disabled?: boolean;
 }>(), {
+  mode: 'address',
   region: '',
   province: '',
   city: '',
@@ -122,6 +125,17 @@ const {
   fallbackDefaults,
 } = usePsgcLocations();
 
+const isBirthplace = computed(() => props.mode === 'birthplace');
+const showOutsideToggle = computed(() => !isBirthplace.value);
+const isNationalCascade = computed(() => isBirthplace.value || props.outsideEchague);
+const showBarangay = computed(() => !isBirthplace.value);
+const effectiveIncludeRegion = computed(() => (isBirthplace.value ? true : props.includeRegion));
+const cascadeGridClass = computed(() => {
+  if (isBirthplace.value) return 'birthplace-grid';
+  if (!effectiveIncludeRegion.value) return 'no-region';
+  return '';
+});
+
 const echague = ref({ ...fallbackDefaults });
 const echagueBarangays = computed(() => echague.value.barangays);
 
@@ -143,7 +157,7 @@ const findCode = (list: PsgcItem[], name: string) =>
   list.find((item) => item.name === name)?.code ?? '';
 
 const applyEchagueDefaults = () => {
-  if (props.includeRegion) emit('update:region', echague.value.region);
+  if (effectiveIncludeRegion.value) emit('update:region', echague.value.region);
   emit('update:province', echague.value.province);
   emit('update:city', echague.value.city);
 };
@@ -175,7 +189,7 @@ const onRegionPick = async (name: string) => {
   emit('update:region', name);
   emit('update:province', '');
   emit('update:city', '');
-  emit('update:barangay', '');
+  if (!isBirthplace.value) emit('update:barangay', '');
   regionCode.value = findCode(regions.value, name);
   provinceCode.value = '';
   cityCode.value = '';
@@ -187,7 +201,7 @@ const onRegionPick = async (name: string) => {
 const onProvincePick = async (name: string) => {
   emit('update:province', name);
   emit('update:city', '');
-  emit('update:barangay', '');
+  if (!isBirthplace.value) emit('update:barangay', '');
   provinceCode.value = findCode(provinces.value, name);
   cityCode.value = '';
   barangays.value = [];
@@ -196,6 +210,7 @@ const onProvincePick = async (name: string) => {
 
 const onCityPick = async (name: string) => {
   emit('update:city', name);
+  if (isBirthplace.value) return;
   emit('update:barangay', '');
   cityCode.value = findCode(cities.value, name);
   barangays.value = cityCode.value ? await fetchBarangays(cityCode.value) : [];
@@ -205,30 +220,27 @@ const emitBarangay = (value: string) => {
   emit('update:barangay', value);
 };
 
-const hydrateOutsideCascade = async () => {
-  if (!props.outsideEchague) return;
-
-  if (props.includeRegion && props.region) {
+const hydrateNationalCascade = async () => {
+  if (effectiveIncludeRegion.value) {
     if (!regions.value.length) regions.value = await fetchRegions();
-    regionCode.value = findCode(regions.value, props.region);
-    if (regionCode.value) {
-      provinces.value = await fetchProvinces(regionCode.value);
+    if (props.region) {
+      regionCode.value = findCode(regions.value, props.region);
+      if (regionCode.value && !provinces.value.length) {
+        provinces.value = await fetchProvinces(regionCode.value);
+      }
     }
   }
 
-  if (props.province && provinceCode.value) {
+  if (props.province && provinces.value.length) {
     provinceCode.value = findCode(provinces.value, props.province);
-    if (provinceCode.value) {
+    if (provinceCode.value && !cities.value.length) {
       cities.value = await fetchCities(provinceCode.value);
     }
-  } else if (props.province && !props.includeRegion) {
-    // Plot blocks have no region — cannot hydrate without region context.
-    return;
   }
 
-  if (props.city && provinceCode.value) {
+  if (props.city && cities.value.length) {
     cityCode.value = findCode(cities.value, props.city);
-    if (cityCode.value) {
+    if (cityCode.value && showBarangay.value && !barangays.value.length) {
       barangays.value = await fetchBarangays(cityCode.value);
     }
   }
@@ -236,19 +248,27 @@ const hydrateOutsideCascade = async () => {
 
 onMounted(async () => {
   echague.value = await getEchagueDefaults();
+
+  if (isBirthplace.value) {
+    regions.value = await fetchRegions();
+    await hydrateNationalCascade();
+    return;
+  }
+
   if (!props.outsideEchague && !props.city) {
     applyEchagueDefaults();
   }
   if (props.outsideEchague) {
-    regions.value = props.includeRegion ? await fetchRegions() : [];
-    await hydrateOutsideCascade();
+    regions.value = effectiveIncludeRegion.value ? await fetchRegions() : [];
+    await hydrateNationalCascade();
   }
 });
 
 watch(() => props.outsideEchague, async (outside) => {
-  if (outside && props.includeRegion && !regions.value.length) {
+  if (isBirthplace.value) return;
+  if (outside && effectiveIncludeRegion.value && !regions.value.length) {
     regions.value = await fetchRegions();
-    await hydrateOutsideCascade();
+    await hydrateNationalCascade();
   }
 });
 </script>
@@ -275,6 +295,9 @@ watch(() => props.outsideEchague, async (outside) => {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.65rem;
   margin-bottom: 0.65rem;
+}
+.cascade-grid.birthplace-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 .locked-grid.no-region,
 .cascade-grid.no-region {
@@ -303,7 +326,8 @@ watch(() => props.outsideEchague, async (outside) => {
 }
 @media (max-width: 900px) {
   .locked-grid,
-  .cascade-grid {
+  .cascade-grid,
+  .cascade-grid.birthplace-grid {
     grid-template-columns: 1fr;
   }
 }

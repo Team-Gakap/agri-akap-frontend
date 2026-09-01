@@ -100,16 +100,14 @@
                   <ion-input v-model="farmer.religion" class="finput" placeholder="e.g. Roman Catholic" />
                 </div>
               </div>
-              <div class="fgrid g2 mt6">
-                <div class="field-wrap">
-                  <label class="flabel">PLACE OF BIRTH (City/Municipality)</label>
-                  <ion-input v-model="farmer.place_of_birth_city" class="finput" />
-                </div>
-                <div class="field-wrap">
-                  <label class="flabel">PLACE OF BIRTH (Province)</label>
-                  <ion-input v-model="farmer.place_of_birth_province" class="finput" />
-                </div>
-              </div>
+              <PsgcLocationPicker
+                mode="birthplace"
+                class="mt6"
+                :required="false"
+                v-model:region="farmer.place_of_birth_region_helper"
+                v-model:province="farmer.place_of_birth_province"
+                v-model:city="farmer.place_of_birth_city"
+              />
             </div>
           </div>
 
@@ -456,19 +454,17 @@
                   <ion-input v-model="plot.land_owner_rsbsa_no" class="finput" placeholder="Landowner's RSBSA reference number" />
                 </div>
                 <div class="field-wrap mt6">
-                  <label class="flabel req">PROOF OF OWNERSHIP / TENURIAL DOCUMENT</label>
-                  <ion-select
+                  <SearchableSelect
                     v-model="plot.proof_of_ownership_document"
-                    interface="popover"
-                    class="fselect"
-                    placeholder="Select document type"
-                  >
-                    <ion-select-option
-                      v-for="doc in tenurialDocumentOptions(plot)"
-                      :key="doc"
-                      :value="doc"
-                    >{{ doc }}</ion-select-option>
-                  </ion-select>
+                    label="Proof of Ownership / Tenurial Document"
+                    placeholder="Search or select document type…"
+                    :options="tenurialDocumentOptions(plot)"
+                    empty-results-label="No matching documents"
+                    wrap-selected
+                    required
+                    class="tenurial-doc-select"
+                    @update:model-value="syncPlotTenurialDocument(plot)"
+                  />
                   <p class="field-hint">{{ tenurialDocumentHint(plot) }}</p>
                 </div>
               </div>
@@ -567,6 +563,7 @@ import { reactive, ref, onMounted, computed } from "vue";
 import axiosInstance from "@/utils/axios";
 import { useRouter, useRoute } from "vue-router";
 import PsgcLocationPicker from "@/components/PsgcLocationPicker.vue";
+import SearchableSelect from "@/components/SearchableSelect.vue";
 import { isOutsideEchagueCity } from "@/composables/usePsgcLocations";
 import {
   tenurialDocumentOptions,
@@ -668,6 +665,7 @@ const farmer = reactive({
   provincial_province: "", 
   provincial_region: "",
   birthdate: "", 
+  place_of_birth_region_helper: "",
   place_of_birth_city: "", 
   place_of_birth_province: "",
   mobile_number: "", 
@@ -787,7 +785,7 @@ const generateTransactionCode = () => {
 };
 
 const applyFarmerRecord = (data: any) => {
-  const skip = new Set(['farm_plots', 'farmPlots', 'distributions', 'photo_base64']);
+  const skip = new Set(['farm_plots', 'farmPlots', 'distributions', 'photo_base64', 'place_of_birth_region_helper']);
   Object.keys(farmer).forEach((key) => {
     if (skip.has(key)) return;
     if (data[key] !== undefined && data[key] !== null) {
@@ -941,8 +939,10 @@ const submitForm = async () => {
       remarks: p.remarks || null,
     }));
 
+    const { place_of_birth_region_helper: _birthRegionHelper, ...farmerPayload } = farmer;
+
     const payload = {
-      ...farmer,
+      ...farmerPayload,
       rsbsa_no: isEdit.value ? (farmer.rsbsa_no || null) : null,
       plots,
     };
@@ -1198,6 +1198,9 @@ const submitForm = async () => {
   font-size: 0.76rem;
   color: #64748b;
   line-height: 1.35;
+}
+.tenurial-doc-select :deep(.ss-menu) {
+  max-width: min(560px, calc(100vw - 16px));
 }
 
 /* ═══════ FIELD ═══════ */

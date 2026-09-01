@@ -2,11 +2,20 @@
   <div
     ref="root"
     class="ss"
-    :class="[`ss-${variant}`, { open: isOpen, disabled }]"
+    :class="[`ss-${variant}`, { open: isOpen, disabled, 'ss-wrap-selected': wrapSelected && !!modelValue }]"
   >
     <label v-if="label" class="ss-label" :class="{ req: required }">{{ label }}</label>
-    <div class="ss-control" @mousedown.prevent="focusInput">
+    <div class="ss-control" @mousedown.prevent="focusControl">
+      <div
+        v-if="wrapSelected && modelValue && !isOpen"
+        class="ss-value-wrap"
+        tabindex="0"
+        role="button"
+        @keydown.enter.prevent="openMenu"
+        @keydown.space.prevent="openMenu"
+      >{{ modelValue }}</div>
       <input
+        v-else
         ref="inputEl"
         type="text"
         class="ss-input"
@@ -52,7 +61,7 @@
           role="option"
           @mousedown.prevent="select(opt)"
         >{{ opt }}</li>
-        <li v-if="!filtered.length" class="ss-none">No barangay match</li>
+        <li v-if="!filtered.length" class="ss-none">{{ emptyResultsLabel }}</li>
       </ul>
     </Teleport>
   </div>
@@ -71,6 +80,8 @@ const props = withDefaults(defineProps<{
   required?: boolean;
   disabled?: boolean;
   variant?: 'form' | 'filter';
+  wrapSelected?: boolean;
+  emptyResultsLabel?: string;
 }>(), {
   modelValue: '',
   label: '',
@@ -80,6 +91,8 @@ const props = withDefaults(defineProps<{
   required: false,
   disabled: false,
   variant: 'form',
+  wrapSelected: false,
+  emptyResultsLabel: 'No matches',
 });
 
 const emit = defineEmits<{
@@ -106,8 +119,8 @@ const placeMenu = () => {
   const el = root.value?.querySelector('.ss-control') as HTMLElement | null;
   if (!el) return;
   const rect = el.getBoundingClientRect();
-  const minWidth = Math.max(rect.width, 320);
-  const maxWidth = Math.min(window.innerWidth - 16, 480);
+  const minWidth = Math.max(rect.width, props.wrapSelected ? 360 : 320);
+  const maxWidth = Math.min(window.innerWidth - 16, props.wrapSelected ? 560 : 480);
   const width = Math.min(Math.max(minWidth, rect.width), maxWidth);
   let left = rect.left;
   if (left + width > window.innerWidth - 8) {
@@ -132,7 +145,12 @@ const openMenu = () => {
   query.value = '';
   highlight.value = props.allowEmpty ? -1 : 0;
   placeMenu();
-  nextTick(() => inputEl.value?.select());
+  nextTick(() => {
+    inputEl.value?.focus();
+    if (!props.wrapSelected || !props.modelValue) {
+      inputEl.value?.select();
+    }
+  });
 };
 
 const closeMenu = () => {
@@ -140,11 +158,17 @@ const closeMenu = () => {
   query.value = '';
 };
 
-const focusInput = () => {
+const focusControl = () => {
   if (props.disabled) return;
+  if (props.wrapSelected && props.modelValue && !isOpen.value) {
+    openMenu();
+    return;
+  }
   inputEl.value?.focus();
   openMenu();
 };
+
+const focusInput = focusControl;
 
 const select = (value: string) => {
   emit('update:modelValue', value);
@@ -286,6 +310,25 @@ onUnmounted(() => {
   padding: 0 2px;
 }
 .ss-caret { color: #64748b; font-size: 10px; flex-shrink: 0; }
+
+.ss-wrap-selected .ss-control {
+  align-items: flex-start;
+  min-height: 42px;
+  height: auto;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.ss-value-wrap {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.35;
+  color: #0f172a;
+  white-space: normal;
+  word-break: break-word;
+  cursor: text;
+  padding: 0;
+}
 </style>
 
 <style>
