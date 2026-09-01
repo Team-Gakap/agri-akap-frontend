@@ -126,46 +126,16 @@
                   <label class="flabel">STREET</label>
                   <ion-input v-model="farmer.permanent_street" class="finput" />
                 </div>
-                <div class="field-wrap">
-                  <SearchableSelect
-                    v-model="farmer.permanent_brgy"
-                    label="Barangay"
-                    placeholder="Search barangay…"
-                    :options="barangayOptions"
-                    required
-                    @change="onPermanentBrgy"
-                  />
-                </div>
               </div>
-              <div class="fgrid g3 mt6">
-                <div class="field-wrap">
-                  <SearchableSelect
-                    v-model="farmer.permanent_city"
-                    label="Municipality / City"
-                    placeholder="Select city…"
-                    :options="cityOptions"
-                    required
-                  />
-                </div>
-                <div class="field-wrap">
-                  <SearchableSelect
-                    v-model="farmer.permanent_province"
-                    label="Province"
-                    placeholder="Select province…"
-                    :options="provinceOptions"
-                    required
-                  />
-                </div>
-                <div class="field-wrap">
-                  <SearchableSelect
-                    v-model="farmer.permanent_region"
-                    label="Region"
-                    placeholder="Select region…"
-                    :options="regionOptions"
-                    required
-                  />
-                </div>
-              </div>
+              <PsgcLocationPicker
+                class="mt6"
+                v-model:region="farmer.permanent_region"
+                v-model:province="farmer.permanent_province"
+                v-model:city="farmer.permanent_city"
+                v-model:barangay="farmer.permanent_brgy"
+                v-model:outside-echague="permanentOutsideEchague"
+                @update:barangay="onPermanentLocationChange"
+              />
               <div class="ncr-note">
                 <ion-checkbox v-model="sameAddress" @ionChange="onSameAddress" class="fcheck" />
                 <span class="chk-label">Answer only if full and permanent address is in NCR — <em>Ilagay lamang kung ang permanenteng tirahan ay sa NCR.</em></span>
@@ -186,46 +156,16 @@
                   <label class="flabel">STREET</label>
                   <ion-input v-model="farmer.provincial_street" class="finput" :disabled="sameAddress" />
                 </div>
-                <div class="field-wrap">
-                  <SearchableSelect
-                    v-model="farmer.provincial_brgy"
-                    label="Barangay"
-                    placeholder="Search barangay…"
-                    :options="barangayOptions"
-                    :disabled="sameAddress"
-                    @change="onProvincialBrgy"
-                  />
-                </div>
               </div>
-              <div class="fgrid g3 mt6">
-                <div class="field-wrap">
-                  <SearchableSelect
-                    v-model="farmer.provincial_city"
-                    label="Municipality / City"
-                    placeholder="Select city…"
-                    :options="cityOptions"
-                    :disabled="sameAddress"
-                  />
-                </div>
-                <div class="field-wrap">
-                  <SearchableSelect
-                    v-model="farmer.provincial_province"
-                    label="Province"
-                    placeholder="Select province…"
-                    :options="provinceOptions"
-                    :disabled="sameAddress"
-                  />
-                </div>
-                <div class="field-wrap">
-                  <SearchableSelect
-                    v-model="farmer.provincial_region"
-                    label="Region"
-                    placeholder="Select region…"
-                    :options="regionOptions"
-                    :disabled="sameAddress"
-                  />
-                </div>
-              </div>
+              <PsgcLocationPicker
+                class="mt6"
+                v-model:region="farmer.provincial_region"
+                v-model:province="farmer.provincial_province"
+                v-model:city="farmer.provincial_city"
+                v-model:barangay="farmer.provincial_brgy"
+                v-model:outside-echague="provincialOutsideEchague"
+                :disabled="sameAddress"
+              />
             </div>
           </div>
 
@@ -435,36 +375,14 @@
             <div class="subsection">
               <div class="subsection-title">LOCATION OF FARM PLOT</div>
               <div class="subsection-body">
-                <div class="fgrid g3">
-                  <div class="field-wrap">
-                    <SearchableSelect
-                      :model-value="plot.location_brgy"
-                      label="Barangay"
-                      placeholder="Search barangay…"
-                      :options="barangayOptions"
-                      required
-                      @update:model-value="(v) => onPlotBrgy(idx, v)"
-                    />
-                  </div>
-                  <div class="field-wrap">
-                    <SearchableSelect
-                      v-model="plot.location_city"
-                      label="Municipality / City"
-                      placeholder="Select city…"
-                      :options="cityOptions"
-                      required
-                    />
-                  </div>
-                  <div class="field-wrap">
-                    <SearchableSelect
-                      v-model="plot.location_province"
-                      label="Province"
-                      placeholder="Select province…"
-                      :options="provinceOptions"
-                      required
-                    />
-                  </div>
-                </div>
+                <PsgcLocationPicker
+                  v-model:region="plot.location_region_helper"
+                  v-model:province="plot.location_province"
+                  v-model:city="plot.location_city"
+                  v-model:barangay="plot.location_brgy"
+                  v-model:outside-echague="plot.outside_echague"
+                  :include-region="plot.outside_echague"
+                />
               </div>
             </div>
 
@@ -482,17 +400,31 @@
                     <div class="radio-row wrap">
                       <label v-for="ot in ownershipTypes" :key="ot"
                         class="radio-pill" :class="{ active: plot.ownership_type === ot }">
-                        <input type="radio" v-model="plot.ownership_type" :value="ot" class="r-hidden" />
+                        <input
+                          type="radio"
+                          v-model="plot.ownership_type"
+                          :value="ot"
+                          class="r-hidden"
+                          @change="syncPlotTenurialDocument(plot)"
+                        />
                         <span class="r-dot"></span> {{ ot }}
                       </label>
                     </div>
                   </div>
                 </div>
                 <div class="chk-row mt6">
-                  <ion-checkbox v-model="plot.is_ancestral_domain" class="fcheck" />
+                  <ion-checkbox
+                    v-model="plot.is_ancestral_domain"
+                    class="fcheck"
+                    @ionChange="syncPlotTenurialDocument(plot)"
+                  />
                   <span class="chk-label">Within Ancestral Domain</span>
                   <span class="chk-sep"></span>
-                  <ion-checkbox v-model="plot.is_agrarian_reform_beneficiary" class="fcheck" />
+                  <ion-checkbox
+                    v-model="plot.is_agrarian_reform_beneficiary"
+                    class="fcheck"
+                    @ionChange="syncPlotTenurialDocument(plot)"
+                  />
                   <span class="chk-label">Agrarian Reform Beneficiary</span>
                 </div>
               </div>
@@ -525,7 +457,19 @@
                 </div>
                 <div class="field-wrap mt6">
                   <label class="flabel req">PROOF OF OWNERSHIP / TENURIAL DOCUMENT</label>
-                  <ion-input v-model="plot.proof_of_ownership_document" class="finput" placeholder="e.g. TCT, CLOA, Lease Contract" />
+                  <ion-select
+                    v-model="plot.proof_of_ownership_document"
+                    interface="popover"
+                    class="fselect"
+                    placeholder="Select document type"
+                  >
+                    <ion-select-option
+                      v-for="doc in tenurialDocumentOptions(plot)"
+                      :key="doc"
+                      :value="doc"
+                    >{{ doc }}</ion-select-option>
+                  </ion-select>
+                  <p class="field-hint">{{ tenurialDocumentHint(plot) }}</p>
                 </div>
               </div>
             </div>
@@ -622,9 +566,12 @@ import {
 import { reactive, ref, onMounted, computed } from "vue";
 import axiosInstance from "@/utils/axios";
 import { useRouter, useRoute } from "vue-router";
-import SearchableSelect from "@/components/SearchableSelect.vue";
-import { useOfficialBarangays } from "@/composables/useOfficialBarangays";
-import { useOfficialLocations } from "@/composables/useOfficialLocations";
+import PsgcLocationPicker from "@/components/PsgcLocationPicker.vue";
+import { isOutsideEchagueCity } from "@/composables/usePsgcLocations";
+import {
+  tenurialDocumentOptions,
+  tenurialDocumentHint,
+} from "@/constants/rsbsaTenurialDocuments";
 import {
   COMMODITY_OPTIONS,
   ECHAGUE_CITY,
@@ -634,11 +581,8 @@ import {
 
 const router = useRouter();
 const route = useRoute();
-const { barangays: barangayOptions } = useOfficialBarangays();
-const { locations: locationCatalog } = useOfficialLocations();
-const regionOptions = computed(() => locationCatalog.value.regions);
-const provinceOptions = computed(() => locationCatalog.value.provinces);
-const cityOptions = computed(() => locationCatalog.value.cities);
+const permanentOutsideEchague = ref(false);
+const provincialOutsideEchague = ref(false);
 
 const editId = computed(() => String(route.query.id || "").trim());
 const isEdit = computed(() => !!editId.value);
@@ -759,6 +703,8 @@ const farmer = reactive({
 /* ── farm plots ── */
 const createPlot = () => ({
   id: "" as string,
+  location_region_helper: ECHAGUE_REGION,
+  outside_echague: false,
   location_brgy: "", 
   location_city: ECHAGUE_CITY, 
   location_province: ECHAGUE_PROVINCE,
@@ -810,34 +756,22 @@ const onSameAddress  = () => {
     farmer.provincial_city     = farmer.permanent_city;
     farmer.provincial_province = farmer.permanent_province;
     farmer.provincial_region   = farmer.permanent_region;
+    provincialOutsideEchague.value = permanentOutsideEchague.value;
   } else {
     farmer.provincial_house_no = farmer.provincial_street = farmer.provincial_brgy =
     farmer.provincial_city     = farmer.provincial_province = farmer.provincial_region = "";
+    provincialOutsideEchague.value = false;
   }
 };
 
-const onPermanentBrgy = (value: string) => {
-  farmer.permanent_brgy = value;
-  if (value) {
-    farmer.permanent_city = ECHAGUE_CITY;
-    farmer.permanent_province = ECHAGUE_PROVINCE;
-    farmer.permanent_region = ECHAGUE_REGION;
-    if (sameAddress.value) onSameAddress();
-  }
+const onPermanentLocationChange = () => {
+  if (sameAddress.value) onSameAddress();
 };
-const onProvincialBrgy = (value: string) => {
-  farmer.provincial_brgy = value;
-  if (value && !sameAddress.value) {
-    farmer.provincial_city = ECHAGUE_CITY;
-    farmer.provincial_province = ECHAGUE_PROVINCE;
-    farmer.provincial_region = ECHAGUE_REGION;
-  }
-};
-const onPlotBrgy = (idx: number, value: string) => {
-  farmPlots[idx].location_brgy = value;
-  if (value) {
-    farmPlots[idx].location_city = ECHAGUE_CITY;
-    farmPlots[idx].location_province = ECHAGUE_PROVINCE;
+
+const syncPlotTenurialDocument = (plot: ReturnType<typeof createPlot>) => {
+  const options = tenurialDocumentOptions(plot);
+  if (plot.proof_of_ownership_document && !options.includes(plot.proof_of_ownership_document)) {
+    plot.proof_of_ownership_document = "";
   }
 };
 
@@ -870,6 +804,8 @@ const applyFarmerRecord = (data: any) => {
     farmer.birthdate = String(data.birthdate).slice(0, 10);
     computeAge();
   }
+  permanentOutsideEchague.value = isOutsideEchagueCity(farmer.permanent_city);
+  provincialOutsideEchague.value = isOutsideEchagueCity(farmer.provincial_city);
   const plots = data.farm_plots || data.farmPlots || [];
   farmPlots.splice(0, farmPlots.length);
   if (plots.length) {
@@ -877,6 +813,7 @@ const applyFarmerRecord = (data: any) => {
       const row = createPlot();
       Object.assign(row, {
         id: p.id || '',
+        outside_echague: isOutsideEchagueCity(p.location_city || ECHAGUE_CITY),
         location_brgy: p.location_brgy || '',
         location_city: p.location_city || ECHAGUE_CITY,
         location_province: p.location_province || ECHAGUE_PROVINCE,
@@ -1256,6 +1193,12 @@ const submitForm = async () => {
 .g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .mt4 { margin-top: 4px; }
 .mt6 { margin-top: 8px; }
+.field-hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.76rem;
+  color: #64748b;
+  line-height: 1.35;
+}
 
 /* ═══════ FIELD ═══════ */
 .field-wrap {
