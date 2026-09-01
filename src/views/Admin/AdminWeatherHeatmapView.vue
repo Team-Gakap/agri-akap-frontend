@@ -141,15 +141,15 @@
               <summary>National advisories (PAGASA-scale)</summary>
               <p v-if="nationalLoading" class="empty-alerts">Loading advisories…</p>
               <template v-else-if="hasNationalAdvisories">
-                <div v-for="(item, i) in nationalAdvisories.rainfall_advisories" :key="'rain-' + i" class="nat-adv-row">
+                <div v-for="(item, i) in rainfallAdvisories" :key="'rain-' + i" class="nat-adv-row">
                   <strong>Rainfall</strong>
                   <p>{{ advisoryText(item) }}</p>
                 </div>
-                <div v-for="(item, i) in nationalAdvisories.cyclone_bulletins" :key="'cyc-' + i" class="nat-adv-row">
+                <div v-for="(item, i) in cycloneBulletins" :key="'cyc-' + i" class="nat-adv-row">
                   <strong>Cyclone</strong>
                   <p>{{ advisoryText(item) }}</p>
                 </div>
-                <p class="nat-attr">{{ nationalAdvisories.attribution }}</p>
+                <p v-if="nationalAttribution" class="nat-attr">{{ nationalAttribution }}</p>
               </template>
               <p v-else class="empty-alerts">No active PAGASA-scale advisories.</p>
             </details>
@@ -452,6 +452,10 @@ const hasNationalAdvisories = computed(() => {
   if (!adv?.available) return false;
   return (adv.rainfall_advisories?.length ?? 0) > 0 || (adv.cyclone_bulletins?.length ?? 0) > 0;
 });
+
+const rainfallAdvisories = computed(() => nationalAdvisories.value?.rainfall_advisories ?? []);
+const cycloneBulletins = computed(() => nationalAdvisories.value?.cyclone_bulletins ?? []);
+const nationalAttribution = computed(() => nationalAdvisories.value?.attribution ?? '');
 
 function selectedPin(row: BarangayWeather): string | null {
   const lat = Number(row.latitude);
