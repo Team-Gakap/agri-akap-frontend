@@ -594,43 +594,52 @@ function coerceDegenerateGeoTag(row: OfflineGeoTag): {
 }
 
 function farmerCacheName(payload: any): string {
-  return `${payload?.surname || ''}, ${payload?.first_name || ''}`.replace(/\s+/g, ' ').trim().toLowerCase();
+  const given = [payload?.first_name, payload?.middle_name].filter(Boolean).join(' ');
+  return `${payload?.surname || ''}, ${given}`.replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
-/** Fill blank farmer_id from the local farmer cache so retried bulk rows still resolve. */
+function namesLooselyMatch(queued: string, cached: string): boolean {
+  if (!queued || !cached) return false;
+  if (queued === cached) return true;
+  return queued.startsWith(cached) || cached.startsWith(queued);
+}
+
+/** Resolve farmer_id + RSBSA from cache even when a stale UUID is already queued. */
 async function enrichQueuedFarmer(row: {
   farmer_id?: string;
-  rsbsa_no?: string;
+  rsbsa_no?: string | null;
   farmer_name?: string;
 }): Promise<{ farmer_id?: string; rsbsa_no?: string }> {
-  const farmerId = String(row.farmer_id || '').trim();
-  const rsbsa = String(row.rsbsa_no || '').trim();
-  if (farmerId) {
-    return { farmer_id: farmerId, rsbsa_no: rsbsa || undefined };
-  }
-
-  const cached = await db.cachedFarmers.toArray();
-  if (rsbsa) {
-    const match = cached.find(
-      (r) => String(r.payload?.rsbsa_no || '').trim().toLowerCase() === rsbsa.toLowerCase(),
-    );
-    if (match?.payload?.id) {
-      return { farmer_id: String(match.payload.id), rsbsa_no: rsbsa };
-    }
-  }
-
+  let farmerId = String(row.farmer_id || '').trim();
+  let rsbsa = String(row.rsbsa_no || '').trim();
   const name = String(row.farmer_name || '').replace(/\s+/g, ' ').trim().toLowerCase();
-  if (name) {
-    const match = cached.find((r) => farmerCacheName(r.payload) === name);
-    if (match?.payload?.id) {
-      return {
-        farmer_id: String(match.payload.id),
-        rsbsa_no: rsbsa || String(match.payload.rsbsa_no || '').trim() || undefined,
-      };
+  const cached = await db.cachedFarmers.toArray();
+
+  const byId = farmerId
+    ? cached.find((r) => String(r.payload?.id || r.id || '').trim() === farmerId)
+    : undefined;
+  const byRsbsa = rsbsa
+    ? cached.find((r) => String(r.payload?.rsbsa_no || '').trim().toLowerCase() === rsbsa.toLowerCase())
+    : undefined;
+  const nameHits = name
+    ? cached.filter((r) => namesLooselyMatch(name, farmerCacheName(r.payload)))
+    : [];
+  const exactName = nameHits.find((r) => farmerCacheName(r.payload) === name);
+  const byName = exactName || (nameHits.length === 1 ? nameHits[0] : undefined);
+
+  const hit = byRsbsa || byName || byId;
+  if (hit?.payload) {
+    const cachedId = String(hit.payload.id || hit.id || '').trim();
+    const cachedRsbsa = String(hit.payload.rsbsa_no || '').trim();
+    if ((byRsbsa || byName) && cachedId) {
+      farmerId = cachedId;
+    } else if (!farmerId && cachedId) {
+      farmerId = cachedId;
     }
+    if (cachedRsbsa) rsbsa = cachedRsbsa;
   }
 
-  return { farmer_id: undefined, rsbsa_no: rsbsa || undefined };
+  return { farmer_id: farmerId || undefined, rsbsa_no: rsbsa || undefined };
 }
 
 const BULK_SYNC_TIMEOUT_MS = 120_000;
@@ -850,19 +859,29 @@ export async function syncAllPendingData(): Promise<SyncFlushResult> {
 
     const payload = {
       device_id: getDeviceId(),
-      distributions: await Promise.all(claimDistributions.map(async (d) => ({
-        client_id: d.client_id,
-        source: d.source ?? 'program',
-        farmer_id: d.farmer_id,
-        program_id: d.program_id,
-        rsbsa_no: d.rsbsa_no,
-        beneficiary_id: d.beneficiary_id,
-        device_id: d.device_id,
-        claimed_at: d.claimed_at,
-        geo_tag_lat: d.geo_tag_lat,
-        geo_tag_long: d.geo_tag_long,
-        photo_proof_base64: await shrinkSyncImage(d.photo_proof_base64),
-      }))),
+      distributions: await Promise.all(claimDistributions.map(async (d) => {
+        const farmer = await enrichQueuedFarmer(d);
+        if (farmer.farmer_id !== d.farmer_id || farmer.rsbsa_no !== (d.rsbsa_no || undefined)) {
+          await db.pendingDistributions.update(d.client_id, {
+            farmer_id: farmer.farmer_id || d.farmer_id,
+            rsbsa_no: farmer.rsbsa_no ?? d.rsbsa_no,
+          });
+        }
+        return {
+          client_id: d.client_id,
+          source: d.source ?? 'program',
+          farmer_id: farmer.farmer_id || d.farmer_id,
+          farmer_name: d.farmer_name,
+          program_id: d.program_id,
+          rsbsa_no: farmer.rsbsa_no ?? d.rsbsa_no,
+          beneficiary_id: d.beneficiary_id,
+          device_id: d.device_id,
+          claimed_at: d.claimed_at,
+          geo_tag_lat: d.geo_tag_lat,
+          geo_tag_long: d.geo_tag_long,
+          photo_proof_base64: await shrinkSyncImage(d.photo_proof_base64),
+        };
+      })),
       assessments: await Promise.all(assessments.map(async (a) => ({
         id: a.client_id,
         assessment_id: a.assessment_id,
@@ -885,9 +904,16 @@ export async function syncAllPendingData(): Promise<SyncFlushResult> {
       }))),
       planting_logs: await Promise.all(planting_logs.map(async (r) => {
         const farmer = await enrichQueuedFarmer(r);
+        if (r.id != null && (farmer.farmer_id !== r.farmer_id || farmer.rsbsa_no !== r.rsbsa_no)) {
+          await db.offline_planting_logs.update(r.id, {
+            farmer_id: farmer.farmer_id || r.farmer_id,
+            rsbsa_no: farmer.rsbsa_no || r.rsbsa_no,
+          });
+        }
         return {
         client_id: r.client_id,
         farmer_id: farmer.farmer_id,
+        farmer_name: r.farmer_name,
         farm_plot_id: r.farm_plot_id || undefined,
         rsbsa_no: farmer.rsbsa_no,
         crop_type: r.crop_type,
@@ -968,9 +994,16 @@ export async function syncAllPendingData(): Promise<SyncFlushResult> {
       })),
       harvest_logs: await Promise.all(harvest_logs.map(async (r) => {
         const farmer = await enrichQueuedFarmer(r);
+        if (r.id != null && (farmer.farmer_id !== r.farmer_id || farmer.rsbsa_no !== r.rsbsa_no)) {
+          await db.offline_harvest_logs.update(r.id, {
+            farmer_id: farmer.farmer_id || r.farmer_id,
+            rsbsa_no: farmer.rsbsa_no || r.rsbsa_no,
+          });
+        }
         return {
         client_id: r.client_id,
         farmer_id: farmer.farmer_id,
+        farmer_name: r.farmer_name,
         farm_plot_id: r.farm_plot_id || undefined,
         rsbsa_no: farmer.rsbsa_no,
         crop_type: r.crop_type,
@@ -984,9 +1017,16 @@ export async function syncAllPendingData(): Promise<SyncFlushResult> {
       })),
       standing_crop_logs: await Promise.all(standing_crop_logs.map(async (r) => {
         const farmer = await enrichQueuedFarmer(r);
+        if (r.id != null && (farmer.farmer_id !== r.farmer_id || farmer.rsbsa_no !== r.rsbsa_no)) {
+          await db.offline_standing_crop_logs.update(r.id, {
+            farmer_id: farmer.farmer_id || r.farmer_id,
+            rsbsa_no: farmer.rsbsa_no || r.rsbsa_no,
+          });
+        }
         return {
         client_id: r.client_id,
         farmer_id: farmer.farmer_id,
+        farmer_name: r.farmer_name,
         farm_plot_id: r.farm_plot_id || undefined,
         rsbsa_no: farmer.rsbsa_no,
         crop_type: r.crop_type,
