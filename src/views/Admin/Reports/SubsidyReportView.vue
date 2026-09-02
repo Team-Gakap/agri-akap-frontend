@@ -690,7 +690,6 @@ onMounted(async () => {
 .sig-name { font-size: 0.82rem; font-weight: 700; color: #1a4731; margin: 0; }
 
 /* ── Print ─────────────────────────────────────────────────── */
-.no-print { }
 .print-only { display: none; }
 
 @media print {
