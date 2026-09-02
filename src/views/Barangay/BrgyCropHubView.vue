@@ -108,7 +108,10 @@
                     <td class="col-num">{{ Number(row.area_planted).toFixed(2) }}</td>
                     <td class="mono">{{ row.date_of_planting }}</td>
                     <td class="no-print">
-                      <ion-button size="small" fill="clear" color="danger" @click="removeRow(row.id)">Remove</ion-button>
+                      <ReportRowActions
+                        @edit="openEdit(row)"
+                        @remove="promptDelete({ endpoint: deleteEndpoint(row.id), label: ledgerTitle, onSuccess: loadLedger })"
+                      />
                     </td>
                   </tr>
                 </tbody>
@@ -150,7 +153,10 @@
                     <td>{{ row.growth_stage }}</td>
                     <td class="mono">{{ row.est_harvest_date }}</td>
                     <td class="no-print">
-                      <ion-button size="small" fill="clear" color="danger" @click="removeRow(row.id)">Remove</ion-button>
+                      <ReportRowActions
+                        @edit="openEdit(row)"
+                        @remove="promptDelete({ endpoint: deleteEndpoint(row.id), label: ledgerTitle, onSuccess: loadLedger })"
+                      />
                     </td>
                   </tr>
                 </tbody>
@@ -192,7 +198,10 @@
                     <td>{{ row.yield_display }}</td>
                     <td class="mono">{{ row.date_of_harvest }}</td>
                     <td class="no-print">
-                      <ion-button size="small" fill="clear" color="danger" @click="removeRow(row.id)">Remove</ion-button>
+                      <ReportRowActions
+                        @edit="openEdit(row)"
+                        @remove="promptDelete({ endpoint: deleteEndpoint(row.id), label: ledgerTitle, onSuccess: loadLedger })"
+                      />
                     </td>
                   </tr>
                 </tbody>
@@ -233,6 +242,22 @@
         />
       </div>
     </ion-content>
+
+    <ReportInlineEditModal
+      :is-open="editOpen"
+      :title="editTitle"
+      :endpoint="editEndpoint"
+      :fields="editFields"
+      :initial="editInitial"
+      @close="editOpen = false"
+      @saved="loadLedger"
+    />
+
+    <ConfirmDeleteModal
+      :is-open="deleteOpen"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
+    />
   </ion-page>
 </template>
 
@@ -253,6 +278,11 @@ import {
 } from '@/utils/statutoryFormExcel';
 import apiClient from '@/utils/axios';
 import { toast } from '@/utils/toast';
+import ReportRowActions from '@/components/ReportRowActions.vue';
+import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
+import ReportInlineEditModal, { type ReportEditField } from '@/components/ReportInlineEditModal.vue';
+import { useReportRowActions } from '@/composables/useReportRowActions';
+import '@/assets/reportTableStyles.css';
 
 const PlantingLedgerView = defineAsyncComponent(() => import('@/views/Barangay/PlantingLedgerView.vue'));
 const StandingCropLogView = defineAsyncComponent(() => import('@/views/Barangay/StandingCropLogView.vue'));
@@ -286,6 +316,7 @@ interface LedgerRow {
   growth_stage: string;
   est_harvest_date: string;
   area_harvested: number;
+  yield_amount: number;
   yield_display: string;
   date_of_harvest: string;
 }
@@ -357,6 +388,7 @@ const emptyRow = (): LedgerRow => ({
   growth_stage: '',
   est_harvest_date: '',
   area_harvested: 0,
+  yield_amount: 0,
   yield_display: '',
   date_of_harvest: '',
 });
@@ -422,6 +454,7 @@ const mapHarvest = (r: any): LedgerRow => {
     crop_type: r.crop_type || 'Rice',
     variety: r.variety || '',
     area_harvested: Number(r.area_harvested) || 0,
+    yield_amount: amount,
     yield_display: yieldLabel(amount, unit),
     date_of_harvest: sliceDate(r.date_harvested),
   };
@@ -574,18 +607,76 @@ async function loadLedger() {
 }
 
 async function removeRow(id: string) {
-  const endpoint =
-    kind.value === 'standing' ? `/standing-crop-logs/${id}`
-      : kind.value === 'harvest' ? `/harvest-logs/${id}`
-        : `/planting-logs/${id}`;
-  try {
-    await apiClient.delete(endpoint);
-    rows.value = rows.value.filter((r) => r.id !== id);
-    pageMeta.total = Math.max(0, pageMeta.total - 1);
-    await toast.success('Record removed.');
-  } catch (e: any) {
-    await toast.error(e?.response?.data?.message || 'Could not remove this record.');
+  promptDelete({
+    endpoint: deleteEndpoint(id),
+    label: ledgerTitle.value,
+    onSuccess: loadLedger,
+  });
+}
+
+function deleteEndpoint(id: string) {
+  return kind.value === 'standing' ? `/standing-crop-logs/${id}`
+    : kind.value === 'harvest' ? `/harvest-logs/${id}`
+      : `/planting-logs/${id}`;
+}
+
+const { deleteOpen, promptDelete, cancelDelete, confirmDelete } = useReportRowActions();
+const editOpen = ref(false);
+const editEndpoint = ref('');
+const editTitle = ref('Edit record');
+const editInitial = ref<Record<string, string | number | null | undefined>>({});
+const editFields = ref<ReportEditField[]>([]);
+
+function openEdit(row: LedgerRow) {
+  if (kind.value === 'harvest') {
+    editEndpoint.value = `/harvest-logs/${row.id}`;
+    editTitle.value = 'Edit harvest record';
+    editFields.value = [
+      { key: 'variety', label: 'Variety', required: true },
+      { key: 'area_harvested', label: 'Area Harvested (ha)', type: 'number', required: true },
+      { key: 'total_yield', label: 'Total Yield (MT)', type: 'number', required: true },
+      { key: 'date_harvested', label: 'Date Harvested', type: 'date', required: true },
+    ];
+    editInitial.value = {
+      variety: row.variety,
+      area_harvested: row.area_harvested,
+      total_yield: row.yield_amount,
+      date_harvested: row.date_of_harvest,
+    };
+  } else if (kind.value === 'standing') {
+    editEndpoint.value = `/standing-crop-logs/${row.id}`;
+    editTitle.value = 'Edit standing crop record';
+    editFields.value = [
+      { key: 'variety', label: 'Variety', required: true },
+      { key: 'area_ha', label: 'Area (ha)', type: 'number', required: true },
+      { key: 'growth_stage', label: 'Growth Stage' },
+      { key: 'est_harvest_date', label: 'Est. Harvest Date', type: 'date', required: true },
+    ];
+    editInitial.value = {
+      variety: row.variety,
+      area_ha: row.area_ha,
+      growth_stage: row.growth_stage,
+      est_harvest_date: row.est_harvest_date,
+    };
+  } else {
+    editEndpoint.value = `/planting-logs/${row.id}`;
+    editTitle.value = 'Edit planting record';
+    editFields.value = [
+      { key: 'variety', label: 'Variety', required: true },
+      { key: 'area_planted', label: 'Area Planted (ha)', type: 'number', required: true },
+      { key: 'date_planted', label: 'Date Planted', type: 'date', required: true },
+      { key: 'status', label: 'Status' },
+      { key: 'water_source', label: 'Water Source' },
+    ];
+    editInitial.value = {
+      variety: row.variety,
+      area_planted: row.area_planted,
+      date_planted: row.date_of_planting,
+      status: row.planting_status,
+      water_source: row.water_source,
+    };
   }
+  editOpen.value = true;
 }
 
 function printForm() {

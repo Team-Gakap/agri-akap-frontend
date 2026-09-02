@@ -1,0 +1,67 @@
+/* Shared report / ledger table styling — admin + barangay */
+.excel-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 12px;
+}
+
+.excel-table th,
+.excel-table td {
+  border: 1px solid #cbd5e1;
+  padding: 4px 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.excel-table thead th {
+  position: sticky;
+  top: 0;
+  background: #1a4731;
+  color: #fff;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  z-index: 1;
+}
+
+.excel-table tbody tr:nth-child(even) {
+  background: #f8fafc;
+}
+
+.excel-table tbody tr:hover {
+  background: #eef5ee;
+}
+
+.excel-table .col-no,
+.excel-table .col-num {
+  text-align: right;
+}
+
+.excel-table .mono {
+  font-family: 'Courier New', monospace;
+}
+
+.excel-table .empty-row {
+  text-align: center;
+  color: #94a3b8;
+  padding: 2rem 0;
+  font-style: italic;
+  white-space: normal;
+}
+
+.ledger-card,
+.rpt-shell .grid-shell {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+@media print {
+  .excel-table thead th {
+    position: static;
+    background: #1a4731 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}

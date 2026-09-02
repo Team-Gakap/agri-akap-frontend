@@ -39,6 +39,11 @@ export async function fetchRealLocation(options?: { timeout?: number }) {
   });
 }
 
+/** GPS fix at evidence capture time (photo taken on-site). */
+export async function captureGpsAtEvidenceTime(options?: { timeout?: number }) {
+  return fetchRealLocation({ timeout: options?.timeout ?? 12000 });
+}
+
 /**
  * Request camera permission for ML Kit barcode scanning.
  */

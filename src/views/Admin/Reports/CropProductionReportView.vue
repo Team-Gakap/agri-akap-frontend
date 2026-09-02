@@ -129,13 +129,14 @@
                   <th>Date Planted</th>
                   <th>Status</th>
                   <th>Water Source</th>
+                  <th class="no-print">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="!filteredRows.length">
-                  <td colspan="12" class="empty-row">No planting data records match the current filters.</td>
+                  <td colspan="13" class="empty-row">No planting data records match the current filters.</td>
                 </tr>
-                <tr v-for="(row, i) in filteredRows" :key="i">
+                <tr v-for="(row, i) in filteredRows" :key="row.id || i">
                   <td class="col-no">{{ i + 1 }}</td>
                   <td class="mono">{{ row.rsbsa_no }}</td>
                   <td>{{ row.surname || '—' }}</td>
@@ -148,11 +149,18 @@
                   <td class="mono">{{ fmtDate(row.date_planted) }}</td>
                   <td>{{ row.status || '—' }}</td>
                   <td>{{ row.water_source || '—' }}</td>
+                  <td class="no-print">
+                    <ReportRowActions
+                      v-if="row.id && !hideEncode"
+                      @edit="openEdit(row)"
+                      @remove="promptDelete({ endpoint: `/planting-logs/${row.id}`, label: 'Planting record', onSuccess: fetchRows })"
+                    />
+                  </td>
                 </tr>
                 <tr v-if="filteredRows.length" class="totals-row">
                   <td colspan="8" class="totals-label">TOTALS</td>
                   <td class="col-num">{{ totalPlantedHa }}</td>
-                  <td colspan="3"></td>
+                  <td colspan="4"></td>
                 </tr>
               </tbody>
             </table>
@@ -172,13 +180,14 @@
                   <th class="col-num">Area Harvested (ha)</th>
                   <th class="col-num">Total Yield (MT)</th>
                   <th>Date Harvested</th>
+                  <th class="no-print">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="!filteredRows.length">
-                  <td colspan="11" class="empty-row">No harvest data records match the current filters.</td>
+                  <td colspan="12" class="empty-row">No harvest data records match the current filters.</td>
                 </tr>
-                <tr v-for="(row, i) in filteredRows" :key="i">
+                <tr v-for="(row, i) in filteredRows" :key="row.id || i">
                   <td class="col-no">{{ i + 1 }}</td>
                   <td class="mono">{{ row.rsbsa_no }}</td>
                   <td>{{ row.surname || '—' }}</td>
@@ -190,11 +199,18 @@
                   <td class="col-num">{{ fmtNum(row.area_harvested) }}</td>
                   <td class="col-num">{{ fmtNum(row.total_yield) }}</td>
                   <td class="mono">{{ fmtDate(row.date_harvested) }}</td>
+                  <td class="no-print">
+                    <ReportRowActions
+                      v-if="row.id && !hideEncode"
+                      @edit="openEdit(row)"
+                      @remove="promptDelete({ endpoint: `/harvest-logs/${row.id}`, label: 'Harvest record', onSuccess: fetchRows })"
+                    />
+                  </td>
                 </tr>
                 <tr v-if="filteredRows.length" class="totals-row">
                   <td colspan="9" class="totals-label">TOTALS</td>
                   <td class="col-num">{{ totalYieldMt }}</td>
-                  <td></td>
+                  <td colspan="2"></td>
                 </tr>
               </tbody>
             </table>
@@ -224,6 +240,22 @@
       :form-component="encodeForm"
       @saved="fetchRows"
     />
+
+    <ReportInlineEditModal
+      :is-open="editOpen"
+      :title="editTitle"
+      :endpoint="editEndpoint"
+      :fields="editFields"
+      :initial="editInitial"
+      @close="editOpen = false"
+      @saved="fetchRows"
+    />
+
+    <ConfirmDeleteModal
+      :is-open="deleteOpen"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
+    />
   </ion-page>
 </template>
 
@@ -240,6 +272,11 @@ import FormExportActions from '@/components/FormExportActions.vue';
 import { exportAdminGridExcel } from '@/utils/statutoryFormExcel';
 import apiClient from '@/utils/axios';
 import ReportEncodeModal from '@/components/ReportEncodeModal.vue';
+import ReportRowActions from '@/components/ReportRowActions.vue';
+import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
+import ReportInlineEditModal, { type ReportEditField } from '@/components/ReportInlineEditModal.vue';
+import { useReportRowActions } from '@/composables/useReportRowActions';
+import '@/assets/reportTableStyles.css';
 import MaoFormHeader from '@/components/MaoFormHeader.vue';
 import StandingCropReportGrid from '@/views/Admin/Reports/StandingCropReportGrid.vue';
 import { useReportScope, type ReportPeriod } from '@/composables/useReportScope';
@@ -251,6 +288,7 @@ const HarvestForm = defineAsyncComponent(() => import('@/views/Barangay/Harvesti
 type Mode = 'planting' | 'standing' | 'harvest';
 
 interface PlantingRow {
+  id?: string;
   rsbsa_no: string;
   surname?: string;
   first_name?: string;
@@ -266,6 +304,7 @@ interface PlantingRow {
 }
 
 interface HarvestRow {
+  id?: string;
   rsbsa_no: string;
   surname?: string;
   first_name?: string;
@@ -352,6 +391,55 @@ const encodeForm = computed(() => (activeMode.value === 'harvest' ? HarvestForm 
 const encodeTitle = computed(() =>
   activeMode.value === 'harvest' ? 'Add / Override Harvest Record' : 'Add / Override Planting Record'
 );
+
+const { deleteOpen, promptDelete, cancelDelete, confirmDelete } = useReportRowActions();
+const editOpen = ref(false);
+const editEndpoint = ref('');
+const editTitle = ref('Edit record');
+const editInitial = ref<Record<string, string | number | null | undefined>>({});
+const editFields = ref<ReportEditField[]>([]);
+
+const plantingEditFields: ReportEditField[] = [
+  { key: 'variety', label: 'Variety', required: true },
+  { key: 'area_planted', label: 'Area Planted (ha)', type: 'number', required: true },
+  { key: 'date_planted', label: 'Date Planted', type: 'date', required: true },
+  { key: 'status', label: 'Status' },
+  { key: 'water_source', label: 'Water Source' },
+];
+
+const harvestEditFields: ReportEditField[] = [
+  { key: 'variety', label: 'Variety', required: true },
+  { key: 'area_harvested', label: 'Area Harvested (ha)', type: 'number', required: true },
+  { key: 'total_yield', label: 'Total Yield (MT)', type: 'number', required: true },
+  { key: 'date_harvested', label: 'Date Harvested', type: 'date', required: true },
+];
+
+function openEdit(row: CropRow) {
+  if (!row.id) return;
+  if (activeMode.value === 'harvest') {
+    editEndpoint.value = `/harvest-logs/${row.id}`;
+    editTitle.value = 'Edit harvest record';
+    editFields.value = harvestEditFields;
+    editInitial.value = {
+      variety: row.variety,
+      area_harvested: row.area_harvested,
+      total_yield: row.total_yield,
+      date_harvested: row.date_harvested,
+    };
+  } else {
+    editEndpoint.value = `/planting-logs/${row.id}`;
+    editTitle.value = 'Edit planting record';
+    editFields.value = plantingEditFields;
+    editInitial.value = {
+      variety: row.variety,
+      area_planted: row.area_planted,
+      date_planted: row.date_planted,
+      status: row.status,
+      water_source: row.water_source,
+    };
+  }
+  editOpen.value = true;
+}
 
 const fmtNum  = (v: number | string) => Number(v ?? 0).toFixed(2);
 const fmtDate = (d: string) => {

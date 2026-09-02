@@ -91,7 +91,10 @@
                         alt="Evidence"
                         @click="viewingPhoto = e.photo_url!"
                       />
-                      <ion-button size="small" fill="clear" color="danger" @click="removeEntry(entries.indexOf(e))">Remove</ion-button>
+                      <ReportRowActions
+                        @edit="openEdit(e)"
+                        @remove="promptDelete({ endpoint: `/pest-monitoring/${e.id}`, label: 'Pest inspection', onSuccess: loadLedger })"
+                      />
                     </td>
                   </tr>
                 </tbody>
@@ -246,6 +249,22 @@
         </div>
       </div>
     </component>
+
+    <ReportInlineEditModal
+      :is-open="editOpen"
+      title="Edit pest inspection"
+      :endpoint="editEndpoint"
+      :fields="pestEditFields"
+      :initial="editInitial"
+      @close="editOpen = false"
+      @saved="loadLedger"
+    />
+
+    <ConfirmDeleteModal
+      :is-open="deleteOpen"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
+    />
   </component>
 </template>
 
@@ -274,6 +293,11 @@ import { toast } from '@/utils/toast';
 import { capInputToPlot, plotSizeHa } from '@/utils/plotArea';
 import { loadPestCatalog, threatsForCrop } from '@/utils/pestCatalog';
 import { storageUrl } from '@/utils/storageUrl';
+import ReportRowActions from '@/components/ReportRowActions.vue';
+import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
+import ReportInlineEditModal, { type ReportEditField } from '@/components/ReportInlineEditModal.vue';
+import { useReportRowActions } from '@/composables/useReportRowActions';
+import '@/assets/reportTableStyles.css';
 const PestMonitoringPrint = defineAsyncComponent(() => import('@/components/PestMonitoringPrint.vue'));
 
 const props = withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });
@@ -674,14 +698,35 @@ const removeEntry = async (i: number) => {
     entries.value.splice(i, 1);
     return;
   }
-  try {
-    await apiClient.delete(`/pest-monitoring/${row.id}`);
-    entries.value.splice(i, 1);
-    await toast.success('Pest inspection removed.');
-  } catch (e: any) {
-    await toast.error(e?.response?.data?.message || 'Could not remove this inspection.');
-  }
+  promptDelete({
+    endpoint: `/pest-monitoring/${row.id}`,
+    label: 'Pest inspection',
+    onSuccess: loadLedger,
+  });
 };
+
+const { deleteOpen, promptDelete, cancelDelete, confirmDelete } = useReportRowActions();
+const editOpen = ref(false);
+const editEndpoint = ref('');
+const editInitial = ref<Record<string, string | number | null | undefined>>({});
+const pestEditFields: ReportEditField[] = [
+  { key: 'damage_by', label: 'Pest / Disease', required: true },
+  { key: 'area_damage_pct', label: 'Area Damage (%)', type: 'number', required: true },
+  { key: 'date_of_inspection', label: 'Date of Inspection', type: 'date', required: true },
+  { key: 'variety', label: 'Variety' },
+];
+
+function openEdit(entry: PestEntry) {
+  if (!entry.id) return;
+  editEndpoint.value = `/pest-monitoring/${entry.id}`;
+  editInitial.value = {
+    damage_by: entry.damage_by,
+    area_damage_pct: entry.area_damage_pct,
+    date_of_inspection: entry.date_of_inspection,
+    variety: entry.variety,
+  };
+  editOpen.value = true;
+}
 
 const printForm = () => {
   window.print();

@@ -128,7 +128,10 @@
           <ul v-if="entries.length" class="entry-actions">
             <li v-for="(e, i) in entries" :key="e.id">
               <span>{{ i + 1 }}. {{ e.surname }}, {{ e.first_name }} — {{ Number(e.area_planted).toFixed(2) }} ha</span>
-              <ion-button size="small" fill="clear" color="danger" @click="removeEntry(i)">Remove</ion-button>
+              <ReportRowActions
+                :can-edit="false"
+                @remove="promptDelete({ endpoint: `/planting-logs/${e.id}`, label: 'Planting entry', onSuccess: async () => { entries.splice(i, 1); } })"
+              />
             </li>
           </ul>
         </div>
@@ -143,6 +146,12 @@
         />
       </div>
     </component>
+
+    <ConfirmDeleteModal
+      :is-open="deleteOpen"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
+    />
   </component>
 </template>
 
@@ -168,6 +177,12 @@ import type { PlantingPrintMode } from '@/components/PlantingLedgerPrint.vue';
 import apiClient from '@/utils/axios';
 import { toast } from '@/utils/toast';
 import { capInputToPlot, plotSizeHa } from '@/utils/plotArea';
+import ReportRowActions from '@/components/ReportRowActions.vue';
+import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
+import { useReportRowActions } from '@/composables/useReportRowActions';
+import '@/assets/reportTableStyles.css';
+
+const { deleteOpen, promptDelete, cancelDelete, confirmDelete } = useReportRowActions();
 const PlantingLedgerPrint = defineAsyncComponent(() => import('@/components/PlantingLedgerPrint.vue'));
 
 withDefaults(defineProps<{ embedded?: boolean }>(), { embedded: false });

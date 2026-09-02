@@ -126,13 +126,14 @@
                   <th>Item / Amount Received</th>
                   <th>Date Claimed</th>
                   <th class="col-evidence no-print">Photo</th>
+                  <th class="no-print">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="!filteredRows.length">
-                  <td colspan="11" class="empty-row">No claimed subsidy records found for the selected filters.</td>
+                  <td colspan="12" class="empty-row">No claimed subsidy records found for the selected filters.</td>
                 </tr>
-                <tr v-for="(row, i) in filteredRows" :key="i">
+                <tr v-for="(row, i) in filteredRows" :key="row.id || i">
                   <td class="col-no">{{ i + 1 }}</td>
                   <td class="mono">{{ row.rsbsa_no }}</td>
                   <td>{{ row.surname || '—' }}</td>
@@ -153,10 +154,17 @@
                     />
                     <span v-else class="no-photo">—</span>
                   </td>
+                  <td class="no-print">
+                    <ReportRowActions
+                      v-if="row.id && !hideEncode"
+                      @edit="openEdit(row)"
+                      @remove="promptDelete({ endpoint: `/subsidies/beneficiaries/${row.id}`, label: 'Subsidy claim', onSuccess: fetchRows })"
+                    />
+                  </td>
                 </tr>
                 <tr v-if="filteredRows.length" class="totals-row">
                   <td colspan="8" class="totals-label">TOTALS</td>
-                  <td colspan="3">{{ subsidyTotalsLabel }}</td>
+                  <td colspan="4">{{ subsidyTotalsLabel }}</td>
                 </tr>
               </tbody>
             </table>
@@ -190,6 +198,23 @@
       kind="subsidy"
       @saved="fetchRows"
     />
+
+    <ReportInlineEditModal
+      :is-open="editOpen"
+      title="Edit subsidy claim"
+      :endpoint="editEndpoint"
+      :fields="subsidyEditFields"
+      :initial="editInitial"
+      @close="editOpen = false"
+      @saved="fetchRows"
+    />
+
+    <ConfirmDeleteModal
+      :is-open="deleteOpen"
+      message="This will void the claim and restock program inventory."
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
+    />
   </ion-page>
 </template>
 
@@ -205,6 +230,11 @@ import FormExportActions from '@/components/FormExportActions.vue';
 import { exportAdminGridExcel } from '@/utils/statutoryFormExcel';
 import apiClient from '@/utils/axios';
 import ReportEncodeModal from '@/components/ReportEncodeModal.vue';
+import ReportRowActions from '@/components/ReportRowActions.vue';
+import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
+import ReportInlineEditModal, { type ReportEditField } from '@/components/ReportInlineEditModal.vue';
+import { useReportRowActions } from '@/composables/useReportRowActions';
+import '@/assets/reportTableStyles.css';
 import MaoFormHeader from '@/components/MaoFormHeader.vue';
 import { cropLabel } from '@/utils/cropLabel';
 import { storageUrl } from '@/utils/storageUrl';
@@ -215,6 +245,7 @@ import { itemTypeLabel, type ItemType } from '@/constants/subsidyCatalog';
 const ITEM_TYPES: ItemType[] = ['seed', 'abono', 'liquid_fertilizer', 'wettable', 'cash'];
 
 interface SubsidyRow {
+  id?: string;
   rsbsa_no: string;
   surname?: string;
   first_name?: string;
@@ -287,6 +318,24 @@ const subsidyTotalsLabel = computed(() => {
     .join(' · ') || '0';
 });
 const encodeOpen = ref(false);
+const { deleteOpen, promptDelete, cancelDelete, confirmDelete } = useReportRowActions();
+const editOpen = ref(false);
+const editEndpoint = ref('');
+const editInitial = ref<Record<string, string | number | null | undefined>>({});
+const subsidyEditFields: ReportEditField[] = [
+  { key: 'claimed_at', label: 'Date Claimed', type: 'date', required: true },
+];
+
+function openEdit(row: SubsidyRow) {
+  if (!row.id) return;
+  editEndpoint.value = `/subsidies/beneficiaries/${row.id}`;
+  const d = row.date_claimed;
+  editInitial.value = {
+    claimed_at: d ? String(d).slice(0, 10) : '',
+  };
+  editOpen.value = true;
+}
+
 const { lockedBarangay, hideEncode, period, applyPeriod } = useReportScope();
 
 watch(lockedBarangay, (b) => {

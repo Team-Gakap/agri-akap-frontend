@@ -88,7 +88,7 @@
             <ion-icon :icon="locateOutline"></ion-icon>
             {{ state.latitude.toFixed(6) }}, {{ state.longitude!.toFixed(6) }}
           </p>
-          <p v-else class="hw-status muted">GPS not locked yet</p>
+          <p v-else class="hw-status muted">GPS will be captured with photo</p>
           <ion-button
             expand="block"
             class="action-btn"
@@ -96,7 +96,7 @@
             @click="lockGpsCoordinates"
           >
             <ion-icon slot="start" :icon="locateOutline"></ion-icon>
-            {{ lockingGps ? 'Acquiring GPS…' : 'Lock GPS Coordinates' }}
+            {{ lockingGps ? 'Acquiring GPS…' : 'Refresh GPS Coordinates' }}
           </ion-button>
         </ion-card-content>
       </ion-card>
@@ -213,7 +213,7 @@ import {
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import apiClient from '@/utils/axios';
 import { formatFarmerName } from '@/data/technicianDispatchQueues';
-import { fetchRealLocation } from '@/composables/useNativeHardware';
+import { captureGpsAtEvidenceTime, fetchRealLocation } from '@/composables/useNativeHardware';
 import { isOnline, isRetryableSyncError, queuePestReport, syncAllPendingData } from '@/services/syncService';
 import { loadPestCatalog, threatsForCrop } from '@/utils/pestCatalog';
 import { useSyncStore } from '@/stores/syncStore';
@@ -371,17 +371,19 @@ const capturePhotoEvidence = async () => {
     state.photoBase64 = base64;
     state.photoPreviewSrc = `data:image/${format};base64,${base64}`;
 
-    if (state.latitude == null) {
-      try {
-        const pos = await fetchRealLocation({ timeout: 8000 });
-        state.latitude = pos.coords.latitude;
-        state.longitude = pos.coords.longitude;
-      } catch (err) {
-        console.warn('[AGRI-AKAP] GPS optional on photo capture:', err);
-      }
+    try {
+      const pos = await captureGpsAtEvidenceTime({ timeout: 12000 });
+      state.latitude = pos.coords.latitude;
+      state.longitude = pos.coords.longitude;
+      await presentToast(
+        `Photo captured. GPS: ${state.latitude.toFixed(6)}, ${state.longitude!.toFixed(6)}`,
+        'success',
+        2500,
+      );
+    } catch (err) {
+      console.warn('[AGRI-AKAP] GPS capture on photo failed:', err);
+      await presentToast('Photo captured, but GPS unavailable. Tap Refresh GPS or enable location.', 'warning', 3000);
     }
-
-    await presentToast('Photo evidence captured. Review preview before submitting.');
   } catch (err) {
     console.warn('[AGRI-AKAP] Camera unavailable (web/native):', err);
     await presentToast('Camera unavailable. Check device permissions or try on a native build.', 'warning');

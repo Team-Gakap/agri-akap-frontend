@@ -89,7 +89,10 @@
                         alt="Evidence"
                         @click="viewingPhoto = e.photo_url!"
                       />
-                      <ion-button size="small" fill="clear" color="danger" @click="removeEntry(entries.indexOf(e))">Remove</ion-button>
+                      <ReportRowActions
+                        @edit="openEdit(e)"
+                        @remove="promptDelete({ endpoint: `/damage-assessments/${e.id}`, label: 'Calamity assessment', onSuccess: loadLedger })"
+                      />
                     </td>
                   </tr>
                 </tbody>
@@ -110,13 +113,34 @@
           <h3>Add Record</h3>
 
           <div class="event-bar">
-            <ion-input
+            <ion-select
               class="field grow"
-              label="Calamity Event Name"
+              label="Calamity Type"
+              label-placement="stacked"
+              interface="popover"
+              :value="form.calamity_type"
+              placeholder="Select calamity type"
+              @ionChange="(e: any) => form.calamity_type = e.detail.value"
+            >
+              <ion-select-option v-for="t in CALAMITY_TYPES" :key="t" :value="t">{{ t }}</ion-select-option>
+            </ion-select>
+            <ion-input
+              v-if="form.calamity_type !== CALAMITY_TYPE_OTHER"
+              class="field grow"
+              label="Event Name (optional)"
               label-placement="stacked"
               placeholder="e.g. Typhoon Kristine"
               :value="form.calamity_event"
               @ionInput="(e: any) => form.calamity_event = e.detail.value"
+            ></ion-input>
+            <ion-input
+              v-else
+              class="field grow"
+              label="Other Calamity Details"
+              label-placement="stacked"
+              placeholder="Describe the calamity"
+              :value="form.calamity_other_detail"
+              @ionInput="(e: any) => form.calamity_other_detail = e.detail.value"
             ></ion-input>
             <ion-input
               class="field"
@@ -237,6 +261,22 @@
         </div>
       </div>
     </component>
+
+    <ReportInlineEditModal
+      :is-open="editOpen"
+      title="Edit calamity assessment"
+      :endpoint="editEndpoint"
+      :fields="calamityEditFields"
+      :initial="editInitial"
+      @close="editOpen = false"
+      @saved="loadLedger"
+    />
+
+    <ConfirmDeleteModal
+      :is-open="deleteOpen"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
+    />
   </component>
 </template>
 
@@ -262,6 +302,16 @@ import { useActivePlanting, stageSelectValue, isHarvestReady } from '@/composabl
 import apiClient from '@/utils/axios';
 import { toast } from '@/utils/toast';
 import { storageUrl } from '@/utils/storageUrl';
+import {
+  CALAMITY_TYPES,
+  CALAMITY_TYPE_OTHER,
+  buildCalamityName,
+} from '@/constants/calamityTypes';
+import ReportRowActions from '@/components/ReportRowActions.vue';
+import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
+import ReportInlineEditModal, { type ReportEditField } from '@/components/ReportInlineEditModal.vue';
+import { useReportRowActions } from '@/composables/useReportRowActions';
+import '@/assets/reportTableStyles.css';
 
 const CalamityAssessmentPrint = defineAsyncComponent(() => import('@/components/CalamityAssessmentPrint.vue'));
 
@@ -283,6 +333,7 @@ function setViewMode(mode: 'ledger' | 'entry') {
 
 interface CalamityEntry {
   id: string;
+  calamity_type?: string;
   calamity_event: string;
   calamity_date: string;
   rsbsa_no: string;
@@ -351,7 +402,9 @@ const previewRows = computed(() =>
 const yieldLossManual = ref(false);
 
 const form = reactive({
+  calamity_type: '' as string,
   calamity_event: '',
+  calamity_other_detail: '',
   calamity_date: '',
   farmer_id: '',
   rsbsa_no: '',
@@ -370,7 +423,11 @@ const form = reactive({
   est_yield_loss_pct: '',
 });
 
-const previewEventName = computed(() => filteredEntries.value[0]?.calamity_event || entries.value[0]?.calamity_event || form.calamity_event || '');
+const previewEventName = computed(() => {
+  const first = filteredEntries.value[0] || entries.value[0];
+  if (first?.calamity_event) return first.calamity_event;
+  return buildCalamityName(form.calamity_type, form.calamity_event, form.calamity_other_detail);
+});
 const previewEventDate = computed(() => filteredEntries.value[0]?.calamity_date || entries.value[0]?.calamity_date || form.calamity_date || '');
 
 const computedYieldLoss = computed(() => {
@@ -388,28 +445,24 @@ const autoYieldHint = computed(() => {
     : `Auto-calculated from area damaged ÷ area planted (${computedYieldLoss.value}%).`;
 });
 
-const canAdd = computed(() =>
-  canEncode.value
-  && !!form.calamity_event
-  && !!form.calamity_date
-  && !!form.farmer_id
-  && !!form.plot_id
-  && !!form.variety.trim()
-  && !!form.area_planted
-  && !!form.area_damaged
-  && form.est_yield_loss_pct !== ''
-  && !saving.value
-);
+const canAdd = computed(() => {
+  const typeOk = !!form.calamity_type;
+  const otherOk = form.calamity_type !== CALAMITY_TYPE_OTHER || !!form.calamity_other_detail.trim();
+  return canEncode.value
+    && typeOk
+    && otherOk
+    && !!form.calamity_date
+    && !!form.farmer_id
+    && !!form.plot_id
+    && !!form.variety.trim()
+    && !!form.area_planted
+    && !!form.area_damaged
+    && form.est_yield_loss_pct !== ''
+    && !saving.value;
+});
 
-function inferCalamityType(name: string): string {
-  const n = name.toLowerCase();
-  if (n.includes('typhoon') || n.includes('bagyo')) return 'Typhoon';
-  if (n.includes('flood') || n.includes('baha')) return 'Flood';
-  if (n.includes('drought') || n.includes('el nino') || n.includes('elnino')) return 'Drought';
-  if (n.includes('pest')) return 'Pest Outbreak';
-  if (n.includes('hail')) return 'Hail';
-  return 'Other';
-}
+const calamityNameForSubmit = () =>
+  buildCalamityName(form.calamity_type, form.calamity_event, form.calamity_other_detail);
 
 const loadLedger = async () => {
   if (!effectiveBarangay.value) {
@@ -432,6 +485,7 @@ const loadLedger = async () => {
       const farmer = r.farmer || {};
       return {
         id: r.id,
+        calamity_type: r.calamity_type || '',
         calamity_event: r.calamity_name || r.calamity_type || '',
         calamity_date: r.date_of_calamity?.slice?.(0, 10) || r.date_of_calamity || '',
         rsbsa_no: farmer.rsbsa_no || '',
@@ -603,8 +657,8 @@ const addEntry = async () => {
       id,
       farm_plot_id: form.plot_id,
       farmer_id: form.farmer_id,
-      calamity_type: inferCalamityType(form.calamity_event),
-      calamity_name: form.calamity_event,
+      calamity_type: form.calamity_type,
+      calamity_name: calamityNameForSubmit(),
       crop_stage: form.crop_stage,
       variety: form.variety.trim(),
       area_destroyed_ha: Number(form.area_damaged),
@@ -616,7 +670,7 @@ const addEntry = async () => {
 
     entries.value.unshift({
       id,
-      calamity_event: form.calamity_event,
+      calamity_event: calamityNameForSubmit(),
       calamity_date: form.calamity_date,
       rsbsa_no: form.rsbsa_no,
       surname: form.surname,
@@ -648,14 +702,37 @@ const removeEntry = async (i: number) => {
     entries.value.splice(i, 1);
     return;
   }
-  try {
-    await apiClient.delete(`/damage-assessments/${row.id}`);
-    entries.value.splice(i, 1);
-    await toast.success('Calamity assessment removed.');
-  } catch (e: any) {
-    await toast.error(e?.response?.data?.message || 'Could not remove this assessment.');
-  }
+  promptDelete({
+    endpoint: `/damage-assessments/${row.id}`,
+    label: 'Calamity assessment',
+    onSuccess: loadLedger,
+  });
 };
+
+const { deleteOpen, promptDelete, cancelDelete, confirmDelete } = useReportRowActions();
+const editOpen = ref(false);
+const editEndpoint = ref('');
+const editInitial = ref<Record<string, string | number | null | undefined>>({});
+const calamityEditFields: ReportEditField[] = [
+  { key: 'calamity_type', label: 'Calamity Type', required: true },
+  { key: 'calamity_name', label: 'Event Name' },
+  { key: 'area_destroyed_ha', label: 'Area Damaged (ha)', type: 'number', required: true },
+  { key: 'damage_percentage', label: 'Yield Loss (%)', type: 'number', required: true },
+  { key: 'date_of_calamity', label: 'Date of Calamity', type: 'date', required: true },
+];
+
+function openEdit(entry: CalamityEntry) {
+  if (!entry.id) return;
+  editEndpoint.value = `/damage-assessments/${entry.id}`;
+  editInitial.value = {
+    calamity_type: entry.calamity_type || entry.calamity_event,
+    calamity_name: entry.calamity_event,
+    area_destroyed_ha: entry.area_damaged,
+    damage_percentage: entry.est_yield_loss_pct,
+    date_of_calamity: entry.calamity_date,
+  };
+  editOpen.value = true;
+}
 
 const printForm = () => {
   window.print();

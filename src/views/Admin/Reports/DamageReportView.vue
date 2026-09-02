@@ -55,12 +55,7 @@
             <label class="filter-label">Calamity Type</label>
             <select class="filter-select" v-model="filters.calamityType" @change="fetchRows">
               <option value="">All Types</option>
-              <option value="Flood">Flood</option>
-              <option value="Drought">Drought</option>
-              <option value="Typhoon">Typhoon</option>
-              <option value="Pest">Pest</option>
-              <option value="Fire">Fire</option>
-              <option value="Other">Other</option>
+              <option v-for="t in CALAMITY_TYPES" :key="t" :value="t">{{ t }}</option>
             </select>
           </div>
           <div class="filter-group">
@@ -138,13 +133,14 @@
                   <th class="col-num">Damage Value (PHP)</th>
                   <th>Status</th>
                   <th class="col-evidence no-print">Evidence</th>
+                  <th class="no-print">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="!filteredRows.length">
-                  <td colspan="13" class="empty-row">No damage &amp; calamity records match the current filters.</td>
+                  <td colspan="14" class="empty-row">No damage &amp; calamity records match the current filters.</td>
                 </tr>
-                <tr v-for="(row, i) in filteredRows" :key="i">
+                <tr v-for="(row, i) in filteredRows" :key="row.id || i">
                   <td class="col-no">{{ i + 1 }}</td>
                   <td class="mono">{{ fmtDate(row.date_reported) }}</td>
                   <td>{{ row.barangay }}</td>
@@ -172,6 +168,14 @@
                     />
                     <span v-else class="no-photo">—</span>
                   </td>
+                  <td class="no-print">
+                    <ReportRowActions
+                      v-if="row.id && !hideEncode"
+                      :can-edit="row.status === 'Pending'"
+                      @edit="openEdit(row)"
+                      @remove="promptDelete({ endpoint: `/damage-assessments/${row.id}`, label: 'Damage record', onSuccess: fetchRows })"
+                    />
+                  </td>
                 </tr>
               </tbody>
               <!-- Totals row -->
@@ -180,7 +184,7 @@
                   <td colspan="9" class="totals-label">TOTALS</td>
                   <td class="col-num">{{ totalAreaAffected }}</td>
                   <td class="col-num">{{ totalDamageValue }}</td>
-                  <td colspan="2"></td>
+                  <td colspan="3"></td>
                 </tr>
               </tfoot>
             </table>
@@ -230,6 +234,22 @@
       :form-component="DamageForm"
       @saved="fetchRows"
     />
+
+    <ReportInlineEditModal
+      :is-open="editOpen"
+      title="Edit damage record"
+      :endpoint="editEndpoint"
+      :fields="damageEditFields"
+      :initial="editInitial"
+      @close="editOpen = false"
+      @saved="fetchRows"
+    />
+
+    <ConfirmDeleteModal
+      :is-open="deleteOpen"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
+    />
   </ion-page>
 </template>
 
@@ -246,13 +266,20 @@ import { exportAdminGridExcel } from '@/utils/statutoryFormExcel';
 import apiClient from '@/utils/axios';
 import { storageUrl } from '@/utils/storageUrl';
 import ReportEncodeModal from '@/components/ReportEncodeModal.vue';
+import ReportRowActions from '@/components/ReportRowActions.vue';
+import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
+import ReportInlineEditModal, { type ReportEditField } from '@/components/ReportInlineEditModal.vue';
+import { useReportRowActions } from '@/composables/useReportRowActions';
+import '@/assets/reportTableStyles.css';
 import MaoFormHeader from '@/components/MaoFormHeader.vue';
 import { useReportScope, type ReportPeriod } from '@/composables/useReportScope';
+import { CALAMITY_TYPES } from '@/constants/calamityTypes';
 import { rowMatchesNameSearch } from '@/utils/farmerNameColumns';
 
 const DamageForm = defineAsyncComponent(() => import('@/views/Barangay/CalamityAssessmentLogView.vue'));
 
 interface DamageRow {
+  id?: string;
   date_reported: string;
   barangay: string;
   surname?: string;
@@ -263,6 +290,7 @@ interface DamageRow {
   crop: string;
   calamity_type: string;
   area_affected: number;
+  damage_percentage?: number;
   damage_value: number;
   status: string;
   photo_base64?: string;
@@ -286,6 +314,30 @@ const filters = reactive({
 });
 
 const encodeOpen = ref(false);
+const { deleteOpen, promptDelete, cancelDelete, confirmDelete } = useReportRowActions();
+const editOpen = ref(false);
+const editEndpoint = ref('');
+const editInitial = ref<Record<string, string | number | null | undefined>>({});
+const damageEditFields: ReportEditField[] = [
+  { key: 'calamity_type', label: 'Calamity Type', required: true },
+  { key: 'calamity_name', label: 'Event Name' },
+  { key: 'area_destroyed_ha', label: 'Area Damaged (ha)', type: 'number', required: true },
+  { key: 'damage_percentage', label: 'Yield Loss (%)', type: 'number', required: true },
+  { key: 'date_of_calamity', label: 'Date of Calamity', type: 'date', required: true },
+];
+
+function openEdit(row: DamageRow) {
+  if (!row.id) return;
+  editEndpoint.value = `/damage-assessments/${row.id}`;
+  editInitial.value = {
+    calamity_type: row.calamity_type,
+    area_destroyed_ha: row.area_affected,
+    damage_percentage: row.damage_percentage,
+    date_of_calamity: row.date_reported,
+  };
+  editOpen.value = true;
+}
+
 const searchQuery = ref('');
 const { lockedBarangay, hideEncode, period, applyPeriod } = useReportScope();
 

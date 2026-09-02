@@ -22,20 +22,40 @@
         <ion-card-content>
           <ion-item v-if="!dispatchedFromQueue" class="field-item" lines="none">
             <ion-select
-              label="Select Active Calamity"
+              label="Calamity Type"
               label-placement="stacked"
               interface="action-sheet"
-              :value="state.calamityEvent"
-              placeholder="Choose active calamity"
-              @ionChange="(e: CustomEvent) => state.calamityEvent = e.detail.value"
+              :value="state.calamityType"
+              placeholder="Select calamity type"
+              @ionChange="(e: CustomEvent) => state.calamityType = e.detail.value"
             >
-              <ion-select-option v-for="c in activeCalamities" :key="c" :value="c">{{ c }}</ion-select-option>
+              <ion-select-option v-for="t in CALAMITY_TYPES" :key="t" :value="t">{{ t }}</ion-select-option>
             </ion-select>
+          </ion-item>
+
+          <ion-item v-if="!dispatchedFromQueue && state.calamityType && state.calamityType !== CALAMITY_TYPE_OTHER" class="field-item" lines="none">
+            <ion-input
+              label="Event Name (optional)"
+              label-placement="stacked"
+              placeholder="e.g. Typhoon Kristine"
+              :value="state.calamityEvent"
+              @ionInput="(e: CustomEvent) => state.calamityEvent = e.detail.value ?? ''"
+            ></ion-input>
+          </ion-item>
+
+          <ion-item v-if="!dispatchedFromQueue && state.calamityType === CALAMITY_TYPE_OTHER" class="field-item" lines="none">
+            <ion-input
+              label="Other Calamity Details"
+              label-placement="stacked"
+              placeholder="Describe the calamity"
+              :value="state.calamityOtherDetail"
+              @ionInput="(e: CustomEvent) => state.calamityOtherDetail = e.detail.value ?? ''"
+            ></ion-input>
           </ion-item>
 
           <div v-if="dispatchedFromQueue" class="dispatched-banner">
             <p class="dispatched-label">Barangay-encoded report</p>
-            <p v-if="state.calamityEvent" class="dispatched-event">{{ state.calamityEvent }}</p>
+            <p v-if="state.calamityType" class="dispatched-event">{{ state.calamityType }}<span v-if="state.calamityEvent"> · {{ state.calamityEvent }}</span></p>
             <p v-if="state.farmerName || state.barangay" class="dispatched-meta">{{ state.farmerName }} · {{ state.barangay }}</p>
           </div>
 
@@ -178,10 +198,10 @@
             <ion-icon :icon="locateOutline"></ion-icon>
             {{ state.latitude.toFixed(6) }}, {{ state.longitude!.toFixed(6) }}
           </p>
-          <p v-else class="status-line muted">GPS not locked</p>
+          <p v-else class="status-line muted">GPS will be captured with photo</p>
           <ion-button expand="block" class="action-btn" :disabled="lockingGps" @click="lockGps">
             <ion-icon slot="start" :icon="locateOutline"></ion-icon>
-            {{ lockingGps ? 'Acquiring GPS…' : 'Lock GPS Coordinates' }}
+            {{ lockingGps ? 'Acquiring GPS…' : 'Refresh GPS Coordinates' }}
           </ion-button>
 
           <img v-if="state.photoDataUrl" :src="state.photoDataUrl" alt="Disaster evidence" class="photo-preview" />
@@ -232,8 +252,8 @@ import {
 import {
   locateOutline, cameraOutline, checkmarkCircleOutline, alertCircleOutline,
 } from 'ionicons/icons';
-import { Geolocation } from '@capacitor/geolocation';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+import { captureGpsAtEvidenceTime, fetchRealLocation } from '@/composables/useNativeHardware';
 import {
   useBarangayFarmerSearch,
   type FarmerOption,
@@ -246,11 +266,18 @@ import apiClient from '@/utils/axios';
 import { formatFarmerName } from '@/data/technicianDispatchQueues';
 import { isOnline, isRetryableSyncError, queueAssessment, syncAllPendingData, getCachedQueueList } from '@/services/syncService';
 import { useSyncStore } from '@/stores/syncStore';
+import {
+  CALAMITY_TYPES,
+  CALAMITY_TYPE_OTHER,
+  buildCalamityName,
+} from '@/constants/calamityTypes';
 
 interface CalamityAssessmentState {
   assessmentId: string;
   farmPlotId: string;
+  calamityType: string;
   calamityEvent: string;
+  calamityOtherDetail: string;
   farmerId: string;
   farmerName: string;
   rsbsaNo: string;
@@ -268,14 +295,6 @@ interface CalamityAssessmentState {
   photoDataUrl: string | null;
 }
 
-const activeCalamities = [
-  'Typhoon Kristine',
-  'Typhoon Egay',
-  'Flash Flood Event',
-  'Prolonged Drought',
-  'Hailstorm',
-];
-
 const route = useRoute();
 const router = useRouter();
 const syncStore = useSyncStore();
@@ -292,7 +311,9 @@ const submitting = ref(false);
 const state = reactive<CalamityAssessmentState>({
   assessmentId: '',
   farmPlotId: '',
+  calamityType: '',
   calamityEvent: '',
+  calamityOtherDetail: '',
   farmerId: '',
   farmerName: '',
   rsbsaNo: '',
@@ -342,17 +363,20 @@ const reliefAllocation = computed(() => {
   return { seedBags, fertilizerSacks };
 });
 
-const canSubmit = computed(() =>
-  !!state.calamityEvent
-  && !!state.farmerId
-  && rsbsaEligible.value
-  && (!!state.variety || !!state.assessmentId)
-  && !!state.areaPlanted
-  && !!state.areaDamaged
-  && Number(state.valueLost) > 0
-  && state.latitude != null
-  && !!state.photoDataUrl
-);
+const canSubmit = computed(() => {
+  const typeOk = !!state.calamityType;
+  const otherOk = state.calamityType !== CALAMITY_TYPE_OTHER || !!state.calamityOtherDetail.trim();
+  return typeOk
+    && otherOk
+    && !!state.farmerId
+    && rsbsaEligible.value
+    && (!!state.variety || !!state.assessmentId)
+    && !!state.areaPlanted
+    && !!state.areaDamaged
+    && Number(state.valueLost) > 0
+    && state.latitude != null
+    && !!state.photoDataUrl;
+});
 
 const dispatchedFromQueue = computed(() => route.query.from === 'queue');
 const backHref = computed(() => (dispatchedFromQueue.value ? '/tech/calamity-queue' : '/tech/dashboard'));
@@ -362,8 +386,16 @@ const applyAssessment = (r: any) => {
   const plot = r.farm_plot || r.farmPlot || {};
   state.assessmentId = r.id || state.assessmentId;
   state.farmPlotId = r.farm_plot_id || plot.id || state.farmPlotId;
-  const event = String(r.calamity_name || r.calamity_type || '').trim();
-  if (event && event !== '.') state.calamityEvent = event;
+  const event = String(r.calamity_name || '').trim();
+  const type = String(r.calamity_type || '').trim();
+  if (type) state.calamityType = type;
+  if (event && event !== '.') {
+    if (type === CALAMITY_TYPE_OTHER) {
+      state.calamityOtherDetail = event;
+    } else if (event !== type) {
+      state.calamityEvent = event;
+    }
+  }
   state.farmerId = r.farmer_id || farmer.id || state.farmerId;
   const name = formatFarmerName(farmer);
   if (name && name !== 'Unknown farmer') state.farmerName = name;
@@ -533,12 +565,12 @@ const onAreaDamagedInput = (e: CustomEvent) => {
 const lockGps = async () => {
   lockingGps.value = true;
   try {
-    const pos = await Geolocation.getCurrentPosition({ enableHighAccuracy: true, timeout: 12000 });
+    const pos = await fetchRealLocation({ timeout: 12000 });
     state.latitude = pos.coords.latitude;
     state.longitude = pos.coords.longitude;
-    await presentToast('GPS coordinates locked.', 'success', 2000);
+    await presentToast('GPS coordinates refreshed.', 'success', 2000);
   } catch {
-    await presentToast('Unable to lock GPS. Enable location services.', 'warning');
+    await presentToast('Unable to refresh GPS. Enable location services.', 'warning');
   } finally {
     lockingGps.value = false;
   }
@@ -554,13 +586,27 @@ const capturePhoto = async () => {
       source: CameraSource.Camera,
     });
     state.photoDataUrl = photo.dataUrl || null;
-    await presentToast('Disaster photo captured.', 'success', 2000);
+    try {
+      const pos = await captureGpsAtEvidenceTime({ timeout: 12000 });
+      state.latitude = pos.coords.latitude;
+      state.longitude = pos.coords.longitude;
+      await presentToast(
+        `Photo captured. GPS: ${state.latitude.toFixed(6)}, ${state.longitude!.toFixed(6)}`,
+        'success',
+        2500,
+      );
+    } catch {
+      await presentToast('Photo captured, but GPS unavailable. Tap Refresh GPS or enable location.', 'warning', 3000);
+    }
   } catch {
     await presentToast('Camera unavailable. Check permissions.', 'warning');
   } finally {
     capturingPhoto.value = false;
   }
 };
+
+const calamityNameForSubmit = () =>
+  buildCalamityName(state.calamityType, state.calamityEvent, state.calamityOtherDetail);
 
 const submitAssessment = async () => {
   if (!canSubmit.value || submitting.value) return;
@@ -577,8 +623,8 @@ const submitAssessment = async () => {
       farm_plot_id: state.farmPlotId,
       farmer_id: state.farmerId || undefined,
       farmer_name: state.farmerName || undefined,
-      calamity_type: inferCalamityType(state.calamityEvent),
-      calamity_name: state.calamityEvent,
+      calamity_type: state.calamityType,
+      calamity_name: calamityNameForSubmit(),
       crop_stage: state.cropStage || undefined,
       variety: state.variety || undefined,
       area_planted_ha: Number(state.areaPlanted) || 0,
@@ -616,8 +662,8 @@ const submitAssessment = async () => {
           id: crypto.randomUUID(),
           farm_plot_id: state.farmPlotId || undefined,
           farmer_id: state.farmerId || undefined,
-          calamity_type: inferCalamityType(state.calamityEvent),
-          calamity_name: state.calamityEvent,
+          calamity_type: state.calamityType,
+          calamity_name: calamityNameForSubmit(),
           crop_stage: state.cropStage || undefined,
           variety: state.variety || undefined,
           area_destroyed_ha: Number(state.areaDamaged) || 0,
@@ -647,16 +693,6 @@ const submitAssessment = async () => {
     submitting.value = false;
   }
 };
-
-function inferCalamityType(name: string): string {
-  const n = name.toLowerCase();
-  if (n.includes('typhoon') || n.includes('bagyo')) return 'Typhoon';
-  if (n.includes('flood') || n.includes('baha')) return 'Flood';
-  if (n.includes('drought') || n.includes('el nino') || n.includes('elnino')) return 'Drought';
-  if (n.includes('pest')) return 'Pest Outbreak';
-  if (n.includes('hail')) return 'Hail';
-  return 'Other';
-}
 </script>
 
 <style scoped>

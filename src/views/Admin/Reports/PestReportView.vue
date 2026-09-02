@@ -109,13 +109,14 @@
                   <th class="col-num">Area Affected (ha)</th>
                   <th>Status</th>
                   <th class="col-evidence no-print">Evidence</th>
+                  <th class="no-print">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="!filteredRows.length">
-                  <td colspan="13" class="empty-row">No pest surveillance records match the current filters.</td>
+                  <td colspan="14" class="empty-row">No pest surveillance records match the current filters.</td>
                 </tr>
-                <tr v-for="(row, i) in filteredRows" :key="i">
+                <tr v-for="(row, i) in filteredRows" :key="row.id || i">
                   <td class="col-no">{{ i + 1 }}</td>
                   <td class="mono">{{ fmtDate(row.date_reported) }}</td>
                   <td>{{ row.barangay }}</td>
@@ -143,11 +144,19 @@
                     />
                     <span v-else class="no-photo">—</span>
                   </td>
+                  <td class="no-print">
+                    <ReportRowActions
+                      v-if="row.id && !hideEncode"
+                      :can-edit="row.status === 'Pending'"
+                      @edit="openEdit(row)"
+                      @remove="promptDelete({ endpoint: `/pest-monitoring/${row.id}`, label: 'Pest record', onSuccess: fetchRows })"
+                    />
+                  </td>
                 </tr>
                 <tr v-if="filteredRows.length" class="totals-row">
                   <td colspan="10" class="totals-label">TOTALS</td>
                   <td class="col-num">{{ totalAreaAffected }}</td>
-                  <td colspan="2"></td>
+                  <td colspan="3"></td>
                 </tr>
               </tbody>
             </table>
@@ -197,6 +206,22 @@
       :form-component="PestForm"
       @saved="fetchRows"
     />
+
+    <ReportInlineEditModal
+      :is-open="editOpen"
+      title="Edit pest record"
+      :endpoint="editEndpoint"
+      :fields="pestEditFields"
+      :initial="editInitial"
+      @close="editOpen = false"
+      @saved="fetchRows"
+    />
+
+    <ConfirmDeleteModal
+      :is-open="deleteOpen"
+      @confirm="confirmDelete"
+      @cancel="cancelDelete"
+    />
   </ion-page>
 </template>
 
@@ -213,6 +238,11 @@ import { exportAdminGridExcel } from '@/utils/statutoryFormExcel';
 import apiClient from '@/utils/axios';
 import { storageUrl } from '@/utils/storageUrl';
 import ReportEncodeModal from '@/components/ReportEncodeModal.vue';
+import ReportRowActions from '@/components/ReportRowActions.vue';
+import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
+import ReportInlineEditModal, { type ReportEditField } from '@/components/ReportInlineEditModal.vue';
+import { useReportRowActions } from '@/composables/useReportRowActions';
+import '@/assets/reportTableStyles.css';
 import MaoFormHeader from '@/components/MaoFormHeader.vue';
 import { useReportScope, type ReportPeriod } from '@/composables/useReportScope';
 import { rowMatchesNameSearch } from '@/utils/farmerNameColumns';
@@ -220,6 +250,7 @@ import { rowMatchesNameSearch } from '@/utils/farmerNameColumns';
 const PestForm = defineAsyncComponent(() => import('@/views/Barangay/PestMonitoringView.vue'));
 
 interface PestRow {
+  id?: string;
   date_reported: string;
   barangay: string;
   surname?: string;
@@ -252,6 +283,28 @@ const filters = reactive({
 });
 
 const encodeOpen = ref(false);
+const { deleteOpen, promptDelete, cancelDelete, confirmDelete } = useReportRowActions();
+const editOpen = ref(false);
+const editEndpoint = ref('');
+const editInitial = ref<Record<string, string | number | null | undefined>>({});
+const pestEditFields: ReportEditField[] = [
+  { key: 'damage_by', label: 'Pest / Disease', required: true },
+  { key: 'area_damage_pct', label: 'Area Damage (%)', type: 'number', required: true },
+  { key: 'date_of_inspection', label: 'Date of Inspection', type: 'date', required: true },
+  { key: 'variety', label: 'Variety' },
+];
+
+function openEdit(row: PestRow) {
+  if (!row.id) return;
+  editEndpoint.value = `/pest-monitoring/${row.id}`;
+  editInitial.value = {
+    damage_by: row.pest_disease,
+    area_damage_pct: row.area_affected,
+    date_of_inspection: row.date_reported,
+  };
+  editOpen.value = true;
+}
+
 const searchQuery = ref('');
 const { lockedBarangay, hideEncode, period, applyPeriod } = useReportScope();
 

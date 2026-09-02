@@ -86,11 +86,12 @@
               <th class="col-num">Area (ha)</th>
               <th>Growth Stage</th>
               <th>Est. Harvest</th>
+              <th class="no-print">Actions</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="!filteredRows.length">
-              <td colspan="11" class="empty-row">No standing crop records match the current filters.</td>
+              <td colspan="12" class="empty-row">No standing crop records match the current filters.</td>
             </tr>
             <tr v-for="(row, i) in filteredRows" :key="row.id || i">
               <td class="col-no">{{ i + 1 }}</td>
@@ -104,11 +105,18 @@
               <td class="col-num">{{ fmtNum(row.area_ha) }}</td>
               <td>{{ row.growth_stage }}</td>
               <td class="mono">{{ fmtDate(row.est_harvest_date) }}</td>
+              <td class="no-print">
+                <ReportRowActions
+                  v-if="row.id && !hideEncode"
+                  @edit="openEdit(row)"
+                  @remove="promptDelete({ endpoint: `/standing-crop-logs/${row.id}`, label: 'Standing crop record', onSuccess: fetchRows })"
+                />
+              </td>
             </tr>
             <tr v-if="filteredRows.length" class="totals-row">
               <td colspan="8" class="totals-label">TOTALS</td>
               <td class="col-num">{{ totalAreaHa }}</td>
-              <td colspan="2"></td>
+              <td colspan="3"></td>
             </tr>
           </tbody>
         </table>
@@ -123,6 +131,22 @@
     :form-component="StandingForm"
     @saved="fetchRows"
   />
+
+  <ReportInlineEditModal
+    :is-open="editOpen"
+    title="Edit standing crop record"
+    :endpoint="editEndpoint"
+    :fields="standingEditFields"
+    :initial="editInitial"
+    @close="editOpen = false"
+    @saved="fetchRows"
+  />
+
+  <ConfirmDeleteModal
+    :is-open="deleteOpen"
+    @confirm="confirmDelete"
+    @cancel="cancelDelete"
+  />
 </template>
 
 <script setup lang="ts">
@@ -133,6 +157,11 @@ import FormExportActions from '@/components/FormExportActions.vue';
 import { exportAdminGridExcel } from '@/utils/statutoryFormExcel';
 import apiClient from '@/utils/axios';
 import ReportEncodeModal from '@/components/ReportEncodeModal.vue';
+import ReportRowActions from '@/components/ReportRowActions.vue';
+import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
+import ReportInlineEditModal, { type ReportEditField } from '@/components/ReportInlineEditModal.vue';
+import { useReportRowActions } from '@/composables/useReportRowActions';
+import '@/assets/reportTableStyles.css';
 import { useReportScope, type ReportPeriod } from '@/composables/useReportScope';
 import { rowMatchesNameSearch } from '@/utils/farmerNameColumns';
 
@@ -158,6 +187,29 @@ const loadError = ref('');
 const rows = ref<StandingRow[]>([]);
 const barangays = ref<string[]>([]);
 const encodeOpen = ref(false);
+const { deleteOpen, promptDelete, cancelDelete, confirmDelete } = useReportRowActions();
+const editOpen = ref(false);
+const editEndpoint = ref('');
+const editInitial = ref<Record<string, string | number | null | undefined>>({});
+const standingEditFields: ReportEditField[] = [
+  { key: 'variety', label: 'Variety', required: true },
+  { key: 'area_ha', label: 'Area (ha)', type: 'number', required: true },
+  { key: 'growth_stage', label: 'Growth Stage' },
+  { key: 'est_harvest_date', label: 'Est. Harvest Date', type: 'date', required: true },
+];
+
+function openEdit(row: StandingRow) {
+  if (!row.id) return;
+  editEndpoint.value = `/standing-crop-logs/${row.id}`;
+  editInitial.value = {
+    variety: row.variety,
+    area_ha: row.area_ha,
+    growth_stage: row.growth_stage,
+    est_harvest_date: row.est_harvest_date,
+  };
+  editOpen.value = true;
+}
+
 const filters = reactive({ barangay: '', cropType: '', growthStage: '', dateFrom: '', dateTo: '' });
 const searchQuery = ref('');
 const { lockedBarangay, hideEncode, period, applyPeriod } = useReportScope();
