@@ -104,7 +104,8 @@
                   <th>Middle Name</th>
                   <th>Farm Location</th>
                   <th>Crop</th>
-                  <th>Pest / Disease</th>
+                  <th>Pest</th>
+                  <th>Disease</th>
                   <th>Severity</th>
                   <th class="col-num">Area Affected (ha)</th>
                   <th>Status</th>
@@ -114,7 +115,7 @@
               </thead>
               <tbody>
                 <tr v-if="!filteredRows.length">
-                  <td colspan="14" class="empty-row">No pest surveillance records match the current filters.</td>
+                  <td colspan="15" class="empty-row">No pest surveillance records match the current filters.</td>
                 </tr>
                 <tr v-for="(row, i) in filteredRows" :key="row.id || i">
                   <td class="col-no">{{ i + 1 }}</td>
@@ -125,7 +126,8 @@
                   <td>{{ row.middle_name || '—' }}</td>
                   <td>{{ row.farm_location }}</td>
                   <td>{{ row.crop }}</td>
-                  <td>{{ row.pest_disease }}</td>
+                  <td>{{ pestParts(row).pest || '—' }}</td>
+                  <td>{{ pestParts(row).disease || '—' }}</td>
                   <td>
                     <span class="severity-pill" :class="severityClass(row.severity)">{{ row.severity }}</span>
                   </td>
@@ -148,13 +150,19 @@
                     <ReportRowActions
                       v-if="row.id && !hideEncode"
                       :can-edit="row.status === 'Pending'"
+                      :can-remove="row.status === 'Pending' || authStore.isMunicipalAdmin"
                       @edit="openEdit(row)"
-                      @remove="promptDelete({ endpoint: `/pest-monitoring/${row.id}`, label: 'Pest record', onSuccess: fetchRows })"
+                      @remove="promptDelete({
+                        endpoint: `/pest-monitoring/${row.id}`,
+                        label: 'Pest record',
+                        requireRemarks: row.status !== 'Pending',
+                        onSuccess: fetchRows,
+                      })"
                     />
                   </td>
                 </tr>
                 <tr v-if="filteredRows.length" class="totals-row">
-                  <td colspan="10" class="totals-label">TOTALS</td>
+                  <td colspan="11" class="totals-label">TOTALS</td>
                   <td class="col-num">{{ totalAreaAffected }}</td>
                   <td colspan="3"></td>
                 </tr>
@@ -179,7 +187,7 @@
               <img :src="photoSrc(row)!" class="annex-img" alt="Evidence" />
               <p class="annex-caption">
                 #{{ filteredRows.indexOf(row) + 1 }} · {{ row.farmer_name }}<br />
-                {{ row.pest_disease }} · {{ row.barangay }} · {{ fmtDate(row.date_reported) }}
+                {{ pestParts(row).pest || pestParts(row).disease || row.pest_disease }} · {{ row.barangay }} · {{ fmtDate(row.date_reported) }}
               </p>
             </div>
           </div>
@@ -246,6 +254,8 @@ import '@/assets/reportTableStyles.css';
 import MaoFormHeader from '@/components/MaoFormHeader.vue';
 import { useReportScope, type ReportPeriod } from '@/composables/useReportScope';
 import { rowMatchesNameSearch } from '@/utils/farmerNameColumns';
+import { splitDamageBy, threatsForCrop } from '@/utils/pestCatalog';
+import { useAuthStore } from '@/stores/authStore';
 
 const PestForm = defineAsyncComponent(() => import('@/views/Barangay/PestMonitoringView.vue'));
 
@@ -259,9 +269,11 @@ interface PestRow {
   farmer_name?: string;
   farm_location: string;
   crop: string;
+  variety?: string;
   pest_disease: string;
   severity: string;
   area_affected?: number;
+  area_damage_pct?: number;
   status: string;
   photo_base64?: string;
   photo_url?: string;
@@ -283,24 +295,51 @@ const filters = reactive({
 });
 
 const encodeOpen = ref(false);
+const authStore = useAuthStore();
 const { deleteOpen, promptDelete, cancelDelete, confirmDelete } = useReportRowActions();
 const editOpen = ref(false);
 const editEndpoint = ref('');
 const editInitial = ref<Record<string, string | number | null | undefined>>({});
-const pestEditFields: ReportEditField[] = [
-  { key: 'damage_by', label: 'Pest / Disease', required: true },
-  { key: 'area_damage_pct', label: 'Area Damage (%)', type: 'number', required: true },
-  { key: 'date_of_inspection', label: 'Date of Inspection', type: 'date', required: true },
-  { key: 'variety', label: 'Variety' },
-];
+const pestEditFields = ref<ReportEditField[]>([]);
+
+function pestParts(row: PestRow) {
+  return splitDamageBy(row.pest_disease, row.crop);
+}
 
 function openEdit(row: PestRow) {
   if (!row.id) return;
+  const threats = threatsForCrop(row.crop);
+  const parts = pestParts(row);
   editEndpoint.value = `/pest-monitoring/${row.id}`;
+  pestEditFields.value = [
+    {
+      key: 'pest',
+      label: 'Pest',
+      type: 'select',
+      options: threats.pests,
+      placeholder: 'Select pest',
+      virtual: true,
+    },
+    {
+      key: 'disease',
+      label: 'Disease',
+      type: 'select',
+      options: threats.diseases,
+      placeholder: 'Select disease',
+      virtual: true,
+    },
+    { key: 'area_damage_pct', label: 'Area Damage (%)', type: 'number', required: true },
+    { key: 'date_of_inspection', label: 'Date of Inspection', type: 'date', required: true },
+    { key: 'variety', label: 'Variety', type: 'variety' },
+  ];
   editInitial.value = {
-    damage_by: row.pest_disease,
-    area_damage_pct: row.area_affected,
+    crop: row.crop,
+    crop_type: row.crop,
+    pest: parts.pest,
+    disease: parts.disease,
+    area_damage_pct: row.area_damage_pct ?? row.area_affected,
     date_of_inspection: row.date_reported,
+    variety: row.variety,
   };
   editOpen.value = true;
 }
@@ -432,7 +471,8 @@ async function downloadExcel() {
       { key: 'middle_name', label: 'Middle Name' },
       { key: 'farm_location', label: 'Farm Location' },
       { key: 'crop', label: 'Crop' },
-      { key: 'pest_disease', label: 'Pest / Disease' },
+      { key: 'pest', label: 'Pest' },
+      { key: 'disease', label: 'Disease' },
       { key: 'severity', label: 'Severity' },
       { key: 'area_affected', label: 'Area Affected (ha)' },
       { key: 'status', label: 'Status' },
@@ -442,6 +482,8 @@ async function downloadExcel() {
       if (key === 'no') return index + 1;
       if (key === 'date_reported') return fmtDate(String(row.date_reported ?? ''));
       if (key === 'area_affected') return fmtNum(row.area_affected as number);
+      if (key === 'pest') return pestParts(row as unknown as PestRow).pest;
+      if (key === 'disease') return pestParts(row as unknown as PestRow).disease;
       return String(row[key] ?? '');
     },
   });

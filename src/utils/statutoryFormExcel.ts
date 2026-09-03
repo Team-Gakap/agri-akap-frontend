@@ -85,7 +85,8 @@ export async function exportPestMonitoringExcel(params: {
       { key: 'days_after_planting', label: 'DAYS AFTER PLANTING' },
       { key: 'variety', label: 'VARIETY' },
       { key: 'area_damage_pct', label: 'AREA DAMAGE (%)' },
-      { key: 'damage_by', label: 'DAMAGE BY PEST/DISEASES' },
+      { key: 'pest', label: 'PEST' },
+      { key: 'disease', label: 'DISEASE' },
     ],
     params.rows,
   );

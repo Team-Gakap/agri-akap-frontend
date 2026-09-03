@@ -164,6 +164,7 @@ import { useReportRowActions } from '@/composables/useReportRowActions';
 import '@/assets/reportTableStyles.css';
 import { useReportScope, type ReportPeriod } from '@/composables/useReportScope';
 import { rowMatchesNameSearch } from '@/utils/farmerNameColumns';
+import { GROWTH_STAGE_OPTIONS } from '@/constants/reportEditOptions';
 
 const StandingForm = defineAsyncComponent(() => import('@/views/Barangay/StandingCropLogView.vue'));
 
@@ -192,9 +193,14 @@ const editOpen = ref(false);
 const editEndpoint = ref('');
 const editInitial = ref<Record<string, string | number | null | undefined>>({});
 const standingEditFields: ReportEditField[] = [
-  { key: 'variety', label: 'Variety', required: true },
+  { key: 'variety', label: 'Variety', type: 'variety', required: true },
   { key: 'area_ha', label: 'Area (ha)', type: 'number', required: true },
-  { key: 'growth_stage', label: 'Growth Stage' },
+  {
+    key: 'growth_stage',
+    label: 'Growth Stage',
+    type: 'select',
+    options: [...GROWTH_STAGE_OPTIONS],
+  },
   { key: 'est_harvest_date', label: 'Est. Harvest Date', type: 'date', required: true },
 ];
 
@@ -202,6 +208,8 @@ function openEdit(row: StandingRow) {
   if (!row.id) return;
   editEndpoint.value = `/standing-crop-logs/${row.id}`;
   editInitial.value = {
+    crop: row.crop,
+    crop_type: row.crop,
     variety: row.variety,
     area_ha: row.area_ha,
     growth_stage: row.growth_stage,

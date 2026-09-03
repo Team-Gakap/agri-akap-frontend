@@ -172,8 +172,14 @@
                     <ReportRowActions
                       v-if="row.id && !hideEncode"
                       :can-edit="row.status === 'Pending'"
+                      :can-remove="row.status === 'Pending' || authStore.isMunicipalAdmin"
                       @edit="openEdit(row)"
-                      @remove="promptDelete({ endpoint: `/damage-assessments/${row.id}`, label: 'Damage record', onSuccess: fetchRows })"
+                      @remove="promptDelete({
+                        endpoint: `/damage-assessments/${row.id}`,
+                        label: 'Damage record',
+                        requireRemarks: row.status !== 'Pending',
+                        onSuccess: fetchRows,
+                      })"
                     />
                   </td>
                 </tr>
@@ -273,8 +279,9 @@ import { useReportRowActions } from '@/composables/useReportRowActions';
 import '@/assets/reportTableStyles.css';
 import MaoFormHeader from '@/components/MaoFormHeader.vue';
 import { useReportScope, type ReportPeriod } from '@/composables/useReportScope';
-import { CALAMITY_TYPES } from '@/constants/calamityTypes';
+import { CALAMITY_TYPES, CALAMITY_TYPE_OTHER } from '@/constants/calamityTypes';
 import { rowMatchesNameSearch } from '@/utils/farmerNameColumns';
+import { useAuthStore } from '@/stores/authStore';
 
 const DamageForm = defineAsyncComponent(() => import('@/views/Barangay/CalamityAssessmentLogView.vue'));
 
@@ -289,6 +296,7 @@ interface DamageRow {
   farm_location: string;
   crop: string;
   calamity_type: string;
+  calamity_name?: string;
   area_affected: number;
   damage_percentage?: number;
   damage_value: number;
@@ -314,13 +322,30 @@ const filters = reactive({
 });
 
 const encodeOpen = ref(false);
+const authStore = useAuthStore();
 const { deleteOpen, promptDelete, cancelDelete, confirmDelete } = useReportRowActions();
 const editOpen = ref(false);
 const editEndpoint = ref('');
 const editInitial = ref<Record<string, string | number | null | undefined>>({});
 const damageEditFields: ReportEditField[] = [
-  { key: 'calamity_type', label: 'Calamity Type', required: true },
-  { key: 'calamity_name', label: 'Event Name' },
+  {
+    key: 'calamity_type',
+    label: 'Calamity Type',
+    type: 'select',
+    required: true,
+    options: [...CALAMITY_TYPES],
+  },
+  {
+    key: 'calamity_name',
+    label: 'Event Name (optional)',
+    visibleWhen: { key: 'calamity_type', not: CALAMITY_TYPE_OTHER },
+  },
+  {
+    key: 'calamity_name',
+    label: 'Other Calamity Details',
+    required: true,
+    visibleWhen: { key: 'calamity_type', equals: CALAMITY_TYPE_OTHER },
+  },
   { key: 'area_destroyed_ha', label: 'Area Damaged (ha)', type: 'number', required: true },
   { key: 'damage_percentage', label: 'Yield Loss (%)', type: 'number', required: true },
   { key: 'date_of_calamity', label: 'Date of Calamity', type: 'date', required: true },
@@ -329,8 +354,13 @@ const damageEditFields: ReportEditField[] = [
 function openEdit(row: DamageRow) {
   if (!row.id) return;
   editEndpoint.value = `/damage-assessments/${row.id}`;
+  const eventName = row.calamity_name
+    && row.calamity_name !== row.calamity_type
+    ? row.calamity_name
+    : (row.calamity_type === CALAMITY_TYPE_OTHER ? row.calamity_name : '');
   editInitial.value = {
     calamity_type: row.calamity_type,
+    calamity_name: eventName || '',
     area_destroyed_ha: row.area_affected,
     damage_percentage: row.damage_percentage,
     date_of_calamity: row.date_reported,

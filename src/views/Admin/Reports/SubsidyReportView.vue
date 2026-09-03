@@ -125,13 +125,12 @@
                   <th>Crop</th>
                   <th>Item / Amount Received</th>
                   <th>Date Claimed</th>
-                  <th class="col-evidence no-print">Photo</th>
-                  <th class="no-print">Actions</th>
+                  <th v-if="!hideEncode" class="no-print">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="!filteredRows.length">
-                  <td colspan="12" class="empty-row">{{ emptyMessage }}</td>
+                  <td :colspan="hideEncode ? 10 : 11" class="empty-row">{{ emptyMessage }}</td>
                 </tr>
                 <tr v-for="(row, i) in filteredRows" :key="row.id || i">
                   <td class="col-no">{{ i + 1 }}</td>
@@ -144,37 +143,25 @@
                   <td>{{ cropLabel(row.target_crop) }}</td>
                   <td>{{ row.item_received }}</td>
                   <td class="mono">{{ fmtDate(row.date_claimed) }}</td>
-                  <td class="col-evidence no-print">
-                    <img
-                      v-if="photoSrc(row)"
-                      :src="photoSrc(row)!"
-                      class="thumb"
-                      alt="Claim photo"
-                      @click="openPhoto(row)"
-                    />
-                    <span v-else class="no-photo">—</span>
-                  </td>
-                  <td class="no-print">
+                  <td v-if="!hideEncode" class="no-print">
                     <ReportRowActions
-                      v-if="row.id && !hideEncode"
-                      @edit="openEdit(row)"
-                      @remove="promptDelete({ endpoint: `/subsidies/beneficiaries/${row.id}`, label: 'Subsidy claim', requireRemarks: true, onSuccess: fetchRows })"
+                      v-if="row.id"
+                      :can-edit="false"
+                      @remove="promptDelete({
+                        endpoint: `/subsidies/beneficiaries/${row.id}`,
+                        label: 'Subsidy claim',
+                        requireRemarks: true,
+                        onSuccess: fetchRows,
+                      })"
                     />
                   </td>
                 </tr>
                 <tr v-if="filteredRows.length" class="totals-row">
                   <td colspan="8" class="totals-label">TOTALS</td>
-                  <td colspan="4">{{ subsidyTotalsLabel }}</td>
+                  <td :colspan="hideEncode ? 2 : 3">{{ subsidyTotalsLabel }}</td>
                 </tr>
               </tbody>
             </table>
-          </div>
-        </div>
-
-        <div v-if="viewingPhoto" class="photo-overlay no-print" @click.self="viewingPhoto = null">
-          <div class="photo-modal">
-            <button class="photo-close" @click="viewingPhoto = null">✕</button>
-            <img :src="viewingPhoto" class="photo-full" alt="Claim photo" />
           </div>
         </div>
 
@@ -196,16 +183,6 @@
       v-model:is-open="encodeOpen"
       title="Manual Subsidy Dispense"
       kind="subsidy"
-      @saved="fetchRows"
-    />
-
-    <ReportInlineEditModal
-      :is-open="editOpen"
-      title="Edit subsidy claim"
-      :endpoint="editEndpoint"
-      :fields="subsidyEditFields"
-      :initial="editInitial"
-      @close="editOpen = false"
       @saved="fetchRows"
     />
 
@@ -232,12 +209,10 @@ import apiClient from '@/utils/axios';
 import ReportEncodeModal from '@/components/ReportEncodeModal.vue';
 import ReportRowActions from '@/components/ReportRowActions.vue';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
-import ReportInlineEditModal, { type ReportEditField } from '@/components/ReportInlineEditModal.vue';
 import { useReportRowActions } from '@/composables/useReportRowActions';
 import '@/assets/reportTableStyles.css';
 import MaoFormHeader from '@/components/MaoFormHeader.vue';
 import { cropLabel } from '@/utils/cropLabel';
-import { storageUrl } from '@/utils/storageUrl';
 import { useReportScope, type ReportPeriod } from '@/composables/useReportScope';
 import { rowMatchesNameSearch } from '@/utils/farmerNameColumns';
 import { itemTypeLabel, type ItemType } from '@/constants/subsidyCatalog';
@@ -262,8 +237,6 @@ interface SubsidyRow {
   quantity_secondary?: number | null;
   unit_secondary?: string | null;
   date_claimed: string;
-  photo_url?: string | null;
-  photo_path?: string | null;
 }
 
 interface Program {
@@ -287,7 +260,6 @@ const filters = reactive({
   itemType: '',
 });
 const searchQuery = ref('');
-const viewingPhoto = ref<string | null>(null);
 
 const filteredRows = computed(() => {
   const q = searchQuery.value.trim().toLowerCase();
@@ -329,22 +301,6 @@ const subsidyTotalsLabel = computed(() => {
 });
 const encodeOpen = ref(false);
 const { deleteOpen, promptDelete, cancelDelete, confirmDelete } = useReportRowActions();
-const editOpen = ref(false);
-const editEndpoint = ref('');
-const editInitial = ref<Record<string, string | number | null | undefined>>({});
-const subsidyEditFields: ReportEditField[] = [
-  { key: 'claimed_at', label: 'Date Claimed', type: 'date', required: true },
-];
-
-function openEdit(row: SubsidyRow) {
-  if (!row.id) return;
-  editEndpoint.value = `/subsidies/beneficiaries/${row.id}`;
-  const d = row.date_claimed;
-  editInitial.value = {
-    claimed_at: d ? String(d).slice(0, 10) : '',
-  };
-  editOpen.value = true;
-}
 
 const { lockedBarangay, hideEncode, period, applyPeriod } = useReportScope();
 
@@ -416,15 +372,6 @@ async function fetchBarangays() {
     const res = await apiClient.get('/farmers/barangays');
     barangays.value = (res.data?.data ?? []).filter(Boolean);
   } catch { barangays.value = []; }
-}
-
-function photoSrc(row: SubsidyRow): string | null {
-  return storageUrl(row.photo_url || row.photo_path);
-}
-
-function openPhoto(row: SubsidyRow) {
-  const src = photoSrc(row);
-  if (src) viewingPhoto.value = src;
 }
 
 function clearFilters() {
@@ -651,45 +598,6 @@ onMounted(async () => {
 .totals-row td { color: #fff !important; font-weight: 800; font-size: 12px; border-color: #0f3021; }
 .totals-label { text-align: right; letter-spacing: 0.05em; }
 .col-no { text-align: right; width: 40px; }
-.col-evidence { width: 70px; text-align: center; }
-.thumb {
-  width: 40px;
-  height: 40px;
-  object-fit: cover;
-  border-radius: 4px;
-  border: 1px solid #cbd5e1;
-  cursor: zoom-in;
-  display: block;
-  margin: 0 auto;
-}
-.no-photo { color: #94a3b8; font-size: 12px; }
-.photo-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.75);
-  z-index: 999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.photo-modal {
-  position: relative;
-  background: #fff;
-  border-radius: 10px;
-  padding: 1rem;
-  max-width: 90vw;
-  max-height: 90vh;
-}
-.photo-full { max-width: 80vw; max-height: 80vh; object-fit: contain; }
-.photo-close {
-  position: absolute;
-  top: 6px;
-  right: 10px;
-  border: none;
-  background: transparent;
-  font-size: 1.2rem;
-  cursor: pointer;
-}
 .mono { font-family: 'Courier New', monospace; }
 .empty-row { text-align: center; color: #94a3b8; padding: 2rem 0; font-style: italic; }
 

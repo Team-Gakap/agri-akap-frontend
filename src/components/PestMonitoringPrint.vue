@@ -21,7 +21,8 @@
           <th>DAYS AFTER PLANTING</th>
           <th>VARIETY</th>
           <th>AREA DAMAGE (%)</th>
-          <th>DAMAGE BY PEST/DISEASES</th>
+          <th>PEST</th>
+          <th>DISEASE</th>
         </tr>
       </thead>
       <tbody>
@@ -39,7 +40,8 @@
           <td class="ta-center">{{ row?.days_after_planting }}</td>
           <td>{{ row?.variety }}</td>
           <td class="ta-center">{{ row?.area_damage_pct }}</td>
-          <td>{{ row?.damage_by }}</td>
+          <td>{{ row?.pest }}</td>
+          <td>{{ row?.disease }}</td>
         </tr>
       </tbody>
     </table>
@@ -78,7 +80,9 @@ const props = withDefaults(
       days_after_planting: string | number;
       variety: string;
       area_damage_pct: string | number;
-      damage_by: string;
+      pest?: string;
+      disease?: string;
+      damage_by?: string;
     }>;
     barangay?: string;
     crop?: string;

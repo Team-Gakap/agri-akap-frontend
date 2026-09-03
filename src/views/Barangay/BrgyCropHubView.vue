@@ -283,6 +283,11 @@ import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
 import ReportInlineEditModal, { type ReportEditField } from '@/components/ReportInlineEditModal.vue';
 import { useReportRowActions } from '@/composables/useReportRowActions';
 import '@/assets/reportTableStyles.css';
+import {
+  PLANTING_STATUS_OPTIONS,
+  WATER_SOURCE_OPTIONS,
+  GROWTH_STAGE_OPTIONS,
+} from '@/constants/reportEditOptions';
 
 const PlantingLedgerView = defineAsyncComponent(() => import('@/views/Barangay/PlantingLedgerView.vue'));
 const StandingCropLogView = defineAsyncComponent(() => import('@/views/Barangay/StandingCropLogView.vue'));
@@ -632,12 +637,14 @@ function openEdit(row: LedgerRow) {
     editEndpoint.value = `/harvest-logs/${row.id}`;
     editTitle.value = 'Edit harvest record';
     editFields.value = [
-      { key: 'variety', label: 'Variety', required: true },
+      { key: 'variety', label: 'Variety', type: 'variety', required: true },
       { key: 'area_harvested', label: 'Area Harvested (ha)', type: 'number', required: true },
       { key: 'total_yield', label: 'Total Yield (MT)', type: 'number', required: true },
       { key: 'date_harvested', label: 'Date Harvested', type: 'date', required: true },
     ];
     editInitial.value = {
+      crop: row.crop_type,
+      crop_type: row.crop_type,
       variety: row.variety,
       area_harvested: row.area_harvested,
       total_yield: row.yield_amount,
@@ -647,12 +654,19 @@ function openEdit(row: LedgerRow) {
     editEndpoint.value = `/standing-crop-logs/${row.id}`;
     editTitle.value = 'Edit standing crop record';
     editFields.value = [
-      { key: 'variety', label: 'Variety', required: true },
+      { key: 'variety', label: 'Variety', type: 'variety', required: true },
       { key: 'area_ha', label: 'Area (ha)', type: 'number', required: true },
-      { key: 'growth_stage', label: 'Growth Stage' },
+      {
+        key: 'growth_stage',
+        label: 'Growth Stage',
+        type: 'select',
+        options: [...GROWTH_STAGE_OPTIONS],
+      },
       { key: 'est_harvest_date', label: 'Est. Harvest Date', type: 'date', required: true },
     ];
     editInitial.value = {
+      crop: row.crop_type,
+      crop_type: row.crop_type,
       variety: row.variety,
       area_ha: row.area_ha,
       growth_stage: row.growth_stage,
@@ -662,13 +676,25 @@ function openEdit(row: LedgerRow) {
     editEndpoint.value = `/planting-logs/${row.id}`;
     editTitle.value = 'Edit planting record';
     editFields.value = [
-      { key: 'variety', label: 'Variety', required: true },
+      { key: 'variety', label: 'Variety', type: 'variety', required: true },
       { key: 'area_planted', label: 'Area Planted (ha)', type: 'number', required: true },
       { key: 'date_planted', label: 'Date Planted', type: 'date', required: true },
-      { key: 'status', label: 'Status' },
-      { key: 'water_source', label: 'Water Source' },
+      {
+        key: 'status',
+        label: 'Status',
+        type: 'select',
+        options: [...PLANTING_STATUS_OPTIONS],
+      },
+      {
+        key: 'water_source',
+        label: 'Water Source',
+        type: 'select',
+        options: [...WATER_SOURCE_OPTIONS],
+      },
     ];
     editInitial.value = {
+      crop: row.crop_type,
+      crop_type: row.crop_type,
       variety: row.variety,
       area_planted: row.area_planted,
       date_planted: row.date_of_planting,

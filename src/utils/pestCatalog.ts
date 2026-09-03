@@ -69,3 +69,35 @@ export function threatsForCrop(crop?: string | null): CropThreats {
   const key = String(crop || '').toLowerCase().includes('corn') ? 'Corn' : 'Rice';
   return pestCatalog[key];
 }
+
+/** Split joined "Pest / Disease" strings (as stored in pest_name) into separate fields. */
+export function splitDamageBy(
+  value?: string | null,
+  crop?: string | null,
+): { pest: string; disease: string } {
+  const raw = String(value || '').trim();
+  if (!raw) return { pest: '', disease: '' };
+
+  const catalog = threatsForCrop(crop);
+  const pestSet = new Set(catalog.pests.map((p) => p.toLowerCase()));
+  const diseaseSet = new Set(catalog.diseases.map((d) => d.toLowerCase()));
+
+  const parts = raw.split(/\s*\/\s*/).map((p) => p.trim()).filter(Boolean);
+  let pest = '';
+  let disease = '';
+
+  for (const part of parts) {
+    const lower = part.toLowerCase();
+    if (!pest && pestSet.has(lower)) {
+      pest = catalog.pests.find((p) => p.toLowerCase() === lower) || part;
+    } else if (!disease && diseaseSet.has(lower)) {
+      disease = catalog.diseases.find((d) => d.toLowerCase() === lower) || part;
+    } else if (!pest) {
+      pest = part;
+    } else if (!disease) {
+      disease = part;
+    }
+  }
+
+  return { pest, disease };
+}

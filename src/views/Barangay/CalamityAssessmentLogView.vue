@@ -714,8 +714,24 @@ const editOpen = ref(false);
 const editEndpoint = ref('');
 const editInitial = ref<Record<string, string | number | null | undefined>>({});
 const calamityEditFields: ReportEditField[] = [
-  { key: 'calamity_type', label: 'Calamity Type', required: true },
-  { key: 'calamity_name', label: 'Event Name' },
+  {
+    key: 'calamity_type',
+    label: 'Calamity Type',
+    type: 'select',
+    required: true,
+    options: [...CALAMITY_TYPES],
+  },
+  {
+    key: 'calamity_name',
+    label: 'Event Name (optional)',
+    visibleWhen: { key: 'calamity_type', not: CALAMITY_TYPE_OTHER },
+  },
+  {
+    key: 'calamity_name',
+    label: 'Other Calamity Details',
+    required: true,
+    visibleWhen: { key: 'calamity_type', equals: CALAMITY_TYPE_OTHER },
+  },
   { key: 'area_destroyed_ha', label: 'Area Damaged (ha)', type: 'number', required: true },
   { key: 'damage_percentage', label: 'Yield Loss (%)', type: 'number', required: true },
   { key: 'date_of_calamity', label: 'Date of Calamity', type: 'date', required: true },
@@ -724,9 +740,14 @@ const calamityEditFields: ReportEditField[] = [
 function openEdit(entry: CalamityEntry) {
   if (!entry.id) return;
   editEndpoint.value = `/damage-assessments/${entry.id}`;
+  const type = entry.calamity_type || '';
+  const event = entry.calamity_event || '';
+  const eventName = type === CALAMITY_TYPE_OTHER
+    ? event
+    : (event && event !== type ? event : '');
   editInitial.value = {
-    calamity_type: entry.calamity_type || entry.calamity_event,
-    calamity_name: entry.calamity_event,
+    calamity_type: type || event,
+    calamity_name: eventName,
     area_destroyed_ha: entry.area_damaged,
     damage_percentage: entry.est_yield_loss_pct,
     date_of_calamity: entry.calamity_date,

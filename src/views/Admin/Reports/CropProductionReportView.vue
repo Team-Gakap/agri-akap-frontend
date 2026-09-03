@@ -281,6 +281,10 @@ import MaoFormHeader from '@/components/MaoFormHeader.vue';
 import StandingCropReportGrid from '@/views/Admin/Reports/StandingCropReportGrid.vue';
 import { useReportScope, type ReportPeriod } from '@/composables/useReportScope';
 import { rowMatchesNameSearch } from '@/utils/farmerNameColumns';
+import {
+  PLANTING_STATUS_OPTIONS,
+  WATER_SOURCE_OPTIONS,
+} from '@/constants/reportEditOptions';
 
 const PlantingForm = defineAsyncComponent(() => import('@/views/Barangay/PlantingLedgerView.vue'));
 const HarvestForm = defineAsyncComponent(() => import('@/views/Barangay/HarvestingLogView.vue'));
@@ -400,15 +404,25 @@ const editInitial = ref<Record<string, string | number | null | undefined>>({});
 const editFields = ref<ReportEditField[]>([]);
 
 const plantingEditFields: ReportEditField[] = [
-  { key: 'variety', label: 'Variety', required: true },
+  { key: 'variety', label: 'Variety', type: 'variety', required: true },
   { key: 'area_planted', label: 'Area Planted (ha)', type: 'number', required: true },
   { key: 'date_planted', label: 'Date Planted', type: 'date', required: true },
-  { key: 'status', label: 'Status' },
-  { key: 'water_source', label: 'Water Source' },
+  {
+    key: 'status',
+    label: 'Status',
+    type: 'select',
+    options: [...PLANTING_STATUS_OPTIONS],
+  },
+  {
+    key: 'water_source',
+    label: 'Water Source',
+    type: 'select',
+    options: [...WATER_SOURCE_OPTIONS],
+  },
 ];
 
 const harvestEditFields: ReportEditField[] = [
-  { key: 'variety', label: 'Variety', required: true },
+  { key: 'variety', label: 'Variety', type: 'variety', required: true },
   { key: 'area_harvested', label: 'Area Harvested (ha)', type: 'number', required: true },
   { key: 'total_yield', label: 'Total Yield (MT)', type: 'number', required: true },
   { key: 'date_harvested', label: 'Date Harvested', type: 'date', required: true },
@@ -421,6 +435,8 @@ function openEdit(row: CropRow) {
     editTitle.value = 'Edit harvest record';
     editFields.value = harvestEditFields;
     editInitial.value = {
+      crop: row.crop,
+      crop_type: row.crop,
       variety: row.variety,
       area_harvested: row.area_harvested,
       total_yield: row.total_yield,
@@ -431,6 +447,8 @@ function openEdit(row: CropRow) {
     editTitle.value = 'Edit planting record';
     editFields.value = plantingEditFields;
     editInitial.value = {
+      crop: row.crop,
+      crop_type: row.crop,
       variety: row.variety,
       area_planted: row.area_planted,
       date_planted: row.date_planted,

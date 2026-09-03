@@ -60,13 +60,14 @@
                     <th>DAYS AFTER PLANTING</th>
                     <th>VARIETY</th>
                     <th>AREA DAMAGE (%)</th>
-                    <th>DAMAGE BY PEST/DISEASES</th>
+                    <th>PEST</th>
+                    <th>DISEASE</th>
                     <th class="no-print">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-if="!filteredEntries.length">
-                    <td colspan="15" class="empty-row">No pest records match the current filters.</td>
+                    <td colspan="16" class="empty-row">No pest records match the current filters.</td>
                   </tr>
                   <tr v-for="(e, i) in filteredEntries" :key="e.id">
                     <td class="col-no">{{ i + 1 }}</td>
@@ -82,7 +83,8 @@
                     <td class="col-num">{{ e.days_after_planting }}</td>
                     <td>{{ e.variety }}</td>
                     <td class="col-num">{{ e.area_damage_pct }}</td>
-                    <td>{{ e.damage_by }}</td>
+                    <td>{{ splitDamageBy(e.damage_by, e.crop || crop).pest || '—' }}</td>
+                    <td>{{ splitDamageBy(e.damage_by, e.crop || crop).disease || '—' }}</td>
                     <td class="no-print">
                       <img
                         v-if="e.photo_url"
@@ -92,6 +94,8 @@
                         @click="viewingPhoto = e.photo_url!"
                       />
                       <ReportRowActions
+                        :can-edit="isPestPending(e)"
+                        :can-remove="isPestPending(e)"
                         @edit="openEdit(e)"
                         @remove="promptDelete({ endpoint: `/pest-monitoring/${e.id}`, label: 'Pest inspection', onSuccess: loadLedger })"
                       />
@@ -291,7 +295,7 @@ import { useActivePlanting, stageSelectValue, isHarvestReady } from '@/composabl
 import apiClient from '@/utils/axios';
 import { toast } from '@/utils/toast';
 import { capInputToPlot, plotSizeHa } from '@/utils/plotArea';
-import { loadPestCatalog, threatsForCrop } from '@/utils/pestCatalog';
+import { loadPestCatalog, threatsForCrop, splitDamageBy } from '@/utils/pestCatalog';
 import { storageUrl } from '@/utils/storageUrl';
 import ReportRowActions from '@/components/ReportRowActions.vue';
 import ConfirmDeleteModal from '@/components/ConfirmDeleteModal.vue';
@@ -335,6 +339,8 @@ interface PestEntry {
   damage_by: string;
   date_of_inspection: string;
   photo_url?: string | null;
+  latitude?: number | null;
+  crop?: string;
 }
 
 const {
@@ -372,21 +378,26 @@ const totalPlantedHa = computed(() =>
 );
 
 const previewRows = computed(() =>
-  filteredEntries.value.map((e) => ({
-    rsbsa_no: e.rsbsa_no,
-    surname: e.surname,
-    first_name: e.first_name,
-    middle_name: e.middle_name,
-    ext_name: e.ext_name,
-    birthdate: e.birthdate_display,
-    farmer_address: e.farmer_address,
-    farm_location: e.farm_location,
-    area_planted: Number(e.area_planted).toFixed(2),
-    days_after_planting: e.days_after_planting,
-    variety: e.variety,
-    area_damage_pct: e.area_damage_pct,
-    damage_by: e.damage_by,
-  })),
+  filteredEntries.value.map((e) => {
+    const parts = splitDamageBy(e.damage_by, e.crop || crop.value);
+    return {
+      rsbsa_no: e.rsbsa_no,
+      surname: e.surname,
+      first_name: e.first_name,
+      middle_name: e.middle_name,
+      ext_name: e.ext_name,
+      birthdate: e.birthdate_display,
+      farmer_address: e.farmer_address,
+      farm_location: e.farm_location,
+      area_planted: Number(e.area_planted).toFixed(2),
+      days_after_planting: e.days_after_planting,
+      variety: e.variety,
+      area_damage_pct: e.area_damage_pct,
+      pest: parts.pest,
+      disease: parts.disease,
+      damage_by: e.damage_by,
+    };
+  }),
 );
 const saving = ref(false);
 
@@ -511,6 +522,8 @@ const loadLedger = async () => {
         damage_by: r.pest_name || '',
         date_of_inspection: r.date_of_inspection?.slice?.(0, 10) || r.date_of_inspection || '',
         photo_url: storageUrl(r.photo_url || r.photo_path),
+        latitude: r.latitude != null ? Number(r.latitude) : null,
+        crop: r.crop || crop.value,
       } as PestEntry;
     });
   } catch {
@@ -709,18 +722,44 @@ const { deleteOpen, promptDelete, cancelDelete, confirmDelete } = useReportRowAc
 const editOpen = ref(false);
 const editEndpoint = ref('');
 const editInitial = ref<Record<string, string | number | null | undefined>>({});
-const pestEditFields: ReportEditField[] = [
-  { key: 'damage_by', label: 'Pest / Disease', required: true },
-  { key: 'area_damage_pct', label: 'Area Damage (%)', type: 'number', required: true },
-  { key: 'date_of_inspection', label: 'Date of Inspection', type: 'date', required: true },
-  { key: 'variety', label: 'Variety' },
-];
+const pestEditFields = ref<ReportEditField[]>([]);
+
+function isPestPending(entry: PestEntry): boolean {
+  return !entry.photo_url || entry.latitude == null;
+}
 
 function openEdit(entry: PestEntry) {
-  if (!entry.id) return;
+  if (!entry.id || !isPestPending(entry)) return;
+  const entryCrop = entry.crop || crop.value;
+  const threats = threatsForCrop(entryCrop);
+  const parts = splitDamageBy(entry.damage_by, entryCrop);
   editEndpoint.value = `/pest-monitoring/${entry.id}`;
+  pestEditFields.value = [
+    {
+      key: 'pest',
+      label: 'Pest',
+      type: 'select',
+      options: threats.pests,
+      placeholder: 'Select pest',
+      virtual: true,
+    },
+    {
+      key: 'disease',
+      label: 'Disease',
+      type: 'select',
+      options: threats.diseases,
+      placeholder: 'Select disease',
+      virtual: true,
+    },
+    { key: 'area_damage_pct', label: 'Area Damage (%)', type: 'number', required: true },
+    { key: 'date_of_inspection', label: 'Date of Inspection', type: 'date', required: true },
+    { key: 'variety', label: 'Variety', type: 'variety' },
+  ];
   editInitial.value = {
-    damage_by: entry.damage_by,
+    crop: entryCrop,
+    crop_type: entryCrop,
+    pest: parts.pest,
+    disease: parts.disease,
     area_damage_pct: entry.area_damage_pct,
     date_of_inspection: entry.date_of_inspection,
     variety: entry.variety,
