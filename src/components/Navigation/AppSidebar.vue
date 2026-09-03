@@ -112,7 +112,7 @@ import {
   IonIcon, IonMenuToggle, IonAccordionGroup, IonAccordion,
 } from '@ionic/vue';
 import {
-  gridOutline, peopleOutline, idCardOutline, cubeOutline,
+  gridOutline, peopleOutline, personOutline, idCardOutline, cubeOutline,
   chatboxEllipsesOutline, cloudOutline, documentTextOutline,
   homeOutline, leafOutline, bugOutline, thunderstormOutline,
   shieldCheckmarkOutline, chatbubblesOutline, briefcaseOutline, logOutOutline,
@@ -204,7 +204,7 @@ const groups = computed<NavGroup[]>(() => {
         label: 'Governance',
         items: [
           { title: 'Dashboard', url: '/superadmin/dashboard', icon: homeOutline, exact: true },
-          { title: 'Users', url: '/superadmin/users', icon: peopleOutline },
+          { title: 'User Accounts', url: '/superadmin/users', icon: peopleOutline },
           { title: 'Security', url: '/superadmin/security', icon: shieldCheckmarkOutline },
           { title: 'SMS', url: '/superadmin/sms', icon: chatbubblesOutline },
         ],
@@ -248,15 +248,18 @@ const groups = computed<NavGroup[]>(() => {
     { title: 'Dashboard', url: '/admin/dashboard', icon: gridOutline, exact: true },
     { title: 'Farmers', url: '/admin/farmers', icon: peopleOutline },
     { title: 'ID Cards', url: '/admin/id-issuance', icon: idCardOutline },
-    { title: 'Staff', url: '/admin/staff', icon: peopleOutline },
     { title: 'Subsidies', url: '/admin/subsidies', icon: cubeOutline },
     { title: 'SMS', url: '/admin/broadcasts', icon: chatboxEllipsesOutline },
     { title: 'Weather', url: '/admin/weather', icon: cloudOutline },
+  ];
+
+  const adminSystem: NavItem[] = [
+    { title: 'User Accounts', url: '/admin/staff', icon: personOutline },
     { title: 'Audit Logs', url: '/admin/audit-logs', icon: documentTextOutline },
   ];
 
   if (authStore.isSuperAdmin) {
-    adminOps.push({
+    adminSystem.push({
       title: 'System Console',
       url: '/superadmin/dashboard',
       icon: shieldCheckmarkOutline,
@@ -267,6 +270,7 @@ const groups = computed<NavGroup[]>(() => {
   return [
     { key: 'ops', label: 'Operations', items: adminOps },
     { key: 'reports', label: 'Reports', items: reportChildrenAdmin },
+    { key: 'system', label: 'System', items: adminSystem },
   ];
 });
 
@@ -295,6 +299,9 @@ function isActive(url: string, exact = false) {
   }
   if (url === '/admin/subsidies') {
     return route.path === url || route.path.startsWith('/admin/subsidies/');
+  }
+  if (url === '/admin/staff') {
+    return route.path === url || route.path === '/admin/users';
   }
   if (url === '/admin/weather') {
     return route.path === url || route.path.startsWith('/admin/weather/');

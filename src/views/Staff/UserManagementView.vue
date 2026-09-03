@@ -48,7 +48,7 @@
             </thead>
             <tbody>
               <tr v-if="!rows.length">
-                <td colspan="8" class="empty-row">No staff accounts match these filters.</td>
+                <td colspan="8" class="empty-row">No user accounts match these filters.</td>
               </tr>
               <tr v-for="row in rows" :key="row.id">
                 <td>{{ row.name }}</td>
