@@ -511,6 +511,7 @@ import SearchableSelect from '@/components/SearchableSelect.vue';
 import FormExportActions from '@/components/FormExportActions.vue';
 import MaoFormHeader from '@/components/MaoFormHeader.vue';
 import { useOfficialBarangays } from '@/composables/useOfficialBarangays';
+import { promptAuditRemarks } from '@/composables/promptAuditRemarks';
 import { exportAdminGridExcel } from '@/utils/statutoryFormExcel';
 import { parseGpxPoints } from '@/utils/parseGpx';
 import { COMMODITY_OPTIONS } from '@/data/echagueBarangays';
@@ -679,10 +680,16 @@ const onFileSelected = async (e: Event) => {
     await toast.warning('Please select an .xlsx, .xls, or .csv file.');
     return;
   }
+  const remarks = await promptAuditRemarks({
+    header: 'Justify RSBSA import',
+    message: 'Explain why this masterlist is being imported. Required for the audit trail.',
+  });
+  if (!remarks) return;
   importing.value = true;
   try {
     const form = new FormData();
     form.append('excel_file', file);
+    form.append('audit_remarks', remarks);
     const res = await apiClient.post('/farmers/import', form, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
@@ -1065,9 +1072,14 @@ const goToIdIssuance = (farmer: any) => {
 
 const verifyFarmer = async () => {
   if (!selectedFarmer.value) return;
+  const remarks = await promptAuditRemarks({
+    header: 'Justify farmer verification',
+    message: 'Document why this farmer is being marked verified.',
+  });
+  if (!remarks) return;
   processingVerify.value = true;
   try {
-    await apiClient.post(`/farmers/${selectedFarmer.value.id}/verify`);
+    await apiClient.post(`/farmers/${selectedFarmer.value.id}/verify`, { audit_remarks: remarks });
     selectedFarmer.value.verification_status = 'approved';
     const idx = farmers.value.findIndex((f) => f.id === selectedFarmer.value?.id);
     if (idx !== -1) farmers.value[idx].verification_status = 'approved';
@@ -1203,8 +1215,13 @@ const confirmArchive = async (farmer: any) => {
 };
 
 const archiveFarmer = async (id: string) => {
+  const remarks = await promptAuditRemarks({
+    header: 'Justify farmer archive',
+    message: 'Explain why this farmer is being archived from the active registry.',
+  });
+  if (!remarks) return;
   try {
-    await apiClient.delete(`/farmers/${id}`);
+    await apiClient.delete(`/farmers/${id}`, { data: { audit_remarks: remarks } });
     farmers.value = farmers.value.filter((f) => f.id !== id);
     const next = new Set(selectedIds.value);
     next.delete(id);

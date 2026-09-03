@@ -149,6 +149,7 @@ import {
 } from '@ionic/vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useOfficialBarangays } from '@/composables/useOfficialBarangays';
+import { promptAuditRemarks } from '@/composables/promptAuditRemarks';
 import apiClient from '@/utils/axios';
 import { toast } from '@/utils/toast';
 
@@ -323,8 +324,13 @@ const confirmReset = async (row: StaffRow) => {
 };
 
 const reset = async (row: StaffRow) => {
+  const remarks = await promptAuditRemarks({
+    header: 'Justify password reset',
+    message: `Explain why ${row.email} needs a temporary password.`,
+  });
+  if (!remarks) return;
   try {
-    const res = await apiClient.post(`/staff/${row.id}/reset-password`);
+    const res = await apiClient.post(`/staff/${row.id}/reset-password`, { audit_remarks: remarks });
     revealedSecret.value = res.data?.data?.temporary_password || '';
     secretOpen.value = !!revealedSecret.value;
     await load(page.value);
@@ -354,9 +360,24 @@ const revoke = async (row: StaffRow) => {
 };
 
 const toggleActive = async (row: StaffRow) => {
+  if (row.is_active) {
+    const remarks = await promptAuditRemarks({
+      header: 'Justify deactivation',
+      message: `Explain why ${row.email} is being deactivated.`,
+    });
+    if (!remarks) return;
+    try {
+      await apiClient.patch(`/staff/${row.id}`, { is_active: false, audit_remarks: remarks });
+      await toast.success('Account deactivated.');
+      await load(page.value);
+    } catch (err: any) {
+      await toast.error(err?.response?.data?.message || 'Update failed.');
+    }
+    return;
+  }
   try {
-    await apiClient.patch(`/staff/${row.id}`, { is_active: !row.is_active });
-    await toast.success(row.is_active ? 'Account deactivated.' : 'Account activated.');
+    await apiClient.patch(`/staff/${row.id}`, { is_active: true });
+    await toast.success('Account activated.');
     await load(page.value);
   } catch (err: any) {
     await toast.error(err?.response?.data?.message || 'Update failed.');

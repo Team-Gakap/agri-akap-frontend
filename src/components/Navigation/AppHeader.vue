@@ -80,10 +80,10 @@
     <div class="popover-card profile-menu">
       <button type="button" class="popover-row" @click="go('/change-password')">Account Settings</button>
       <button
-        v-if="authStore.isSuperAdmin"
+        v-if="authStore.isMunicipalAdmin"
         type="button"
         class="popover-row"
-        @click="go('/superadmin/audit-logs')"
+        @click="go(authStore.isSuperAdmin ? '/superadmin/audit-logs' : '/admin/audit-logs')"
       >
         Audit Trail
       </button>

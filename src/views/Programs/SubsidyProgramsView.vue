@@ -585,6 +585,7 @@ import apiClient from '@/utils/axios';
 import { cropLabel } from '@/utils/cropLabel';
 import BarangayMultiPicker from '@/components/BarangayMultiPicker.vue';
 import { useOfficialBarangays } from '@/composables/useOfficialBarangays';
+import { promptAuditRemarks } from '@/composables/promptAuditRemarks';
 import {
   SEED_CLASSES, itemTypesFor, getCatalogEntry, isDualUnit as catalogIsDualUnit,
   isCashItemType, itemTypeLabel, catalogSummary, type SeedClass, type ItemType,
@@ -947,11 +948,17 @@ const openRestock = (p: SubsidyProgramRow) => {
 
 const submitRestock = async () => {
   if (!activeProgram.value || !(Number(restockQty.value) >= 0.01)) return;
+  const remarks = await promptAuditRemarks({
+    header: 'Justify warehouse delivery',
+    message: 'Explain this stock delivery for the audit trail.',
+  });
+  if (!remarks) return;
   savingRestock.value = true;
   try {
     const res = await apiClient.post(`/subsidies/${activeProgram.value.id}/restock`, {
       quantity_added: Number(restockQty.value),
       secondary_quantity_added: Number(restockQtySecondary.value) > 0 ? Number(restockQtySecondary.value) : undefined,
+      audit_remarks: remarks,
     });
     await toast(res.data?.message || 'Delivery logged.', 'success');
     restockOpen.value = false;
@@ -973,12 +980,18 @@ const openSettings = (p: SubsidyProgramRow) => {
 
 const submitSettings = async () => {
   if (!activeProgram.value) return;
+  const remarks = await promptAuditRemarks({
+    header: 'Justify stock settings change',
+    message: 'Explain why subsidy stock settings are being updated.',
+  });
+  if (!remarks) return;
   savingSettings.value = true;
   try {
     const res = await apiClient.patch(`/subsidies/${activeProgram.value.id}/config`, {
       unit_of_measurement: activeProgram.value.item_type ? undefined : (settingsUnit.value.trim() || undefined),
       reorder_level: settingsReorder.value,
       secondary_reorder_level: activeProgram.value.secondary_unit ? settingsReorderSecondary.value : undefined,
+      audit_remarks: remarks,
     });
     await toast(res.data?.message || 'Stock settings updated.', 'success');
     settingsOpen.value = false;

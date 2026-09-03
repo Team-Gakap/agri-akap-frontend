@@ -248,9 +248,11 @@ const groups = computed<NavGroup[]>(() => {
     { title: 'Dashboard', url: '/admin/dashboard', icon: gridOutline, exact: true },
     { title: 'Farmers', url: '/admin/farmers', icon: peopleOutline },
     { title: 'ID Cards', url: '/admin/id-issuance', icon: idCardOutline },
+    { title: 'Staff', url: '/admin/staff', icon: peopleOutline },
     { title: 'Subsidies', url: '/admin/subsidies', icon: cubeOutline },
     { title: 'SMS', url: '/admin/broadcasts', icon: chatboxEllipsesOutline },
     { title: 'Weather', url: '/admin/weather', icon: cloudOutline },
+    { title: 'Audit Logs', url: '/admin/audit-logs', icon: documentTextOutline },
   ];
 
   if (authStore.isSuperAdmin) {

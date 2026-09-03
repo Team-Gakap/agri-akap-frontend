@@ -285,6 +285,7 @@ import apiClient from '@/utils/axios';
 import { cropLabel } from '@/utils/cropLabel';
 import BarangayMultiPicker from '@/components/BarangayMultiPicker.vue';
 import { catalogSummary } from '@/constants/subsidyCatalog';
+import { promptAuditRemarks } from '@/composables/promptAuditRemarks';
 
 interface MasterlistRow {
   beneficiary_id: string;
@@ -599,9 +600,18 @@ const submitRestock = async () => {
   }
   savingRestock.value = true;
   try {
+    const remarks = await promptAuditRemarks({
+      header: 'Justify warehouse delivery',
+      message: 'Explain this stock delivery for the audit trail.',
+    });
+    if (!remarks) {
+      savingRestock.value = false;
+      return;
+    }
     const res = await apiClient.post(`/subsidies/${programId.value}/restock`, {
       quantity_added: Number(restockQty.value),
       secondary_quantity_added: Number(restockQtySecondary.value) > 0 ? Number(restockQtySecondary.value) : undefined,
+      audit_remarks: remarks,
     });
     Object.assign(program, res.data?.data ?? {});
     await toast(res.data?.message || 'Delivery logged.', 'success');

@@ -19,7 +19,7 @@ const legacy =
     return { path: map[role] ?? fallback, query: to.query };
   };
 
-// Staff and Security live on SuperAdmin only. Bookmarks under /admin bounce away.
+// Security still lives on SuperAdmin only. Staff is now available to MAO Admin.
 const adminGovernanceRedirect =
   (superAdminPath: string) =>
   (to: any): RouteLocationRaw => {
@@ -76,7 +76,8 @@ const routes: Array<RouteRecordRaw> = [
       { path: "", redirect: "/admin/dashboard" },
       { path: "dashboard", name: "Dashboard", component: () => import("@/views/Admin/AdminDashboardView.vue"), meta: { title: "Dashboard" } },
       { path: "analytics", redirect: "/admin/dashboard" },
-      { path: "staff", redirect: adminGovernanceRedirect("/superadmin/users") },
+      { path: "staff", name: "AdminStaff", component: () => import("@/views/Staff/UserManagementView.vue"), meta: { title: "Staff Accounts" } },
+      { path: "audit-logs", name: "AdminAuditLogs", component: () => import("@/views/SuperAdmin/AuditLogView.vue"), meta: { title: "Audit Logs" } },
       { path: "security", redirect: adminGovernanceRedirect("/superadmin/security") },
       { path: "farmers", name: "FarmersList", component: () => import("@/views/Admin/FarmerRegistryView.vue"), meta: { title: "Farmer Registry" } },
       { path: "farmers/register", name: "FarmersRegister", component: () => import("@/views/Farmers/Registration_Form.vue"), meta: { title: "RSBSA Enrollment" } },

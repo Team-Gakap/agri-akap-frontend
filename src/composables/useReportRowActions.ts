@@ -5,6 +5,7 @@ import { toast } from '@/utils/toast';
 export interface ReportDeleteConfig {
   endpoint: string;
   label?: string;
+  requireRemarks?: boolean;
   onSuccess?: () => void | Promise<void>;
 }
 
@@ -29,7 +30,19 @@ export function useReportRowActions() {
     if (!cfg || deleting.value) return;
     deleting.value = true;
     try {
-      await apiClient.delete(cfg.endpoint);
+      let body: Record<string, string> | undefined;
+      if (cfg.requireRemarks) {
+        const { promptAuditRemarks } = await import('@/composables/promptAuditRemarks');
+        const remarks = await promptAuditRemarks({
+          header: `Justify removing ${cfg.label || 'record'}`,
+          required: true,
+        });
+        if (!remarks) {
+          return;
+        }
+        body = { audit_remarks: remarks };
+      }
+      await apiClient.delete(cfg.endpoint, body ? { data: body } : undefined);
       deleteOpen.value = false;
       deleteTarget.value = null;
       await toast.success(`${cfg.label || 'Record'} removed.`);

@@ -158,7 +158,7 @@
                     <ReportRowActions
                       v-if="row.id && !hideEncode"
                       @edit="openEdit(row)"
-                      @remove="promptDelete({ endpoint: `/subsidies/beneficiaries/${row.id}`, label: 'Subsidy claim', onSuccess: fetchRows })"
+                      @remove="promptDelete({ endpoint: `/subsidies/beneficiaries/${row.id}`, label: 'Subsidy claim', requireRemarks: true, onSuccess: fetchRows })"
                     />
                   </td>
                 </tr>
