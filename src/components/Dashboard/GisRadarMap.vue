@@ -39,6 +39,15 @@
         <ion-icon v-if="layers.flood" :icon="waterOutline"></ion-icon>
         Flood / Lodging ({{ floodCount }})
       </button>
+      <button
+        type="button"
+        class="layer-chip chip-damage"
+        :class="{ on: layers.damage }"
+        @click="toggleLayer('damage')"
+      >
+        <ion-icon v-if="layers.damage" :icon="alertCircleOutline"></ion-icon>
+        Calamity ({{ damageCount }})
+      </button>
     </div>
 
     <div v-if="mapLoadError" class="map-error">
@@ -74,10 +83,25 @@
               <dd>{{ pestAlertLabel }}</dd>
             </div>
             <div>
-              <dt>Highest risk area</dt>
+              <dt>Highest flood risk</dt>
               <dd>{{ highestRiskLabel }}</dd>
             </div>
+            <div>
+              <dt>Mapped calamities</dt>
+              <dd>
+                {{ damageCount }} GPS pin{{ damageCount === 1 ? '' : 's' }}
+                <template v-if="unmappedCalamityCount">
+                  · {{ unmappedCalamityCount }} report{{ unmappedCalamityCount === 1 ? '' : 's' }} without GPS
+                </template>
+              </dd>
+            </div>
           </dl>
+          <ul v-if="mappedCalamities.length" class="inspector-calamities">
+            <li v-for="d in mappedCalamities" :key="d.id">
+              {{ d.calamity_name || 'Calamity' }}
+              <span>{{ d.brgy || 'Unmapped barangay' }} · {{ d.status || 'Reported' }}</span>
+            </li>
+          </ul>
           <p class="inspector-hint">Click a parcel, barangay, or outbreak pin for telemetry.</p>
         </div>
 
@@ -119,7 +143,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { IonButton, IonIcon, IonSpinner } from '@ionic/vue';
-import { checkmarkOutline, warningOutline, waterOutline } from 'ionicons/icons';
+import { checkmarkOutline, warningOutline, waterOutline, alertCircleOutline } from 'ionicons/icons';
 import { MarkerClusterer } from '@googlemaps/markerclusterer';
 import apiClient from '@/utils/axios';
 import { echagueMapOptions, loadGoogleMaps } from '@/utils/googleMaps';
@@ -134,7 +158,7 @@ const router = useRouter();
 const PARCEL_GREEN = '#16A34A';
 const PARCEL_AMBER = '#d97706';
 
-type LayerKey = 'plots' | 'pests' | 'flood';
+type LayerKey = 'plots' | 'pests' | 'flood' | 'damage';
 type Basemap = 'satellite' | 'terrain';
 
 interface ClimateRow {
@@ -163,7 +187,7 @@ const mapEl = ref<HTMLDivElement | null>(null);
 const mapLoading = ref(false);
 const mapLoadError = ref('');
 const basemap = ref<Basemap>('satellite');
-const layers = reactive({ plots: true, pests: true, flood: true });
+const layers = reactive({ plots: true, pests: true, flood: true, damage: true });
 const selected = ref<SelectedEntity | null>(null);
 
 let map: google.maps.Map | null = null;
@@ -175,6 +199,7 @@ const lastPayload = ref<any>({
   plot_totals: { mapped: 0, total: 0 },
   pest_outbreaks: [],
   damage_points: [],
+  unmapped_calamity_count: 0,
   flood_risk_points: [],
   barangay_climate: [],
 });
@@ -213,6 +238,16 @@ const pestCount = computed(() =>
 );
 const floodCount = computed(() =>
   climateRows.value.filter((r) => r.precipitation_probability >= 80).length,
+);
+const damageCount = computed(() => (lastPayload.value.damage_points ?? []).length);
+const unmappedCalamityCount = computed(() => Number(lastPayload.value.unmapped_calamity_count ?? 0));
+const mappedCalamities = computed(() =>
+  (lastPayload.value.damage_points ?? []).map((d: any) => ({
+    id: d.id,
+    calamity_name: d.calamity_name,
+    brgy: d.brgy,
+    status: d.status,
+  })),
 );
 
 const mappedCoverage = computed(() => {
@@ -517,7 +552,7 @@ function renderOverlays() {
     pestClusterer = new MarkerClusterer({ map, markers: pestMarkers });
   }
 
-  if (layers.flood) {
+  if (layers.damage) {
     (lastPayload.value.damage_points ?? []).forEach((d: any) => {
       const severe = Number(d.damage_percentage || 0) >= 50;
       const marker = new google.maps.Marker({
@@ -579,7 +614,16 @@ async function fetchMapData() {
   mapLoading.value = true;
   try {
     const res = await apiClient.get('/dashboard/map-data');
-    lastPayload.value = res.data?.data ?? {};
+    lastPayload.value = {
+      farm_plots: [],
+      plot_totals: { mapped: 0, total: 0 },
+      pest_outbreaks: [],
+      damage_points: [],
+      unmapped_calamity_count: 0,
+      flood_risk_points: [],
+      barangay_climate: [],
+      ...(res.data?.data ?? {}),
+    };
     await loadGeoJson();
     renderOverlays();
     refreshChoropleth();
@@ -687,12 +731,17 @@ onBeforeUnmount(() => {
   border-color: #334155;
   color: #fff;
 }
+.layer-chip.chip-damage.on {
+  background: #b45309;
+  border-color: #b45309;
+  color: #fff;
+}
 
 .gis-split {
   display: grid;
   grid-template-columns: minmax(0, 7fr) minmax(240px, 3fr);
   gap: 0;
-  min-height: 420px;
+  min-height: 520px;
 }
 .map-col { min-width: 0; padding: 0 0.75rem 0.85rem 1rem; }
 .map-shell {
@@ -701,7 +750,7 @@ onBeforeUnmount(() => {
   overflow: hidden;
   border: 1px solid #E2E8F0;
 }
-.map-canvas { width: 100%; height: 420px; }
+.map-canvas { width: 100%; height: 520px; }
 .map-loading {
   position: absolute; z-index: 500; top: 10px; right: 10px;
   background: #fff; border-radius: 50%; padding: 6px;
@@ -768,11 +817,31 @@ onBeforeUnmount(() => {
 .inspector dl { margin: 0.45rem 0 0; }
 .inspector dl div {
   display: grid;
-  grid-template-columns: 7.5rem 1fr;
+  grid-template-columns: 8.25rem 1fr;
   gap: 0.35rem;
   padding: 0.28rem 0;
   border-bottom: 1px solid #E2E8F0;
   font-size: 0.78rem;
+}
+.inspector-calamities {
+  list-style: none;
+  margin: 0.65rem 0 0;
+  padding: 0;
+  max-height: 10rem;
+  overflow: auto;
+}
+.inspector-calamities li {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #0f172a;
+  padding: 0.28rem 0;
+  border-bottom: 1px solid #E2E8F0;
+}
+.inspector-calamities span {
+  display: block;
+  font-weight: 600;
+  color: #64748b;
+  font-size: 0.7rem;
 }
 .inspector dt { color: #64748b; font-weight: 700; }
 .inspector dd { margin: 0; color: #0f172a; font-weight: 650; }

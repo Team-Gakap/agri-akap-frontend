@@ -686,6 +686,8 @@ onMounted(async () => {
     max-height: none !important;
   }
   .grid-shell { border: none; }
+  .excel-table { min-width: 0 !important; width: 100% !important; font-size: 9.5px !important; }
+  .excel-table th, .excel-table td { white-space: normal !important; }
 
   /* Force background colors for headers */
   .excel-table thead th {

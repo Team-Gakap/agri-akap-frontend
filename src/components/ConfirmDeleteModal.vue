@@ -12,7 +12,7 @@
 import { IonAlert } from '@ionic/vue';
 import { computed } from 'vue';
 
-const props = withDefaults(defineProps<{
+withDefaults(defineProps<{
   isOpen: boolean;
   message?: string;
 }>(), {
@@ -28,16 +28,21 @@ const alertButtons = computed(() => [
   {
     text: 'Cancel',
     role: 'cancel',
-    handler: () => emit('cancel'),
   },
   {
     text: 'Remove',
     role: 'destructive',
-    handler: () => emit('confirm'),
   },
 ]);
 
-function onDismiss() {
-  emit('cancel');
+function onDismiss(ev: CustomEvent) {
+  const role = String(ev.detail?.role || '');
+  if (role === 'destructive') {
+    emit('confirm');
+    return;
+  }
+  if (role === 'cancel' || role === 'backdrop' || role === 'gesture') {
+    emit('cancel');
+  }
 }
 </script>

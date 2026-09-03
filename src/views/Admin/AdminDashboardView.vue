@@ -72,7 +72,7 @@
             <p class="kpi-value kpi-value-split">
               <span>{{ fmt(pestCount) }} <small>Pests</small></span>
               <span class="kpi-split-dot" aria-hidden="true">·</span>
-              <span>{{ fmt(calamityCount) }} <small>Calamities</small></span>
+              <span>{{ fmt(calamityCount) }} <small>Pending calamities</small></span>
             </p>
             <p class="kpi-label">{{ fmt(threatTotal) }} Active Incidents</p>
             <button class="kpi-meta kpi-link" type="button" @click="go('/admin/reports/pest-surveillance')">
@@ -87,10 +87,13 @@
             </p>
           </div>
 
-          <!-- ── 2. Diagnostic GIS + charts (7) ─────────────────────────── -->
-          <div class="span-7 diag-col">
+          <!-- ── 2. Full-width GIS radar ───────────────────────────────── -->
+          <div class="span-12 gis-span">
             <GisRadarMap @sms="onGisSms" />
+          </div>
 
+          <!-- ── 3. Diagnostic charts (7) ──────────────────────────────── -->
+          <div class="span-7 diag-col">
             <div class="chart-pair">
               <section class="panel-card">
                 <header class="panel-head">
@@ -124,7 +127,7 @@
             </div>
           </div>
 
-          <!-- ── 3. Predictive (5) ──────────────────────────────────────── -->
+          <!-- ── 4. Predictive (5) ──────────────────────────────────────── -->
           <div class="span-5 pred-col">
             <section class="panel-card harvest-card">
               <header class="panel-head">
@@ -864,8 +867,8 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchAll));
   flex: 0 0 auto;
   height: auto;
 }
-.diag-col :deep(.gis-card) {
-  flex: 0 0 auto;
+.gis-span { min-width: 0; }
+.gis-span :deep(.gis-card) {
   width: 100%;
 }
 .chart-pair {

@@ -97,7 +97,7 @@
           <section class="panel-card">
             <header class="panel-head">
               <div>
-                <h2>6-Month Yield vs Loss</h2>
+                <h2>12-Month Yield vs Loss</h2>
                 <p>Harvest (MT) vs calamity damage (ha)</p>
               </div>
             </header>
@@ -328,10 +328,10 @@ const EMPTY_CROP_STAGES: CropStages = {
   maturity: 0,
 };
 
-function lastSixMonthKeys(): MonthlyYieldDamage[] {
+function lastTwelveMonthKeys(): MonthlyYieldDamage[] {
   const now = new Date();
-  return Array.from({ length: 6 }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
+  return Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (11 - i), 1);
     return {
       month: d.toLocaleString('en-PH', { month: 'short' }),
       key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`,
@@ -367,7 +367,7 @@ const dashboardData = reactive<DashboardData>({
   active_calamities: 0,
   active_pests: 0,
   crop_stages: { ...EMPTY_CROP_STAGES },
-  monthly_yield_damage: lastSixMonthKeys(),
+  monthly_yield_damage: lastTwelveMonthKeys(),
 });
 
 const currentWeather = ref<CurrentWeather | null>(null);
@@ -526,7 +526,7 @@ const barOptions = {
   },
   scales: {
     x: {
-      ticks: { color: '#475569', font: { size: 11, weight: 600 as const } },
+      ticks: { color: '#475569', font: { size: 9, weight: 600 as const }, maxRotation: 0, minRotation: 0 },
       grid: { display: false },
     },
     y: {
@@ -649,7 +649,7 @@ const fetchDashboard = async () => {
       active_calamities: Number(desc.active_calamities ?? 0),
       active_pests: Number(desc.active_pests ?? 0),
       crop_stages: stages,
-      monthly_yield_damage: monthly.length ? monthly : lastSixMonthKeys(),
+      monthly_yield_damage: monthly.length ? monthly : lastTwelveMonthKeys(),
     });
 
     currentWeather.value = diag.current_weather ?? null;

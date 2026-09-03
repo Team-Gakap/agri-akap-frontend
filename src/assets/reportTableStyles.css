@@ -58,6 +58,45 @@
 }
 
 @media print {
+  ion-content,
+  ion-content.rpt-content {
+    --overflow: visible;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    position: static !important;
+    contain: none !important;
+  }
+
+  ion-content::part(scroll) {
+    overflow: visible !important;
+    position: static !important;
+    contain: none !important;
+  }
+
+  .rpt-shell,
+  .rpt-content,
+  .grid-shell,
+  .table-scroll,
+  .print-surface,
+  .standing-grid,
+  .ledger-card {
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+  }
+
+  .excel-table {
+    min-width: 0 !important;
+    width: 100% !important;
+    font-size: 9.5px !important;
+  }
+
+  .excel-table th,
+  .excel-table td {
+    white-space: normal !important;
+  }
+
   .excel-table thead th {
     position: static;
     background: #1a4731 !important;

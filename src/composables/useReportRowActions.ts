@@ -19,19 +19,20 @@ export function useReportRowActions() {
   }
 
   function cancelDelete() {
+    if (deleting.value) return;
     deleteOpen.value = false;
     deleteTarget.value = null;
   }
 
   async function confirmDelete() {
-    if (!deleteTarget.value || deleting.value) return;
+    const cfg = deleteTarget.value;
+    if (!cfg || deleting.value) return;
     deleting.value = true;
     try {
-      await apiClient.delete(deleteTarget.value.endpoint);
-      await toast.success(`${deleteTarget.value.label || 'Record'} removed.`);
+      await apiClient.delete(cfg.endpoint);
       deleteOpen.value = false;
-      const cfg = deleteTarget.value;
       deleteTarget.value = null;
+      await toast.success(`${cfg.label || 'Record'} removed.`);
       await cfg.onSuccess?.();
     } catch (e: any) {
       await toast.error(e?.response?.data?.message || 'Could not remove this record.');

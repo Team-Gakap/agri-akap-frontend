@@ -754,6 +754,8 @@ onMounted(async () => {
   }
   .rpt-shell { padding: 0; }
   .grid-shell { border: none; }
+  .excel-table { min-width: 0 !important; width: 100% !important; font-size: 9.5px !important; }
+  .excel-table th, .excel-table td { white-space: normal !important; }
   .excel-table thead th { position: static; background: #1a4731 !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .letterhead { text-align: center; margin-bottom: 1rem; border-bottom: 2px solid #1a4731; padding-bottom: 0.75rem; }
   .lh-title { margin: 0; font-size: 1.1rem; font-weight: 800; color: #1a4731; }

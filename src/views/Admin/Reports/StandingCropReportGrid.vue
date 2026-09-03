@@ -410,7 +410,8 @@ onMounted(async () => {
     padding: 0;
   }
   .grid-shell { border: none; }
-  .excel-table { min-width: 0 !important; }
+  .excel-table { min-width: 0 !important; width: 100% !important; font-size: 9.5px !important; }
+  .excel-table th, .excel-table td { white-space: normal !important; }
   .excel-table thead th {
     position: static;
     background: #1a4731 !important;

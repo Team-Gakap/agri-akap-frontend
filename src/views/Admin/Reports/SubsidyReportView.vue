@@ -131,7 +131,7 @@
               </thead>
               <tbody>
                 <tr v-if="!filteredRows.length">
-                  <td colspan="12" class="empty-row">No claimed subsidy records found for the selected filters.</td>
+                  <td colspan="12" class="empty-row">{{ emptyMessage }}</td>
                 </tr>
                 <tr v-for="(row, i) in filteredRows" :key="row.id || i">
                   <td class="col-no">{{ i + 1 }}</td>
@@ -295,6 +295,16 @@ const filteredRows = computed(() => {
   return rows.value.filter((r) =>
     rowMatchesNameSearch(r, q) || String(r.rsbsa_no || '').toLowerCase().includes(q)
   );
+});
+
+const emptyMessage = computed(() => {
+  if (filters.dateFrom || filters.dateTo) {
+    return 'No claimed subsidy records in this period. Clear dates to see all claims.';
+  }
+  if (filters.programId || filters.barangay || filters.cropType || filters.seedClass || filters.itemType || searchQuery.value.trim()) {
+    return 'No claimed subsidy records match the selected filters.';
+  }
+  return 'No claimed subsidy records yet.';
 });
 const subsidyTotalsLabel = computed(() => {
   const byUnit = new Map<string, number>();
@@ -701,7 +711,8 @@ onMounted(async () => {
     max-height: none !important;
   }
   .grid-shell { border: none; }
-  .excel-table { min-width: 0 !important; }
+  .excel-table { min-width: 0 !important; width: 100% !important; font-size: 9.5px !important; }
+  .excel-table th, .excel-table td { white-space: normal !important; }
   .excel-table thead th { position: static; background: #1a4731 !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
 
   .letterhead { text-align: center; margin-bottom: 1rem; border-bottom: 2px solid #1a4731; padding-bottom: 0.75rem; }

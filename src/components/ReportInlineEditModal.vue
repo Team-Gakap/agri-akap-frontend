@@ -8,27 +8,26 @@
         </ion-buttons>
       </ion-toolbar>
     </ion-header>
-    <ion-content class="ion-padding edit-modal-body">
+    <div class="edit-modal-body">
       <ion-item v-for="field in fields" :key="field.key" lines="none" class="field-item">
         <ion-input
           :label="field.label"
           label-placement="stacked"
           :type="field.type || 'text'"
-          :value="form[field.key]"
-          @ionInput="(e: any) => form[field.key] = e.detail.value"
+          v-model="form[field.key]"
         ></ion-input>
       </ion-item>
       <ion-button expand="block" class="save-btn" :disabled="saving || !canSave" @click="save">
         {{ saving ? 'Saving…' : 'Save changes' }}
       </ion-button>
-    </ion-content>
+    </div>
   </ion-modal>
 </template>
 
 <script setup lang="ts">
 import { reactive, ref, watch, computed } from 'vue';
 import {
-  IonModal, IonHeader, IonToolbar, IonTitle, IonButtons, IonButton, IonContent, IonItem, IonInput,
+  IonModal, IonHeader, IonToolbar, IonTitle, IonButtons, IonButton, IonItem, IonInput,
 } from '@ionic/vue';
 import apiClient from '@/utils/axios';
 import { toast } from '@/utils/toast';
@@ -56,16 +55,20 @@ const emit = defineEmits<{
 const saving = ref(false);
 const form = reactive<Record<string, string>>({});
 
+function hydrate() {
+  for (const field of props.fields) {
+    const val = props.initial[field.key];
+    form[field.key] = val == null ? '' : String(val);
+  }
+}
+
 watch(
-  () => props.isOpen,
-  (open) => {
+  () => [props.isOpen, props.fields, props.initial] as const,
+  ([open]) => {
     if (!open) return;
-    for (const field of props.fields) {
-      const val = props.initial[field.key];
-      form[field.key] = val == null ? '' : String(val);
-    }
+    hydrate();
   },
-  { immediate: true },
+  { immediate: true, deep: true },
 );
 
 const canSave = computed(() =>
@@ -95,7 +98,10 @@ async function save() {
 
 <style scoped>
 .edit-modal-body {
-  --background: #f4f8f5;
+  background: #f4f8f5;
+  padding: 1rem;
+  overflow: auto;
+  max-height: calc(85vh - 56px);
 }
 .field-item {
   margin-bottom: 0.5rem;
@@ -109,8 +115,7 @@ async function save() {
 
 <style>
 ion-modal.report-edit-modal {
-  --height: auto;
-  --max-height: 85%;
+  --height: min(560px, 85%);
   --width: min(520px, 96%);
   --border-radius: 12px;
 }
