@@ -56,6 +56,7 @@
                     <th>MIDDLE NAME</th>
                     <th>EXT NAME</th>
                     <th>FARM LOCATION</th>
+                    <th>CALAMITY TYPE</th>
                     <th>CROP TYPE</th>
                     <th>STAGE OF CROP</th>
                     <th>AREA PLANTED (ha)</th>
@@ -66,7 +67,7 @@
                 </thead>
                 <tbody>
                   <tr v-if="!filteredEntries.length">
-                    <td colspan="13" class="empty-row">No calamity records match the current filters.</td>
+                    <td colspan="14" class="empty-row">No calamity records match the current filters.</td>
                   </tr>
                   <tr v-for="(e, i) in filteredEntries" :key="e.id">
                     <td class="col-no">{{ i + 1 }}</td>
@@ -76,6 +77,7 @@
                     <td>{{ e.middle_name }}</td>
                     <td>{{ e.ext_name }}</td>
                     <td>{{ e.farm_location }}</td>
+                    <td>{{ e.calamity_type }}</td>
                     <td>{{ e.crop_type }}</td>
                     <td>{{ e.crop_stage }}</td>
                     <td class="col-num">{{ Number(e.area_planted).toFixed(2) }}</td>

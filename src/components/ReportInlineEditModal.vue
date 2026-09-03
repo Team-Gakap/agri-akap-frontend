@@ -14,7 +14,7 @@
           <ion-select
             :label="field.label"
             label-placement="stacked"
-            interface="popover"
+            interface="action-sheet"
             :value="form[field.key]"
             @ionChange="(e: any) => form[field.key] = String(e.detail.value ?? '')"
           >
@@ -32,6 +32,7 @@
             :crop="varietyCrop"
             :label="field.label"
             select-class="variety-select"
+            interface-name="action-sheet"
             @update:model-value="(v) => form[field.key] = v"
           />
         </div>

@@ -86,6 +86,7 @@
                     <th>BIRTHDAY</th>
                     <th>FARMER ADDRESS</th>
                     <th>FARM LOCATION</th>
+                    <th>VARIETY</th>
                     <th>AREA PLANTED</th>
                     <th>DATE OF PLANTING</th>
                     <th class="no-print">Actions</th>
@@ -93,7 +94,7 @@
                 </thead>
                 <tbody>
                   <tr v-if="!filteredRows.length">
-                    <td colspan="12" class="empty-row">No planting records match the current filters.</td>
+                    <td colspan="13" class="empty-row">No planting records match the current filters.</td>
                   </tr>
                   <tr v-for="(row, i) in filteredRows" :key="row.id">
                     <td class="col-no">{{ i + 1 }}</td>
@@ -105,6 +106,7 @@
                     <td>{{ row.birthdate_display }}</td>
                     <td>{{ row.farmer_address }}</td>
                     <td>{{ row.farm_location }}</td>
+                    <td>{{ row.variety }}</td>
                     <td class="col-num">{{ Number(row.area_planted).toFixed(2) }}</td>
                     <td class="mono">{{ row.date_of_planting }}</td>
                     <td class="no-print">
@@ -506,6 +508,7 @@ const plantingPrintRows = computed(() =>
     birthdate: e.birthdate_display,
     farmer_address: e.farmer_address,
     farm_location: e.farm_location,
+    variety: e.variety,
     area_planted: Number(e.area_planted).toFixed(2),
     area_planted_num: e.area_planted,
     date_of_planting: e.date_of_planting,

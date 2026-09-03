@@ -32,10 +32,13 @@
             <div class="kpi-icon-wrap kpi-tone-gold">
               <ion-icon :icon="leafOutline"></ion-icon>
             </div>
-            <p class="kpi-value">{{ fmtHa(descriptive.total_hectares) }} <small>ha</small></p>
-            <p class="kpi-label">Active Production Area</p>
+            <p class="kpi-value">{{ fmtHa(descriptive.active_planted_ha ?? descriptive.total_hectares) }} <small>ha</small></p>
+            <p class="kpi-label">Cultivated Land (Active Season)</p>
             <p class="kpi-meta">
-              Rice {{ fmtHa(descriptive.rice_hectares) }} ha · Corn {{ fmtHa(descriptive.corn_hectares) }} ha
+              Rice {{ fmtHa(descriptive.active_rice_ha ?? descriptive.rice_hectares) }} ha · Corn {{ fmtHa(descriptive.active_corn_ha ?? descriptive.corn_hectares) }} ha
+            </p>
+            <p v-if="descriptive.registered_land_ha" class="kpi-hint">
+              of {{ fmtHa(descriptive.registered_land_ha) }} ha Total Registered Land ({{ descriptive.tilled_percent ?? 0 }}% tilled)
             </p>
           </button>
 
@@ -190,14 +193,6 @@
                 <p>Consolidated municipal triage — critical system-generated insights</p>
               </div>
               <div class="action-toolbar no-print">
-                <ion-button
-                  class="batch-btn"
-                  :disabled="!zoneAlerts.length"
-                  @click="openBatchSms"
-                >
-                  <ion-icon slot="start" :icon="flashOutline"></ion-icon>
-                  Broadcast Advisories to All Affected Zones
-                </ion-button>
                 <ion-button fill="outline" class="export-btn" @click="exportSummary">
                   <ion-icon slot="start" :icon="printOutline"></ion-icon>
                   Export Executive Summary PDF
@@ -205,42 +200,44 @@
               </div>
             </header>
 
-            <div class="triage-wrap">
-              <table class="triage-table">
-                <thead>
-                  <tr>
-                    <th>Severity</th>
-                    <th>Threat</th>
-                    <th>Barangay</th>
-                    <th>Technical recommendation</th>
-                    <th class="no-print"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="(alert, i) in alerts" :key="i">
-                    <td>
-                      <span class="sev-badge" :class="alert.severity === 'critical' ? 'critical' : 'warning'">
-                        {{ alert.severity === 'critical' ? 'Critical' : 'Warning' }}
-                      </span>
-                    </td>
-                    <td>
-                      <strong>{{ alert.threat_label || alertLabel(alert) }}</strong>
-                      <span v-if="alert.crop" class="crop-tag">{{ alert.crop }}</span>
-                    </td>
-                    <td>{{ alert.barangay || 'LGU-wide' }}</td>
-                    <td class="rec-cell">{{ alert.recommendation || alert.message }}</td>
-                    <td class="no-print sms-cell">
-                      <ion-button size="small" fill="outline" class="sms-btn" @click="openSmsModal(alert)">
-                        Quick SMS
-                      </ion-button>
-                    </td>
-                  </tr>
-                  <tr v-if="!alerts.length">
-                    <td colspan="5" class="empty-row">No critical alerts. Monitored indicators are within range.</td>
-                  </tr>
-                </tbody>
-              </table>
+            <div class="triage-filter-bar no-print">
+              <button
+                v-for="f in triageFilters"
+                :key="f.value"
+                class="triage-chip"
+                :class="{ active: triageFilter === f.value }"
+                @click="triageFilter = f.value"
+              >{{ f.label }}</button>
             </div>
+
+            <div v-if="filteredGroups.length" class="triage-groups">
+              <div v-for="group in filteredGroups" :key="group.id" class="triage-group-card">
+                <div class="triage-group-head">
+                  <span class="sev-badge" :class="group.severity === 'critical' ? 'critical' : 'warning'">
+                    {{ group.severity === 'critical' ? 'Critical' : 'Warning' }}
+                  </span>
+                  <strong class="triage-group-title">{{ group.threat_label }}</strong>
+                  <span v-if="group.crop" class="crop-tag">{{ group.crop }}</span>
+                  <span class="triage-group-count">{{ group.count }} barangay{{ group.count !== 1 ? 's' : '' }}</span>
+                </div>
+                <p class="triage-group-rec">{{ group.recommendation }}</p>
+                <div v-if="group.barangays.length" class="triage-brgy-chips">
+                  <span v-for="b in group.barangays" :key="b" class="brgy-chip">{{ b }}</span>
+                </div>
+                <p v-else class="triage-group-scope">LGU-wide</p>
+                <div class="triage-group-actions no-print">
+                  <ion-button
+                    size="small"
+                    class="batch-btn"
+                    @click="openGroupBroadcast(group)"
+                  >
+                    <ion-icon slot="start" :icon="flashOutline"></ion-icon>
+                    Broadcast to {{ group.count || 'All' }} Barangay{{ group.count !== 1 ? 's' : '' }}
+                  </ion-button>
+                </div>
+              </div>
+            </div>
+            <p v-else class="empty-note">No critical alerts. Monitored indicators are within range.</p>
           </section>
         </div>
       </div>
@@ -250,7 +247,7 @@
         <p>{{ seasonLabel }} season · Generated {{ printedAt }}</p>
         <ul>
           <li>Farmers: {{ fmt(descriptive.total_farmers) }} ({{ fmt(descriptive.farmers_male) }} M / {{ fmt(descriptive.farmers_female) }} F) · RSBSA {{ fmt(descriptive.rsbsa_verified) }}</li>
-          <li>Planted: {{ fmtHa(descriptive.total_hectares) }} ha (Rice {{ fmtHa(descriptive.rice_hectares) }} · Corn {{ fmtHa(descriptive.corn_hectares) }})</li>
+          <li>Active Planted: {{ fmtHa(descriptive.active_planted_ha ?? descriptive.total_hectares) }} ha (Rice {{ fmtHa(descriptive.active_rice_ha ?? descriptive.rice_hectares) }} · Corn {{ fmtHa(descriptive.active_corn_ha ?? descriptive.corn_hectares) }}) of {{ fmtHa(descriptive.registered_land_ha ?? 0) }} ha registered</li>
           <li>
             Subsidy: {{ fmt(beneficiariesClaimed) }} / {{ fmt(beneficiariesEnrolled) }} beneficiaries
             ({{ fmtPct(subsidyUptake) }}%) · {{ fmt(activeCampaigns) }} active programs
@@ -431,6 +428,27 @@ const stageTotal = computed(() => stageRows.value.reduce((s: number, r: any) => 
 const zoneAlerts = computed(() =>
   alerts.value.filter((a: any) => Boolean(a?.barangay)),
 );
+
+const triageFilters = [
+  { label: 'All', value: 'all' },
+  { label: 'Outbreaks', value: 'outbreak' },
+  { label: 'Agro-Climate', value: 'agro_climate' },
+];
+const triageFilter = ref('all');
+
+const alertGroups = computed(() => (prescriptive.groups ?? []) as any[]);
+
+const filteredGroups = computed(() => {
+  if (triageFilter.value === 'all') return alertGroups.value;
+  return alertGroups.value.filter((g: any) => g.category === triageFilter.value);
+});
+
+const openGroupBroadcast = (group: any) => {
+  const zones = group.barangays ?? [];
+  smsForm.barangay = zones.join(', ') || 'All';
+  smsForm.message = group.group_sms_message || group.recommendation || '';
+  smsOpen.value = true;
+};
 
 const stagePct = (key: string) => {
   const row = stageRows.value.find((r: any) => r.key === key);
@@ -861,7 +879,7 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchAll));
   gap: 1rem;
   min-width: 0;
 }
-.diag-col { height: 100%; }
+.diag-col { align-self: start; height: auto; }
 .pred-col { align-self: start; height: auto; }
 .pred-col .panel-card {
   flex: 0 0 auto;
@@ -880,10 +898,10 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchAll));
   align-items: stretch;
 }
 .chart-pair .panel-card {
-  height: 100%;
+  height: auto;
 }
 
-.chart-box { height: 180px; position: relative; }
+.chart-box { height: 210px; position: relative; }
 .empty-note {
   margin: 0.4rem 0 0;
   color: #94a3b8;
@@ -1021,6 +1039,85 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchAll));
 }
 .sev-badge.critical { background: #fef2f2; color: #b91c1c; }
 .sev-badge.warning { background: #fff7ed; color: #c2410c; }
+
+.triage-filter-bar {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+.triage-chip {
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #475569;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.triage-chip.active {
+  background: #1A4731;
+  color: #fff;
+  border-color: #1A4731;
+}
+.triage-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.triage-group-card {
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  padding: 0.85rem 1rem;
+  background: #fafbfc;
+}
+.triage-group-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.35rem;
+}
+.triage-group-title {
+  color: #0f172a;
+  font-size: 0.88rem;
+}
+.triage-group-count {
+  font-size: 0.72rem;
+  color: #64748b;
+  font-weight: 600;
+}
+.triage-group-rec {
+  color: #475569;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  margin: 0.25rem 0 0.5rem;
+}
+.triage-brgy-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-bottom: 0.5rem;
+}
+.brgy-chip {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #1e3a5f;
+  background: #e0f2fe;
+  border-radius: 999px;
+  padding: 0.12rem 0.5rem;
+}
+.triage-group-scope {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  margin-bottom: 0.5rem;
+}
+.triage-group-actions {
+  display: flex;
+  gap: 0.4rem;
+}
 .sms-btn {
   --border-color: #1A4731;
   --color: #1A4731;
