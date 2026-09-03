@@ -63,8 +63,9 @@
             <select class="filter-select" v-model="filters.status" @change="fetchRows">
               <option value="">All Statuses</option>
               <option value="Pending">Pending</option>
-              <option value="Validated">Validated</option>
-              <option value="Endorsed">Endorsed</option>
+              <option value="Verified">Verified</option>
+              <option value="Approved">Approved</option>
+              <option value="Rejected">Rejected</option>
             </select>
           </div>
           <div class="filter-group">
@@ -253,6 +254,7 @@
 
     <ConfirmDeleteModal
       :is-open="deleteOpen"
+      :message="deleteConfirmMessage"
       @confirm="confirmDelete"
       @cancel="cancelDelete"
     />
@@ -323,7 +325,12 @@ const filters = reactive({
 
 const encodeOpen = ref(false);
 const authStore = useAuthStore();
-const { deleteOpen, promptDelete, cancelDelete, confirmDelete } = useReportRowActions();
+const { deleteOpen, deleteTarget, promptDelete, cancelDelete, confirmDelete } = useReportRowActions();
+const deleteConfirmMessage = computed(() =>
+  deleteTarget.value?.requireRemarks
+    ? 'This will void a verified calamity assessment. A justification is required for the audit trail.'
+    : 'This record will be removed. You can contact MAO admin if this was a mistake.',
+);
 const editOpen = ref(false);
 const editEndpoint = ref('');
 const editInitial = ref<Record<string, string | number | null | undefined>>({});
@@ -428,8 +435,9 @@ function openPhoto(row: DamageRow) {
 
 function statusClass(st: string) {
   const s = (st || '').toLowerCase();
-  if (s === 'endorsed') return 'st-done';
-  if (s === 'validated') return 'st-val';
+  if (s === 'approved') return 'st-done';
+  if (s === 'verified') return 'st-val';
+  if (s === 'rejected') return 'st-rej';
   return 'st-pend';
 }
 
@@ -710,6 +718,7 @@ onMounted(async () => {
 }
 .st-done { background: #dcfce7; color: #166534; }
 .st-val  { background: #dbeafe; color: #1d4ed8; }
+.st-rej  { background: #fee2e2; color: #991b1b; }
 .st-pend { background: #fef9c3; color: #854d0e; }
 
 /* Thumbnail */

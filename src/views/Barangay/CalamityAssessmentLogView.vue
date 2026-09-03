@@ -90,6 +90,8 @@
                         @click="viewingPhoto = e.photo_url!"
                       />
                       <ReportRowActions
+                        :can-edit="(e.status || 'Pending') === 'Pending'"
+                        :can-remove="(e.status || 'Pending') === 'Pending'"
                         @edit="openEdit(e)"
                         @remove="promptDelete({ endpoint: `/damage-assessments/${e.id}`, label: 'Calamity assessment', onSuccess: loadLedger })"
                       />
@@ -333,6 +335,7 @@ function setViewMode(mode: 'ledger' | 'entry') {
 
 interface CalamityEntry {
   id: string;
+  status?: string;
   calamity_type?: string;
   calamity_event: string;
   calamity_date: string;
@@ -485,6 +488,7 @@ const loadLedger = async () => {
       const farmer = r.farmer || {};
       return {
         id: r.id,
+        status: r.status || 'Pending',
         calamity_type: r.calamity_type || '',
         calamity_event: r.calamity_name || r.calamity_type || '',
         calamity_date: r.date_of_calamity?.slice?.(0, 10) || r.date_of_calamity || '',

@@ -227,6 +227,7 @@
 
     <ConfirmDeleteModal
       :is-open="deleteOpen"
+      :message="deleteConfirmMessage"
       @confirm="confirmDelete"
       @cancel="cancelDelete"
     />
@@ -296,7 +297,12 @@ const filters = reactive({
 
 const encodeOpen = ref(false);
 const authStore = useAuthStore();
-const { deleteOpen, promptDelete, cancelDelete, confirmDelete } = useReportRowActions();
+const { deleteOpen, deleteTarget, promptDelete, cancelDelete, confirmDelete } = useReportRowActions();
+const deleteConfirmMessage = computed(() =>
+  deleteTarget.value?.requireRemarks
+    ? 'This will void a validated pest record. A justification is required for the audit trail.'
+    : 'This record will be removed. You can contact MAO admin if this was a mistake.',
+);
 const editOpen = ref(false);
 const editEndpoint = ref('');
 const editInitial = ref<Record<string, string | number | null | undefined>>({});

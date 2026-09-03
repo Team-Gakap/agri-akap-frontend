@@ -147,6 +147,7 @@
                     <ReportRowActions
                       v-if="row.id"
                       :can-edit="false"
+                      :can-remove="authStore.isMunicipalAdmin"
                       @remove="promptDelete({
                         endpoint: `/subsidies/beneficiaries/${row.id}`,
                         label: 'Subsidy claim',
@@ -216,6 +217,7 @@ import { cropLabel } from '@/utils/cropLabel';
 import { useReportScope, type ReportPeriod } from '@/composables/useReportScope';
 import { rowMatchesNameSearch } from '@/utils/farmerNameColumns';
 import { itemTypeLabel, type ItemType } from '@/constants/subsidyCatalog';
+import { useAuthStore } from '@/stores/authStore';
 
 const ITEM_TYPES: ItemType[] = ['seed', 'abono', 'liquid_fertilizer', 'wettable', 'cash'];
 
@@ -300,6 +302,7 @@ const subsidyTotalsLabel = computed(() => {
     .join(' · ') || '0';
 });
 const encodeOpen = ref(false);
+const authStore = useAuthStore();
 const { deleteOpen, promptDelete, cancelDelete, confirmDelete } = useReportRowActions();
 
 const { lockedBarangay, hideEncode, period, applyPeriod } = useReportScope();
