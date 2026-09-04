@@ -152,6 +152,8 @@
                   <td class="no-print">
                     <ReportRowActions
                       v-if="row.id && !hideEncode"
+                      :row-id="String(row.id)"
+                      destructive-mode="remove"
                       @edit="openEdit(row)"
                       @remove="promptDelete({ endpoint: `/planting-logs/${row.id}`, label: 'Planting record', onSuccess: fetchRows })"
                     />
@@ -202,6 +204,8 @@
                   <td class="no-print">
                     <ReportRowActions
                       v-if="row.id && !hideEncode"
+                      :row-id="String(row.id)"
+                      destructive-mode="remove"
                       @edit="openEdit(row)"
                       @remove="promptDelete({ endpoint: `/harvest-logs/${row.id}`, label: 'Harvest record', onSuccess: fetchRows })"
                     />
@@ -253,6 +257,9 @@
 
     <ConfirmDeleteModal
       :is-open="deleteOpen"
+      :header="confirmHeader"
+      :message="confirmMessage"
+      :confirm-text="confirmText"
       @confirm="confirmDelete"
       @cancel="cancelDelete"
     />
@@ -396,7 +403,7 @@ const encodeTitle = computed(() =>
   activeMode.value === 'harvest' ? 'Add / Override Harvest Record' : 'Add / Override Planting Record'
 );
 
-const { deleteOpen, promptDelete, cancelDelete, confirmDelete } = useReportRowActions();
+const { deleteOpen, confirmHeader, confirmMessage, confirmText, promptDelete, cancelDelete, confirmDelete } = useReportRowActions();
 const editOpen = ref(false);
 const editEndpoint = ref('');
 const editTitle = ref('Edit record');

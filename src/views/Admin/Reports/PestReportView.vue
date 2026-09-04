@@ -149,13 +149,24 @@
                   <td class="no-print">
                     <ReportRowActions
                       v-if="row.id && !hideEncode"
+                      :row-id="String(row.id)"
+                      variant="menu"
                       :can-edit="row.status === 'Pending'"
                       :can-remove="row.status === 'Pending' || authStore.isMunicipalAdmin"
+                      :can-view="!!photoSrc(row)"
+                      :destructive-mode="row.status === 'Pending' ? 'remove' : 'void'"
                       @edit="openEdit(row)"
+                      @view="openPhoto(row)"
                       @remove="promptDelete({
                         endpoint: `/pest-monitoring/${row.id}`,
                         label: 'Pest record',
                         requireRemarks: row.status !== 'Pending',
+                        destructiveMode: row.status === 'Pending' ? 'remove' : 'void',
+                        confirmHeader: row.status === 'Pending' ? 'Remove record?' : 'Void record?',
+                        confirmMessage: row.status === 'Pending'
+                          ? 'This record will be removed. You can contact MAO admin if this was a mistake.'
+                          : 'This will void a validated pest record. A justification is required for the audit trail.',
+                        confirmText: row.status === 'Pending' ? 'Remove' : 'Void',
                         onSuccess: fetchRows,
                       })"
                     />
@@ -227,7 +238,9 @@
 
     <ConfirmDeleteModal
       :is-open="deleteOpen"
-      :message="deleteConfirmMessage"
+      :header="confirmHeader"
+      :message="confirmMessage"
+      :confirm-text="confirmText"
       @confirm="confirmDelete"
       @cancel="cancelDelete"
     />
@@ -297,12 +310,7 @@ const filters = reactive({
 
 const encodeOpen = ref(false);
 const authStore = useAuthStore();
-const { deleteOpen, deleteTarget, promptDelete, cancelDelete, confirmDelete } = useReportRowActions();
-const deleteConfirmMessage = computed(() =>
-  deleteTarget.value?.requireRemarks
-    ? 'This will void a validated pest record. A justification is required for the audit trail.'
-    : 'This record will be removed. You can contact MAO admin if this was a mistake.',
-);
+const { deleteOpen, confirmHeader, confirmMessage, confirmText, promptDelete, cancelDelete, confirmDelete } = useReportRowActions();
 const editOpen = ref(false);
 const editEndpoint = ref('');
 const editInitial = ref<Record<string, string | number | null | undefined>>({});

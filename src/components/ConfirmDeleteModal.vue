@@ -1,7 +1,7 @@
 <template>
   <ion-alert
     :is-open="isOpen"
-    header="Remove record?"
+    :header="header"
     :message="message"
     :buttons="alertButtons"
     @didDismiss="onDismiss"
@@ -12,11 +12,15 @@
 import { IonAlert } from '@ionic/vue';
 import { computed } from 'vue';
 
-withDefaults(defineProps<{
+const props = withDefaults(defineProps<{
   isOpen: boolean;
+  header?: string;
   message?: string;
+  confirmText?: string;
 }>(), {
+  header: 'Remove record?',
   message: 'This record will be removed. You can contact MAO admin if this was a mistake.',
+  confirmText: 'Remove',
 });
 
 const emit = defineEmits<{
@@ -30,7 +34,7 @@ const alertButtons = computed(() => [
     role: 'cancel',
   },
   {
-    text: 'Remove',
+    text: props.confirmText,
     role: 'destructive',
   },
 ]);

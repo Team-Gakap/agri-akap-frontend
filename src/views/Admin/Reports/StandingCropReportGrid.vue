@@ -108,6 +108,8 @@
               <td class="no-print">
                 <ReportRowActions
                   v-if="row.id && !hideEncode"
+                  :row-id="String(row.id)"
+                  destructive-mode="remove"
                   @edit="openEdit(row)"
                   @remove="promptDelete({ endpoint: `/standing-crop-logs/${row.id}`, label: 'Standing crop record', onSuccess: fetchRows })"
                 />
@@ -144,6 +146,9 @@
 
   <ConfirmDeleteModal
     :is-open="deleteOpen"
+    :header="confirmHeader"
+    :message="confirmMessage"
+    :confirm-text="confirmText"
     @confirm="confirmDelete"
     @cancel="cancelDelete"
   />
@@ -188,7 +193,7 @@ const loadError = ref('');
 const rows = ref<StandingRow[]>([]);
 const barangays = ref<string[]>([]);
 const encodeOpen = ref(false);
-const { deleteOpen, promptDelete, cancelDelete, confirmDelete } = useReportRowActions();
+const { deleteOpen, confirmHeader, confirmMessage, confirmText, promptDelete, cancelDelete, confirmDelete } = useReportRowActions();
 const editOpen = ref(false);
 const editEndpoint = ref('');
 const editInitial = ref<Record<string, string | number | null | undefined>>({});

@@ -146,12 +146,18 @@
                   <td v-if="!hideEncode" class="no-print">
                     <ReportRowActions
                       v-if="row.id"
+                      :row-id="String(row.id)"
                       :can-edit="false"
                       :can-remove="authStore.isMunicipalAdmin"
+                      destructive-mode="void"
                       @remove="promptDelete({
                         endpoint: `/subsidies/beneficiaries/${row.id}`,
                         label: 'Subsidy claim',
                         requireRemarks: true,
+                        destructiveMode: 'void',
+                        confirmHeader: 'Void claim?',
+                        confirmMessage: 'This will void the claim and restock program inventory. A justification is required for the audit trail.',
+                        confirmText: 'Void',
                         onSuccess: fetchRows,
                       })"
                     />
@@ -189,7 +195,9 @@
 
     <ConfirmDeleteModal
       :is-open="deleteOpen"
-      message="This will void the claim and restock program inventory."
+      :header="confirmHeader"
+      :message="confirmMessage"
+      :confirm-text="confirmText"
       @confirm="confirmDelete"
       @cancel="cancelDelete"
     />
@@ -303,7 +311,7 @@ const subsidyTotalsLabel = computed(() => {
 });
 const encodeOpen = ref(false);
 const authStore = useAuthStore();
-const { deleteOpen, promptDelete, cancelDelete, confirmDelete } = useReportRowActions();
+const { deleteOpen, confirmHeader, confirmMessage, confirmText, promptDelete, cancelDelete, confirmDelete } = useReportRowActions();
 
 const { lockedBarangay, hideEncode, period, applyPeriod } = useReportScope();
 
