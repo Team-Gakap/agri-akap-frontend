@@ -841,11 +841,12 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchAll));
   flex-direction: column;
   gap: 1rem;
   min-width: 0;
-  height: 100%;
 }
+.diag-col { align-self: stretch; }
+.pred-col { align-self: start; height: auto; }
 .pred-col .panel-card {
-  flex: 1 1 auto;
-  height: 100%;
+  flex: 0 0 auto;
+  height: auto;
 }
 .gis-span { min-width: 0; }
 .gis-span :deep(.gis-card) {
