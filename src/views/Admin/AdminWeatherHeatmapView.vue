@@ -178,9 +178,9 @@
               Open in Broadcast Center
             </button>
 
-            <router-link class="fb-card-link" to="/admin/weather/facebook">
+            <!-- <router-link class="fb-card-link" to="/admin/weather/facebook">
               Facebook rainfall graphic
-            </router-link>
+            </router-link> -->
 
             <div v-if="!criticalBarangays.length" class="empty-alerts">
               No barangays above threshold for this metric.

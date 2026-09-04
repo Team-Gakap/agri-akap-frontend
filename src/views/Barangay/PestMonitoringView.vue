@@ -28,7 +28,8 @@
             </div>
             <div class="filter-group">
               <label class="filter-label">Crop</label>
-              <select class="filter-select" :value="crop" @change="onCropFilterChange">
+              <select class="filter-select" :value="cropFilter" @change="onCropFilterChange">
+                <option value="">All Crops</option>
                 <option value="Corn">Corn</option>
                 <option value="Rice">Rice</option>
               </select>
@@ -353,6 +354,7 @@ const {
   payloadBarangayName,
 } = useEncodingBarangay();
 const crop = ref('Corn');
+const cropFilter = ref('');
 const farmerSearch = useBarangayFarmerSearch(() => effectiveBarangay.value, {
   commodity: () => crop.value,
 });
@@ -492,7 +494,7 @@ const loadLedger = async () => {
       params: {
         per_page: 200,
         page: page.value,
-        crop_type: crop.value || undefined,
+        crop_type: cropFilter.value || undefined,
         barangay: effectiveBarangay.value,
       },
     });
@@ -523,7 +525,7 @@ const loadLedger = async () => {
         date_of_inspection: r.date_of_inspection?.slice?.(0, 10) || r.date_of_inspection || '',
         photo_url: storageUrl(r.photo_url || r.photo_path),
         latitude: r.latitude != null ? Number(r.latitude) : null,
-        crop: r.crop || crop.value,
+        crop: r.crop || '',
       } as PestEntry;
     });
   } catch {
@@ -537,8 +539,7 @@ const onTargetBarangayChange = () => {
 };
 
 const onCropFilterChange = (e: Event) => {
-  crop.value = (e.target as HTMLSelectElement).value;
-  resetForm();
+  cropFilter.value = (e.target as HTMLSelectElement).value;
   page.value = 1;
   void loadLedger();
 };
@@ -546,8 +547,6 @@ const onCropFilterChange = (e: Event) => {
 const onCropChange = async (e: any) => {
   crop.value = e.detail.value;
   resetForm();
-  page.value = 1;
-  await loadLedger();
 };
 
 const onSelectFarmer = async (f: FarmerOption) => {
@@ -775,7 +774,7 @@ const downloadExcel = async () => {
   await exportPestMonitoringExcel({
     rows: previewRows.value,
     barangay: effectiveBarangay.value || '',
-    crop: crop.value,
+    crop: cropFilter.value || 'All Crops',
   });
 };
 

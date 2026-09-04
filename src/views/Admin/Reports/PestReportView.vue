@@ -104,6 +104,7 @@
                   <th>Middle Name</th>
                   <th>Farm Location</th>
                   <th>Crop</th>
+                  <th>Variety</th>
                   <th>Pest</th>
                   <th>Disease</th>
                   <th>Severity</th>
@@ -115,7 +116,7 @@
               </thead>
               <tbody>
                 <tr v-if="!filteredRows.length">
-                  <td colspan="15" class="empty-row">No pest surveillance records match the current filters.</td>
+                  <td colspan="16" class="empty-row">No pest surveillance records match the current filters.</td>
                 </tr>
                 <tr v-for="(row, i) in filteredRows" :key="row.id || i">
                   <td class="col-no">{{ i + 1 }}</td>
@@ -126,6 +127,7 @@
                   <td>{{ row.middle_name || '—' }}</td>
                   <td>{{ row.farm_location }}</td>
                   <td>{{ row.crop }}</td>
+                  <td>{{ row.variety || '—' }}</td>
                   <td>{{ pestParts(row).pest || '—' }}</td>
                   <td>{{ pestParts(row).disease || '—' }}</td>
                   <td>
@@ -172,7 +174,7 @@
                   </td>
                 </tr>
                 <tr v-if="filteredRows.length" class="totals-row">
-                  <td colspan="11" class="totals-label">TOTALS</td>
+                  <td colspan="12" class="totals-label">TOTALS</td>
                   <td class="col-num">{{ totalAreaAffected }}</td>
                   <td colspan="3"></td>
                 </tr>
@@ -484,6 +486,7 @@ async function downloadExcel() {
       { key: 'middle_name', label: 'Middle Name' },
       { key: 'farm_location', label: 'Farm Location' },
       { key: 'crop', label: 'Crop' },
+      { key: 'variety', label: 'Variety' },
       { key: 'pest', label: 'Pest' },
       { key: 'disease', label: 'Disease' },
       { key: 'severity', label: 'Severity' },
