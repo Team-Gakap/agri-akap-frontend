@@ -42,13 +42,13 @@
           <div class="kpi-icon kpi-tone-gold">
             <ion-icon :icon="leafOutline"></ion-icon>
           </div>
-          <p class="kpi-value">{{ fmtHa(dashboardData.total_hectares) }} <small>ha</small></p>
-          <p class="kpi-label">Cultivated Land (Active Season)</p>
+          <p class="kpi-value">{{ fmtHa(dashboardData.registered_land_ha ?? dashboardData.total_hectares) }} <small>ha</small></p>
+          <p class="kpi-label">Cultivated Land</p>
           <p class="kpi-sub">
             {{ fmtHa(dashboardData.rice_hectares) }} ha Rice · {{ fmtHa(dashboardData.corn_hectares) }} ha Corn
           </p>
-          <p v-if="dashboardData.registered_land_ha" class="kpi-hint">
-            of {{ fmtHa(dashboardData.registered_land_ha) }} ha Registered ({{ dashboardData.tilled_percent ?? 0 }}% tilled)
+          <p v-if="dashboardData.active_planted_ha != null" class="kpi-hint">
+            Active planted {{ fmtHa(dashboardData.active_planted_ha) }} ha ({{ dashboardData.tilled_percent ?? 0 }}% tilled)
           </p>
         </button>
 
@@ -313,6 +313,7 @@ interface DashboardData {
   rice_hectares: number;
   corn_hectares: number;
   registered_land_ha?: number;
+  active_planted_ha?: number;
   tilled_percent?: number;
   claimed_subsidies: number;
   unclaimed_subsidies: number;
@@ -648,7 +649,8 @@ const fetchDashboard = async () => {
       total_hectares: Number(desc.total_hectares ?? desc.active_hectares ?? 0),
       rice_hectares: Number(desc.rice_hectares ?? 0),
       corn_hectares: Number(desc.corn_hectares ?? 0),
-      registered_land_ha: Number(desc.registered_land_ha ?? 0),
+      registered_land_ha: Number(desc.registered_land_ha ?? desc.total_hectares ?? 0),
+      active_planted_ha: Number(desc.active_planted_ha ?? desc.active_hectares ?? 0),
       tilled_percent: Number(desc.tilled_percent ?? 0),
       claimed_subsidies: Number(desc.claimed_subsidies ?? 0),
       unclaimed_subsidies: Number(desc.unclaimed_subsidies ?? desc.pending_subsidies ?? 0),

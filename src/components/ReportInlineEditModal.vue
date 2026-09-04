@@ -15,10 +15,10 @@
             :label="field.label"
             label-placement="stacked"
             interface="action-sheet"
+            :placeholder="field.placeholder || 'Select…'"
             :value="form[field.key]"
             @ionChange="(e: any) => form[field.key] = String(e.detail.value ?? '')"
           >
-            <ion-select-option value="">{{ field.placeholder || 'Select…' }}</ion-select-option>
             <ion-select-option
               v-for="opt in field.options || []"
               :key="opt"

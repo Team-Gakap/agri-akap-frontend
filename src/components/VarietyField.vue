@@ -9,13 +9,27 @@
       :placeholder="placeholder"
       @ionChange="onSelect"
     >
-      <template v-for="group in groups" :key="group.label">
-        <ion-select-option :value="headerValue(group.label)" disabled>
-          {{ group.label }}
-        </ion-select-option>
-        <ion-select-option v-for="v in group.varieties" :key="v" :value="v">{{ v }}</ion-select-option>
+      <!-- Action-sheet: no separate header options (Ionic ignores disabled); prefix Class · Variety -->
+      <template v-if="usePrefixedOptions">
+        <template v-for="group in groups" :key="group.label">
+          <ion-select-option
+            v-for="v in group.varieties"
+            :key="`${group.label}:${v}`"
+            :value="v"
+          >{{ group.label }} · {{ v }}</ion-select-option>
+        </template>
+        <ion-select-option :value="OTHER_VARIETY">{{ OTHER_VARIETY }}</ion-select-option>
       </template>
-      <ion-select-option :value="OTHER_VARIETY">{{ OTHER_VARIETY }}</ion-select-option>
+      <!-- Popover/alert: bold disabled section headers -->
+      <template v-else>
+        <template v-for="group in groups" :key="group.label">
+          <ion-select-option :value="headerValue(group.label)" disabled class="variety-group-hdr">
+            {{ group.label }}
+          </ion-select-option>
+          <ion-select-option v-for="v in group.varieties" :key="v" :value="v">{{ v }}</ion-select-option>
+        </template>
+        <ion-select-option :value="OTHER_VARIETY">{{ OTHER_VARIETY }}</ion-select-option>
+      </template>
     </ion-select>
     <ion-input
       v-if="selection === OTHER_VARIETY"
@@ -59,6 +73,7 @@ const emit = defineEmits<{
 
 const custom = ref('');
 const groups = computed(() => varietyGroupsForCrop(props.crop));
+const usePrefixedOptions = computed(() => props.interfaceName === 'action-sheet');
 
 const headerValue = (label: string) => `__hdr:${label}`;
 
@@ -122,5 +137,11 @@ const onCustom = (e: CustomEvent) => {
   overflow: visible;
   text-overflow: unset;
   line-height: 1.25;
+}
+.variety-field :deep(ion-select-option.variety-group-hdr),
+.variety-field :deep(.variety-group-hdr) {
+  font-weight: 800;
+  opacity: 1;
+  color: #0f172a;
 }
 </style>

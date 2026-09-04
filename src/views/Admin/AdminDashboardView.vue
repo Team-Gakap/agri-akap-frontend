@@ -32,13 +32,13 @@
             <div class="kpi-icon-wrap kpi-tone-gold">
               <ion-icon :icon="leafOutline"></ion-icon>
             </div>
-            <p class="kpi-value">{{ fmtHa(descriptive.active_planted_ha ?? descriptive.total_hectares) }} <small>ha</small></p>
-            <p class="kpi-label">Cultivated Land (Active Season)</p>
+            <p class="kpi-value">{{ fmtHa(descriptive.registered_land_ha ?? descriptive.total_hectares) }} <small>ha</small></p>
+            <p class="kpi-label">Cultivated Land</p>
             <p class="kpi-meta">
-              Rice {{ fmtHa(descriptive.active_rice_ha ?? descriptive.rice_hectares) }} ha · Corn {{ fmtHa(descriptive.active_corn_ha ?? descriptive.corn_hectares) }} ha
+              Rice {{ fmtHa(descriptive.registered_rice_ha ?? descriptive.rice_hectares) }} ha · Corn {{ fmtHa(descriptive.registered_corn_ha ?? descriptive.corn_hectares) }} ha
             </p>
-            <p v-if="descriptive.registered_land_ha" class="kpi-hint">
-              of {{ fmtHa(descriptive.registered_land_ha) }} ha Total Registered Land ({{ descriptive.tilled_percent ?? 0 }}% tilled)
+            <p v-if="descriptive.active_planted_ha != null" class="kpi-hint">
+              Active planted {{ fmtHa(descriptive.active_planted_ha) }} ha ({{ descriptive.tilled_percent ?? 0 }}% tilled)
             </p>
           </button>
 
@@ -247,7 +247,7 @@
         <p>{{ seasonLabel }} season · Generated {{ printedAt }}</p>
         <ul>
           <li>Farmers: {{ fmt(descriptive.total_farmers) }} ({{ fmt(descriptive.farmers_male) }} M / {{ fmt(descriptive.farmers_female) }} F) · RSBSA {{ fmt(descriptive.rsbsa_verified) }}</li>
-          <li>Active Planted: {{ fmtHa(descriptive.active_planted_ha ?? descriptive.total_hectares) }} ha (Rice {{ fmtHa(descriptive.active_rice_ha ?? descriptive.rice_hectares) }} · Corn {{ fmtHa(descriptive.active_corn_ha ?? descriptive.corn_hectares) }}) of {{ fmtHa(descriptive.registered_land_ha ?? 0) }} ha registered</li>
+          <li>Cultivated Land: {{ fmtHa(descriptive.registered_land_ha ?? descriptive.total_hectares) }} ha registered (Rice {{ fmtHa(descriptive.registered_rice_ha ?? descriptive.rice_hectares) }} · Corn {{ fmtHa(descriptive.registered_corn_ha ?? descriptive.corn_hectares) }}) · Active planted {{ fmtHa(descriptive.active_planted_ha ?? 0) }} ha ({{ descriptive.tilled_percent ?? 0 }}% tilled)</li>
           <li>
             Subsidy: {{ fmt(beneficiariesClaimed) }} / {{ fmt(beneficiariesEnrolled) }} beneficiaries
             ({{ fmtPct(subsidyUptake) }}%) · {{ fmt(activeCampaigns) }} active programs

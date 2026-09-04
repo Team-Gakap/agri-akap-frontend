@@ -5,25 +5,25 @@
     <ion-content class="page-bg ion-padding">
       <div class="wrap">
         <div class="toolbar-row">
-          <ion-segment
-            class="metric-segment"
-            :value="activeMetric"
-            scrollable
-            @ionChange="onMetricChange"
-          >
-            <ion-segment-button value="precipitation_probability">
+        <ion-segment
+          class="metric-segment"
+          :value="activeMetric"
+          scrollable
+          @ionChange="onMetricChange"
+        >
+          <ion-segment-button value="precipitation_probability">
               <ion-label>Precipitation</ion-label>
-            </ion-segment-button>
-            <ion-segment-button value="soil_moisture_28cm">
+          </ion-segment-button>
+          <ion-segment-button value="soil_moisture_28cm">
               <ion-label>Soil Moisture</ion-label>
-            </ion-segment-button>
-            <ion-segment-button value="wind_speed_10m">
+          </ion-segment-button>
+          <ion-segment-button value="wind_speed_10m">
               <ion-label>Wind Speed</ion-label>
-            </ion-segment-button>
-            <ion-segment-button value="evapotranspiration">
+          </ion-segment-button>
+          <ion-segment-button value="evapotranspiration">
               <ion-label>Water Demand</ion-label>
-            </ion-segment-button>
-          </ion-segment>
+          </ion-segment-button>
+        </ion-segment>
           <div class="legend">
             <span class="leg safe">Safe</span>
             <span class="leg watch">Watch</span>
@@ -37,7 +37,7 @@
         </div>
 
         <div class="hint-row">
-          <p class="metric-hint">{{ metricHint }}</p>
+        <p class="metric-hint">{{ metricHint }}</p>
           <div class="exceptions-toggle" role="group" aria-label="Barangay scope">
             <button type="button" :class="{ on: !exceptionsOnly }" @click="exceptionsOnly = false">All</button>
             <button type="button" :class="{ on: exceptionsOnly }" @click="exceptionsOnly = true">
@@ -120,10 +120,10 @@
                 <tbody>
                   <tr
                     v-for="row in sortedRows"
-                    :key="row.barangay_name"
+                :key="row.barangay_name"
                     :class="{ selected: selectedBarangay === row.barangay_name }"
-                    @click="selectedBarangay = row.barangay_name"
-                  >
+                @click="selectedBarangay = row.barangay_name"
+              >
                     <td class="name-cell">{{ shortName(row.barangay_name) }}</td>
                     <td>{{ formatValue(metricValue(row, 'precipitation_probability'), 'precipitation_probability') }}%</td>
                     <td>{{ formatValue(row.soil_moisture_28cm, 'soil_moisture_28cm') }}</td>
