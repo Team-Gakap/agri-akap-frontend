@@ -41,6 +41,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue';
+import type { AutocompleteTypes } from '@ionic/core';
 import { IonItem, IonInput, IonButton, IonIcon } from '@ionic/vue';
 import { lockClosed, eye, eyeOff, checkmarkCircle, ellipseOutline, closeCircle } from 'ionicons/icons';
 import { PASSWORD_RULES, TEMPORARY_PASSWORD } from '@/utils/passwordPolicy';
@@ -50,7 +51,7 @@ const model = defineModel<string>({ default: '' });
 withDefaults(defineProps<{
   label?: string;
   placeholder?: string;
-  autocomplete?: string;
+  autocomplete?: AutocompleteTypes;
 }>(), {
   label: 'New password',
   placeholder: 'Create a strong password',
