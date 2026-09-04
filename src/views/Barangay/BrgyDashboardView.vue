@@ -45,7 +45,7 @@
           <p class="kpi-value">{{ fmtHa(dashboardData.registered_land_ha ?? dashboardData.total_hectares) }} <small>ha</small></p>
           <p class="kpi-label">Farm Area</p>
           <p class="kpi-sub">
-            Rice {{ fmtHa(dashboardData.registered_rice_ha ?? dashboardData.rice_hectares) }} ha · Corn {{ fmtHa(dashboardData.registered_corn_ha ?? dashboardData.corn_hectares) }} ha
+            {{ fmt(dashboardData.farmers_with_area) }} farmers with area · avg {{ fmtHa(dashboardData.avg_farm_area_ha) }} ha
           </p>
         </button>
 
@@ -312,6 +312,8 @@ interface DashboardData {
   registered_land_ha?: number;
   registered_rice_ha?: number;
   registered_corn_ha?: number;
+  farmers_with_area?: number;
+  avg_farm_area_ha?: number;
   active_planted_ha?: number;
   active_rice_ha?: number;
   active_corn_ha?: number;
@@ -554,8 +556,7 @@ const barOptions = {
 };
 
 const fmt = (v: unknown) => Number(v ?? 0).toLocaleString('en-PH');
-/** Up to 4 dp to match DB farm-area precision; no forced 1-dp round-off. */
-const fmtHa = (v: unknown) => Number(v ?? 0).toLocaleString('en-PH', { maximumFractionDigits: 4 });
+const fmtHa = (v: unknown) => Number(v ?? 0).toLocaleString('en-PH', { maximumFractionDigits: 1 });
 const fmtNum = (v: unknown, digits = 0) => {
   if (v == null || Number.isNaN(Number(v))) return '—';
   return Number(v).toFixed(digits);
@@ -654,6 +655,8 @@ const fetchDashboard = async () => {
       registered_land_ha: Number(desc.registered_land_ha ?? desc.total_hectares ?? 0),
       registered_rice_ha: Number(desc.registered_rice_ha ?? desc.rice_hectares ?? 0),
       registered_corn_ha: Number(desc.registered_corn_ha ?? desc.corn_hectares ?? 0),
+      farmers_with_area: Number(desc.farmers_with_area ?? 0),
+      avg_farm_area_ha: Number(desc.avg_farm_area_ha ?? 0),
       active_planted_ha: Number(desc.active_planted_ha ?? desc.active_hectares ?? 0),
       active_rice_ha: Number(desc.active_rice_ha ?? 0),
       active_corn_ha: Number(desc.active_corn_ha ?? 0),

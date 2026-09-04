@@ -35,7 +35,7 @@
             <p class="kpi-value">{{ fmtHa(descriptive.registered_land_ha ?? descriptive.total_hectares) }} <small>ha</small></p>
             <p class="kpi-label">Farm Area</p>
             <p class="kpi-meta">
-              Rice {{ fmtHa(descriptive.registered_rice_ha ?? descriptive.rice_hectares) }} ha · Corn {{ fmtHa(descriptive.registered_corn_ha ?? descriptive.corn_hectares) }} ha
+              {{ fmt(descriptive.farmers_with_area) }} farmers with area · avg {{ fmtHa(descriptive.avg_farm_area_ha) }} ha
             </p>
           </button>
 
@@ -244,7 +244,7 @@
         <p>{{ seasonLabel }} season · Generated {{ printedAt }}</p>
         <ul>
           <li>Farmers: {{ fmt(descriptive.total_farmers) }} ({{ fmt(descriptive.farmers_male) }} M / {{ fmt(descriptive.farmers_female) }} F) · RSBSA {{ fmt(descriptive.rsbsa_verified) }}</li>
-          <li>Farm Area: {{ fmtHa(descriptive.registered_land_ha ?? descriptive.total_hectares) }} ha masterlist · Rice {{ fmtHa(descriptive.registered_rice_ha ?? descriptive.rice_hectares) }} · Corn {{ fmtHa(descriptive.registered_corn_ha ?? descriptive.corn_hectares) }}</li>
+          <li>Farm Area: {{ fmtHa(descriptive.registered_land_ha ?? descriptive.total_hectares) }} ha masterlist · {{ fmt(descriptive.farmers_with_area) }} farmers with area · avg {{ fmtHa(descriptive.avg_farm_area_ha) }} ha</li>
           <li>
             Subsidy: {{ fmt(beneficiariesClaimed) }} / {{ fmt(beneficiariesEnrolled) }} beneficiaries
             ({{ fmtPct(subsidyUptake) }}%) · {{ fmt(activeCampaigns) }} active programs
@@ -371,8 +371,7 @@ const smsForm = reactive({
 });
 
 const fmt = (v: any) => Number(v ?? 0).toLocaleString('en-PH');
-/** Up to 4 dp to match DB farm-area precision; no forced 1-dp round-off. */
-const fmtHa = (v: any) => Number(v ?? 0).toLocaleString('en-PH', { maximumFractionDigits: 4 });
+const fmtHa = (v: any) => Number(v ?? 0).toLocaleString('en-PH', { maximumFractionDigits: 1 });
 const fmtMt = (v: any) => Number(v ?? 0).toLocaleString('en-PH', { maximumFractionDigits: 1 });
 const fmtPct = (v: any) => Number(v ?? 0).toLocaleString('en-PH', {
   minimumFractionDigits: 1,
