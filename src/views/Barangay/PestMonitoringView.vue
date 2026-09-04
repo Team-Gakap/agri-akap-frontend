@@ -224,12 +224,6 @@
               <ion-select-option v-for="d in diseaseOptions" :key="'d-'+d" :value="d">{{ d }}</ion-select-option>
             </ion-select>
             <ion-input class="field" type="date" label="Date of Inspection" label-placement="stacked" :value="form.date_of_inspection" @ionInput="(e: any) => form.date_of_inspection = e.detail.value"></ion-input>
-            <ion-item class="field outbreak-item" lines="none">
-              <ion-toggle
-                :checked="form.is_outbreak"
-                @ionChange="(e: CustomEvent) => form.is_outbreak = !!e.detail.checked"
-              >Flag as potential outbreak</ion-toggle>
-            </ion-item>
           </div>
           <p v-if="harvestReadyHint" class="autofill-hint">{{ harvestReadyHint }}</p>
 
@@ -279,7 +273,7 @@ import { ref, reactive, computed, defineAsyncComponent, onMounted, watch } from 
 import { useRoute, useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
-  IonButton, IonIcon, IonInput, IonSelect, IonSelectOption, IonItem, IonToggle,
+  IonButton, IonIcon, IonInput, IonSelect, IonSelectOption,
 } from '@ionic/vue';
 import FormExportActions from '@/components/FormExportActions.vue';
 import { exportPestMonitoringExcel } from '@/utils/statutoryFormExcel';
@@ -425,7 +419,6 @@ const form = reactive({
   disease: '',
   damage_by: '',
   date_of_inspection: '',
-  is_outbreak: false,
 });
 
 const matchingPlots = computed(() => farmerSearch.plotsForCommodity(crop.value));
@@ -644,7 +637,6 @@ const resetForm = () => {
   form.disease = '';
   form.damage_by = '';
   form.date_of_inspection = '';
-  form.is_outbreak = false;
 };
 
 const addEntry = async () => {
@@ -671,7 +663,6 @@ const addEntry = async () => {
       date_of_inspection: form.date_of_inspection,
       farm_location: form.farm_location,
       barangay_name: payloadBarangayName(),
-      is_outbreak: form.is_outbreak,
     });
 
     entries.value.unshift({
@@ -940,7 +931,6 @@ watch(viewMode, (mode) => {
   color: #0f172a;
 }
 .field.grow { flex: 2; min-width: 200px; }
-.outbreak-item { --background: #fff7ed; border: 1px solid #fdba74; grid-column: 1 / -1; }
 .form-card {
   background: white; border: 1px solid #e2e8f0; border-radius: 12px;
   padding: 1rem; margin-bottom: 1rem;

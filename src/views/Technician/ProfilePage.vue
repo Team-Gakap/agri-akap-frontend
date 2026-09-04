@@ -58,6 +58,11 @@
           </ion-item>
         </ion-list>
 
+        <ion-button expand="block" fill="outline" class="change-pw-btn" @click="goChangePassword">
+          <ion-icon :icon="lockClosedOutline" slot="start"></ion-icon>
+          Change password
+        </ion-button>
+
         <ion-button expand="block" color="danger" class="logout-btn" @click="confirmLogout">
           <ion-icon :icon="logOutOutline" slot="start"></ion-icon>
           Logout
@@ -71,17 +76,19 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent,
   IonList, IonItem, IonLabel, IonIcon, IonChip, IonBadge, IonButton, alertController,
 } from '@ionic/vue';
 import {
   personOutline, mailOutline, shieldCheckmarkOutline, logOutOutline,
-  cloudDoneOutline, cloudOfflineOutline, cloudUploadOutline,
+  cloudDoneOutline, cloudOfflineOutline, cloudUploadOutline, lockClosedOutline,
 } from 'ionicons/icons';
 import { useAuthStore } from '@/stores/authStore';
 import { useSyncStore } from '@/stores/syncStore';
 
+const router = useRouter();
 const authStore = useAuthStore();
 const syncStore = useSyncStore();
 
@@ -102,6 +109,10 @@ const roleBadge = computed(() => {
   if (role === 'barangay_official') return 'Barangay Official';
   return 'Field Technician';
 });
+
+const goChangePassword = () => {
+  router.push({ name: 'ChangePassword' });
+};
 
 const confirmLogout = async () => {
   const alert = await alertController.create({
@@ -163,7 +174,14 @@ const confirmLogout = async () => {
 .detail-label { font-size: 0.72rem; color: #94a3b8; margin: 0 0 2px; text-transform: uppercase; letter-spacing: 0.5px; }
 .detail-value { font-size: 0.95rem; font-weight: 700; color: #0f172a; margin: 0; }
 
-.logout-btn { margin-top: 1.75rem; --border-radius: 12px; font-weight: 800; }
+.logout-btn { margin-top: 0.75rem; --border-radius: 12px; font-weight: 800; }
+.change-pw-btn {
+  margin-top: 1.75rem;
+  --border-radius: 12px;
+  --border-color: #1a4731;
+  --color: #1a4731;
+  font-weight: 800;
+}
 
 .app-version { text-align: center; font-size: 0.72rem; color: #94a3b8; margin-top: 1.25rem; }
 </style>

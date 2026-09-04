@@ -413,6 +413,15 @@ export const useAuthStore = defineStore('auth', () => {
     }
   };
 
+  const apiErrorMessage = (error: any, fallback: string) => {
+    const errors = error?.response?.data?.errors;
+    if (errors && typeof errors === 'object') {
+      const first = Object.values(errors).flat()[0];
+      if (typeof first === 'string' && first) return first;
+    }
+    return error?.response?.data?.message ?? fallback;
+  };
+
   const changePassword = async (payload: {
     current_password: string;
     password: string;
@@ -428,7 +437,42 @@ export const useAuthStore = defineStore('auth', () => {
     } catch (error: any) {
       return {
         success: false as const,
-        message: error.response?.data?.message ?? 'Could not update password.',
+        message: apiErrorMessage(error, 'Could not update password.'),
+      };
+    }
+  };
+
+  const requestPasswordReset = async (payload: { email: string; turnstile_token?: string }) => {
+    try {
+      const response = await apiClient.post('/auth/forgot-password', payload);
+      return {
+        success: true as const,
+        message: String(response.data?.message ?? 'If an active account is associated with this email, a reset link has been dispatched.'),
+      };
+    } catch (error: any) {
+      return {
+        success: false as const,
+        message: apiErrorMessage(error, 'Could not send a reset link.'),
+      };
+    }
+  };
+
+  const confirmPasswordReset = async (payload: {
+    email: string;
+    token: string;
+    password: string;
+    password_confirmation: string;
+  }) => {
+    try {
+      const response = await apiClient.post('/auth/reset-password', payload);
+      return {
+        success: true as const,
+        message: String(response.data?.message ?? 'Password updated. Sign in with your new password.'),
+      };
+    } catch (error: any) {
+      return {
+        success: false as const,
+        message: apiErrorMessage(error, 'Could not reset the password.'),
       };
     }
   };
@@ -466,6 +510,8 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     logout,
     changePassword,
+    requestPasswordReset,
+    confirmPasswordReset,
     restoreSession,
     restoreMfaChallenge,
     clearMfaChallenge,

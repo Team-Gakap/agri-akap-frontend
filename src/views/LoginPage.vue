@@ -85,7 +85,7 @@
               </ion-item>
 
               <div class="forgot-password">
-                <a href="#" @click.prevent>Forgot Password?</a>
+                <a href="/forgot-password" @click.prevent="goForgot">Forgot Password?</a>
               </div>
 
               <TurnstileWidget
@@ -125,6 +125,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref } from "vue";
+import { useRouter } from "vue-router";
 import { Capacitor } from "@capacitor/core";
 import {
   IonContent,
@@ -143,6 +144,7 @@ import { presentToast } from "@/utils/toast";
 import TurnstileWidget from "@/components/TurnstileWidget.vue";
 import MfaChallengePanel from "@/components/MfaChallengePanel.vue";
 
+const router = useRouter();
 const authStore = useAuthStore();
 const syncStore = useSyncStore();
 
@@ -163,6 +165,10 @@ const credentials = reactive({
 
 const togglePassword = () => {
   showPassword.value = !showPassword.value;
+};
+
+const goForgot = () => {
+  router.push({ name: "ForgotPassword" });
 };
 
 onIonViewDidEnter(() => {
