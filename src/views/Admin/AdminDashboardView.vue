@@ -34,7 +34,7 @@
             </div>
             <p class="kpi-value">{{ fmtHa(descriptive.registered_land_ha ?? descriptive.total_hectares) }} <small>ha</small></p>
             <p class="kpi-label">Farm Area</p>
-            <p class="kpi-meta">
+            <p class="kpi-hint">
               {{ fmt(descriptive.farmers_with_area) }} farmers with area · avg {{ fmtHa(descriptive.avg_farm_area_ha) }} ha
             </p>
           </button>

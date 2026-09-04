@@ -319,7 +319,7 @@ onMounted(() => { void load(1); });
 .mono { font-family: ui-monospace, monospace; font-size: 0.78rem; }
 .empty-row { text-align: center; color: #94a3b8; }
 .pager { display: flex; gap: 0.75rem; align-items: center; justify-content: center; padding: 0.8rem; }
-.filter-btn { --background: #1a4731; }
+.filter-btn { --background: #1a4731; --color: #fff; --border-color: #1a4731; }
 .clickable { cursor: pointer; }
 .clickable:hover { background: #f8fafc; }
 .actor-cell { display: flex; flex-direction: column; gap: 0.1rem; }
