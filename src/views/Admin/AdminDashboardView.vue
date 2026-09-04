@@ -149,6 +149,12 @@
                 </div>
                 <p v-if="!harvestRows.length" class="empty-note">No planted hectares to project.</p>
               </div>
+              <div v-if="harvestRows.length" class="harvest-chart-box">
+                <Bar :data="harvestChartData" :options="harvestChartOptions" />
+              </div>
+              <p v-if="harvestRows.length" class="harvest-footer">
+                Estimated attainment: <strong>{{ fmtPct(harvestAttainment) }}%</strong> of target
+              </p>
             </section>
           </div>
 
@@ -427,6 +433,16 @@ const harvestProgress = (row: any) => {
   return Math.min(100, Math.round((proj / target) * 100));
 };
 
+const harvestAttainment = computed(() => {
+  const projected = harvestRows.value.reduce((sum: number, row: any) => (
+    sum + Number(row?.estimated_harvest_mt ?? 0)
+  ), 0);
+  const target = harvestRows.value.reduce((sum: number, row: any) => (
+    sum + Number(row?.season_target_mt ?? 0)
+  ), 0);
+  return target > 0 ? (projected / target) * 100 : 0;
+});
+
 const STAGE_COLORS: Record<string, string> = {
   seedling: '#94a3b8',
   vegetative: LGU_GREEN,
@@ -457,6 +473,26 @@ const uptakeChartData = computed(() => ({
     borderRadius: 8,
     maxBarThickness: 22,
   }],
+}));
+
+const harvestChartData = computed(() => ({
+  labels: harvestRows.value.map((row: any) => row.crop_type),
+  datasets: [
+    {
+      label: 'Projected MT',
+      data: harvestRows.value.map((row: any) => Number(row.estimated_harvest_mt ?? 0)),
+      backgroundColor: LGU_GREEN,
+      borderRadius: 6,
+      maxBarThickness: 28,
+    },
+    {
+      label: 'Target MT',
+      data: harvestRows.value.map((row: any) => Number(row.season_target_mt ?? 0)),
+      backgroundColor: LGU_GOLD,
+      borderRadius: 6,
+      maxBarThickness: 28,
+    },
+  ],
 }));
 
 const doughnutOptions = {
@@ -494,6 +530,31 @@ const barOptions = {
       grid: { color: 'rgba(26,71,49,0.08)' },
     },
     y: { ticks: { color: '#64748b', font: { size: 11 } }, grid: { display: false } },
+  },
+};
+
+const harvestChartOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: {
+      position: 'bottom' as const,
+      labels: { color: LGU_GREEN, usePointStyle: true, boxWidth: 8, font: { size: 10 } },
+    },
+    tooltip: {
+      backgroundColor: LGU_GREEN,
+      titleColor: '#fff',
+      bodyColor: '#fff',
+      callbacks: { label: (ctx: any) => `${ctx.dataset.label}: ${fmtMt(ctx.parsed.y)} MT` },
+    },
+  },
+  scales: {
+    x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { display: false } },
+    y: {
+      beginAtZero: true,
+      ticks: { color: '#94a3b8', font: { size: 10 } },
+      grid: { color: 'rgba(26,71,49,0.08)' },
+    },
   },
 };
 
@@ -899,6 +960,16 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchAll));
   color: #0f172a;
 }
 .harvest-mt small { font-size: 0.75rem; color: #64748b; }
+.harvest-chart-box { height: 145px; margin-top: 0.8rem; position: relative; }
+.harvest-footer {
+  margin: 0.6rem 0 0;
+  padding-top: 0.6rem;
+  border-top: 1px solid #E2E8F0;
+  color: #64748b;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.harvest-footer strong { color: #1A4731; }
 
 .action-head { flex-wrap: wrap; }
 .action-toolbar { display: flex; flex-wrap: wrap; gap: 0.45rem; }
