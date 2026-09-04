@@ -150,36 +150,6 @@
                 <p v-if="!harvestRows.length" class="empty-note">No planted hectares to project.</p>
               </div>
             </section>
-
-            <section class="panel-card climate-card">
-              <header class="panel-head">
-                <div>
-                  <h2>72-Hour Climate Threat Radar</h2>
-                  <p>Open-Meteo cache · precip ≥ 80% · wind &gt; 15 km/h</p>
-                </div>
-              </header>
-              <div class="climate-kpis">
-                <div class="climate-pill rain">
-                  <strong>{{ climateSummary.high_rain_barangays ?? 0 }}</strong>
-                  <span>High rain / lodging</span>
-                </div>
-                <div class="climate-pill wind">
-                  <strong>{{ climateSummary.high_wind_barangays ?? 0 }}</strong>
-                  <span>High wind / spray drift</span>
-                </div>
-              </div>
-              <ul v-if="weatherRows.length" class="climate-list">
-                <li v-for="row in weatherRows" :key="row.barangay">
-                  <span class="climate-brgy">{{ row.barangay }}</span>
-                  <span class="climate-flags">
-                    <em v-if="hasRisk(row, 'Flood Risk')">Rain {{ row.precipitation_probability }}%</em>
-                    <em v-if="hasRisk(row, 'Spray Drift')">Wind {{ row.wind_speed_kmh }} km/h</em>
-                    <em v-if="hasRisk(row, 'Drought Risk')">ET0 {{ row.et0 }}</em>
-                  </span>
-                </li>
-              </ul>
-              <p v-else class="empty-note">No 72-hour flood or spray-drift flags in the weather cache.</p>
-            </section>
           </div>
 
           <!-- ── 4. Prescriptive Action Center ──────────────────────────── -->
@@ -382,8 +352,6 @@ const go = (path: string) => router.push(path);
 const stageRows = computed(() => diagnostic.crop_stages ?? []);
 const distributionRows = computed(() => diagnostic.distributions_by_barangay ?? []);
 const harvestRows = computed(() => predictive.harvest_forecast ?? []);
-const weatherRows = computed(() => predictive.weather_risk ?? []);
-const climateSummary = computed(() => predictive.climate_summary ?? {});
 const alerts = computed(() => prescriptive.alerts ?? []);
 const hasData = computed(() =>
   Number(descriptive.total_farmers ?? 0) > 0
@@ -458,8 +426,6 @@ const harvestProgress = (row: any) => {
   if (target <= 0) return proj > 0 ? 100 : 0;
   return Math.min(100, Math.round((proj / target) * 100));
 };
-
-const hasRisk = (row: any, label: string) => Array.isArray(row?.risks) && row.risks.includes(label);
 
 const STAGE_COLORS: Record<string, string> = {
   seedling: '#94a3b8',
@@ -875,12 +841,11 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchAll));
   flex-direction: column;
   gap: 1rem;
   min-width: 0;
+  height: 100%;
 }
-.diag-col { align-self: start; height: auto; }
-.pred-col { align-self: start; height: auto; }
 .pred-col .panel-card {
-  flex: 0 0 auto;
-  height: auto;
+  flex: 1 1 auto;
+  height: 100%;
 }
 .gis-span { min-width: 0; }
 .gis-span :deep(.gis-card) {
@@ -933,49 +898,6 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchAll));
   color: #0f172a;
 }
 .harvest-mt small { font-size: 0.75rem; color: #64748b; }
-
-.climate-kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 0.55rem; }
-.climate-pill {
-  border-radius: 12px;
-  padding: 0.55rem 0.7rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-}
-.climate-pill strong { font-size: 1.25rem; color: #0f172a; }
-.climate-pill span { font-size: 0.7rem; font-weight: 700; color: #475569; }
-.climate-pill.rain { background: #eff6ff; }
-.climate-pill.wind { background: #fff7ed; }
-.climate-list {
-  list-style: none;
-  margin: 0.7rem 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  max-height: 220px;
-  overflow: auto;
-}
-.climate-list li {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.5rem;
-  border: 1px solid #E2E8F0;
-  border-radius: 10px;
-  padding: 0.4rem 0.55rem;
-  font-size: 0.75rem;
-}
-.climate-brgy { font-weight: 800; color: #1A4731; }
-.climate-flags { display: flex; flex-wrap: wrap; gap: 0.3rem; }
-.climate-flags em {
-  font-style: normal;
-  background: #f1f5f9;
-  color: #475569;
-  border-radius: 999px;
-  padding: 0.1rem 0.45rem;
-  font-weight: 700;
-  font-size: 0.68rem;
-}
 
 .action-head { flex-wrap: wrap; }
 .action-toolbar { display: flex; flex-wrap: wrap; gap: 0.45rem; }
