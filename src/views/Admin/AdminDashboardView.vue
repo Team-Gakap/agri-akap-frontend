@@ -371,7 +371,8 @@ const smsForm = reactive({
 });
 
 const fmt = (v: any) => Number(v ?? 0).toLocaleString('en-PH');
-const fmtHa = (v: any) => Number(v ?? 0).toLocaleString('en-PH', { maximumFractionDigits: 1 });
+/** Up to 4 dp to match DB farm-area precision; no forced 1-dp round-off. */
+const fmtHa = (v: any) => Number(v ?? 0).toLocaleString('en-PH', { maximumFractionDigits: 4 });
 const fmtMt = (v: any) => Number(v ?? 0).toLocaleString('en-PH', { maximumFractionDigits: 1 });
 const fmtPct = (v: any) => Number(v ?? 0).toLocaleString('en-PH', {
   minimumFractionDigits: 1,

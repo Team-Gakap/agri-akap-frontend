@@ -554,7 +554,8 @@ const barOptions = {
 };
 
 const fmt = (v: unknown) => Number(v ?? 0).toLocaleString('en-PH');
-const fmtHa = (v: unknown) => Number(v ?? 0).toLocaleString('en-PH', { maximumFractionDigits: 1 });
+/** Up to 4 dp to match DB farm-area precision; no forced 1-dp round-off. */
+const fmtHa = (v: unknown) => Number(v ?? 0).toLocaleString('en-PH', { maximumFractionDigits: 4 });
 const fmtNum = (v: unknown, digits = 0) => {
   if (v == null || Number.isNaN(Number(v))) return '—';
   return Number(v).toFixed(digits);
