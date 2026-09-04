@@ -65,6 +65,26 @@
               </p>
             </ion-card-content>
           </ion-card>
+
+          <ion-card class="panel">
+            <ion-card-header>
+              <ion-card-title>Facebook Page (rainfall graphic)</ion-card-title>
+            </ion-card-header>
+            <ion-card-content>
+              <p class="chip" :class="facebook.configured ? 'ok' : 'warn'">
+                Page posting {{ facebook.configured ? 'is configured' : 'is not configured' }}
+              </p>
+              <p class="muted">
+                Page ID {{ facebook.page_id_set ? 'is set' : 'is missing' }} ·
+                Access token {{ facebook.token_set ? 'is set' : 'is missing' }} ·
+                Graph {{ facebook.graph_version || '—' }}
+              </p>
+              <p class="muted">
+                Set FACEBOOK_PAGE_ID and FACEBOOK_PAGE_ACCESS_TOKEN on the server.
+                MAO admins preview and post from Climate Monitoring → Facebook rainfall graphic.
+              </p>
+            </ion-card-content>
+          </ion-card>
         </template>
       </div>
     </ion-content>
@@ -95,6 +115,12 @@ const settings = reactive({
     semaphore: { configured: false },
   },
 });
+const facebook = reactive({
+  configured: false,
+  page_id_set: false,
+  token_set: false,
+  graph_version: '',
+});
 
 const providerLabel = (p: Provider) => (p === 'semaphore' ? 'Semaphore SMS' : 'IPROG SMS');
 
@@ -110,8 +136,16 @@ const apply = (data: any) => {
 const load = async () => {
   loading.value = true;
   try {
-    const res = await apiClient.get('/system/sms-settings');
-    apply(res.data?.data ?? {});
+    const [smsRes, fbRes] = await Promise.all([
+      apiClient.get('/system/sms-settings'),
+      apiClient.get('/system/facebook-status').catch(() => null),
+    ]);
+    apply(smsRes.data?.data ?? {});
+    const fb = fbRes?.data?.data ?? {};
+    facebook.configured = Boolean(fb.configured);
+    facebook.page_id_set = Boolean(fb.page_id_set);
+    facebook.token_set = Boolean(fb.token_set);
+    facebook.graph_version = String(fb.graph_version ?? '');
   } catch {
     await presentToast('Could not load SMS gateway settings.', 'danger');
   } finally {

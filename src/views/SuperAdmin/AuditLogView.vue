@@ -179,7 +179,7 @@ import { toast } from '@/utils/toast';
 const auth = useAuthStore();
 const isSuper = computed(() => auth.isSuperAdmin);
 
-const modules = ['auth', 'staff', 'rsbsa', 'plots', 'subsidy', 'calamity', 'sms', 'reports', 'export', 'sync'];
+const modules = ['auth', 'staff', 'rsbsa', 'plots', 'subsidy', 'calamity', 'sms', 'social', 'reports', 'export', 'sync'];
 const verbs = ['CREATE', 'UPDATE', 'DELETE', 'APPROVE', 'REJECT', 'EXPORT', 'LOGIN'];
 const actions = [
   'auth.login.success', 'auth.login.failed', 'user.created', 'user.updated',

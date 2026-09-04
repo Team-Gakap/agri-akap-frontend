@@ -89,6 +89,7 @@ const routes: Array<RouteRecordRaw> = [
       { path: "broadcasts", name: "Broadcasts", component: () => import("@/views/Communication/BroadcastCenterPage.vue"), meta: { title: "Outreach & SMS" } },
       { path: "intelligence", redirect: "/admin/dashboard" },
       { path: "weather", name: "PrecisionWeather", component: () => import("@/views/Admin/AdminWeatherHeatmapView.vue"), meta: { title: "Climate Monitoring" } },
+      { path: "weather/facebook", name: "WeatherFacebookCard", component: () => import("@/views/Admin/WeatherFacebookCardView.vue"), meta: { title: "Facebook Rainfall Graphic" } },
       { path: "weather/detail", name: "PrecisionWeatherDetail", component: () => import("@/views/Admin/AdvancedWeatherDashboardView.vue"), meta: { title: "Precision Weather" } },
       { path: "weather/climate-hub", redirect: "/admin/weather" },
       { path: "map", redirect: "/admin/dashboard" },
