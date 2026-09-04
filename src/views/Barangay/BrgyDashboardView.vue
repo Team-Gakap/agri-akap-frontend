@@ -43,13 +43,28 @@
             <ion-icon :icon="leafOutline"></ion-icon>
           </div>
           <p class="kpi-value">{{ fmtHa(dashboardData.registered_land_ha ?? dashboardData.total_hectares) }} <small>ha</small></p>
-          <p class="kpi-label">Cultivated Land</p>
+          <p class="kpi-label">Registered Farm Area</p>
           <p class="kpi-sub">
-            {{ fmtHa(dashboardData.rice_hectares) }} ha Rice · {{ fmtHa(dashboardData.corn_hectares) }} ha Corn
+            Rice {{ fmtHa(dashboardData.active_rice_ha ?? dashboardData.rice_hectares) }} ha · Corn {{ fmtHa(dashboardData.active_corn_ha ?? dashboardData.corn_hectares) }} ha
           </p>
-          <p v-if="dashboardData.active_planted_ha != null" class="kpi-hint">
-            Active planted {{ fmtHa(dashboardData.active_planted_ha) }} ha ({{ dashboardData.tilled_percent ?? 0 }}% tilled)
-          </p>
+          <div v-if="dashboardData.active_planted_ha != null" class="kpi-util">
+            <div class="micro-bar gold" aria-hidden="true">
+              <span :style="{ width: tilledBarPercent + '%' }"></span>
+            </div>
+            <p class="kpi-hint">
+              Active planted {{ fmtHa(dashboardData.active_planted_ha) }} ha
+              ({{ dashboardData.tilled_percent ?? 0 }}% of
+              <span
+                class="kpi-capacity-link"
+                role="link"
+                tabindex="0"
+                @click.stop="go('/brgy/farmers')"
+                @keydown.enter.stop="go('/brgy/farmers')"
+              >
+                {{ fmtHa(dashboardData.registered_land_ha ?? dashboardData.total_hectares) }} ha registered
+              </span>)
+            </p>
+          </div>
         </button>
 
         <button class="kpi-card lg:col-span-3" type="button" @click="go('/brgy/reports/subsidies')">
@@ -314,6 +329,8 @@ interface DashboardData {
   corn_hectares: number;
   registered_land_ha?: number;
   active_planted_ha?: number;
+  active_rice_ha?: number;
+  active_corn_ha?: number;
   tilled_percent?: number;
   claimed_subsidies: number;
   unclaimed_subsidies: number;
@@ -387,6 +404,9 @@ const subsidyPercent = computed(() => {
   if (subsidyTotal.value <= 0) return 0;
   return Math.min(100, Math.round((dashboardData.claimed_subsidies / subsidyTotal.value) * 100));
 });
+const tilledBarPercent = computed(() =>
+  Math.min(100, Math.max(0, Number(dashboardData.tilled_percent ?? 0))),
+);
 
 const currentTemp = computed(() => {
   const hourlyTemp = hourlyForecast.value[0]?.temperature;
@@ -651,6 +671,8 @@ const fetchDashboard = async () => {
       corn_hectares: Number(desc.corn_hectares ?? 0),
       registered_land_ha: Number(desc.registered_land_ha ?? desc.total_hectares ?? 0),
       active_planted_ha: Number(desc.active_planted_ha ?? desc.active_hectares ?? 0),
+      active_rice_ha: Number(desc.active_rice_ha ?? desc.rice_hectares ?? 0),
+      active_corn_ha: Number(desc.active_corn_ha ?? desc.corn_hectares ?? 0),
       tilled_percent: Number(desc.tilled_percent ?? 0),
       claimed_subsidies: Number(desc.claimed_subsidies ?? 0),
       unclaimed_subsidies: Number(desc.unclaimed_subsidies ?? desc.pending_subsidies ?? 0),
@@ -813,6 +835,23 @@ onIonViewWillEnter(() => {
   color: #1A4731;
 }
 .kpi-hint { color: #64748b; font-weight: 600; }
+.kpi-util {
+  margin-top: 0.35rem;
+}
+.kpi-util .micro-bar {
+  margin-top: 0.35rem;
+  margin-bottom: 0.35rem;
+}
+.kpi-capacity-link {
+  font-weight: 700;
+  color: #1A4731;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.kpi-capacity-link:hover {
+  color: #14532d;
+}
 .kpi-photo-link {
   color: #c2410c;
   text-decoration: underline;
@@ -832,6 +871,7 @@ onIonViewWillEnter(() => {
   background: #1A4731;
   border-radius: 99px;
 }
+.micro-bar.gold span { background: #D4AF37; }
 
 .panel-card {
   display: flex;

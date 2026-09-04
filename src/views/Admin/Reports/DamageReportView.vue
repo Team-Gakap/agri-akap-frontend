@@ -173,7 +173,6 @@
                     <ReportRowActions
                       v-if="row.id && !hideEncode"
                       :row-id="String(row.id)"
-                      variant="menu"
                       :can-edit="row.status === 'Pending'"
                       :can-remove="row.status === 'Pending' || authStore.isMunicipalAdmin"
                       :can-view="!!photoSrc(row)"

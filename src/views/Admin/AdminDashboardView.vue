@@ -33,13 +33,28 @@
               <ion-icon :icon="leafOutline"></ion-icon>
             </div>
             <p class="kpi-value">{{ fmtHa(descriptive.registered_land_ha ?? descriptive.total_hectares) }} <small>ha</small></p>
-            <p class="kpi-label">Cultivated Land</p>
+            <p class="kpi-label">Registered Farm Area</p>
             <p class="kpi-meta">
-              Rice {{ fmtHa(descriptive.registered_rice_ha ?? descriptive.rice_hectares) }} ha · Corn {{ fmtHa(descriptive.registered_corn_ha ?? descriptive.corn_hectares) }} ha
+              Rice {{ fmtHa(descriptive.active_rice_ha ?? descriptive.rice_hectares) }} ha · Corn {{ fmtHa(descriptive.active_corn_ha ?? descriptive.corn_hectares) }} ha
             </p>
-            <p v-if="descriptive.active_planted_ha != null" class="kpi-hint">
-              Active planted {{ fmtHa(descriptive.active_planted_ha) }} ha ({{ descriptive.tilled_percent ?? 0 }}% tilled)
-            </p>
+            <div v-if="descriptive.active_planted_ha != null" class="kpi-util">
+              <div class="micro-bar gold" aria-hidden="true">
+                <span :style="{ width: tilledBarPercent + '%' }"></span>
+              </div>
+              <p class="kpi-hint">
+                Active planted {{ fmtHa(descriptive.active_planted_ha) }} ha
+                ({{ descriptive.tilled_percent ?? 0 }}% of
+                <span
+                  class="kpi-capacity-link"
+                  role="link"
+                  tabindex="0"
+                  @click.stop="go('/admin/farmers')"
+                  @keydown.enter.stop="go('/admin/farmers')"
+                >
+                  {{ fmtHa(descriptive.registered_land_ha ?? descriptive.total_hectares) }} ha registered
+                </span>)
+              </p>
+            </div>
           </button>
 
           <button class="kpi-card span-3" type="button" @click="go('/admin/subsidies')">
@@ -247,7 +262,7 @@
         <p>{{ seasonLabel }} season · Generated {{ printedAt }}</p>
         <ul>
           <li>Farmers: {{ fmt(descriptive.total_farmers) }} ({{ fmt(descriptive.farmers_male) }} M / {{ fmt(descriptive.farmers_female) }} F) · RSBSA {{ fmt(descriptive.rsbsa_verified) }}</li>
-          <li>Cultivated Land: {{ fmtHa(descriptive.registered_land_ha ?? descriptive.total_hectares) }} ha registered (Rice {{ fmtHa(descriptive.registered_rice_ha ?? descriptive.rice_hectares) }} · Corn {{ fmtHa(descriptive.registered_corn_ha ?? descriptive.corn_hectares) }}) · Active planted {{ fmtHa(descriptive.active_planted_ha ?? 0) }} ha ({{ descriptive.tilled_percent ?? 0 }}% tilled)</li>
+          <li>Registered Farm Area: {{ fmtHa(descriptive.registered_land_ha ?? descriptive.total_hectares) }} ha masterlist · Active planted {{ fmtHa(descriptive.active_planted_ha ?? 0) }} ha (Rice {{ fmtHa(descriptive.active_rice_ha ?? descriptive.rice_hectares) }} · Corn {{ fmtHa(descriptive.active_corn_ha ?? descriptive.corn_hectares) }}) · {{ descriptive.tilled_percent ?? 0 }}% of registered</li>
           <li>
             Subsidy: {{ fmt(beneficiariesClaimed) }} / {{ fmt(beneficiariesEnrolled) }} beneficiaries
             ({{ fmtPct(subsidyUptake) }}%) · {{ fmt(activeCampaigns) }} active programs
@@ -399,6 +414,9 @@ const subsidyUptake = computed(() => Number(
   descriptive.subsidy_uptake_percent ?? descriptive.subsidy_percent ?? 0,
 ));
 const subsidyPercent = computed(() => Math.min(100, Math.max(0, subsidyUptake.value)));
+const tilledBarPercent = computed(() =>
+  Math.min(100, Math.max(0, Number(descriptive.tilled_percent ?? 0))),
+);
 const activeCampaigns = computed(() => Number(descriptive.subsidy_active_campaigns ?? 0));
 const beneficiariesClaimed = computed(() => Number(
   descriptive.subsidy_beneficiaries_claimed ?? descriptive.subsidy_claimed ?? 0,
@@ -804,6 +822,23 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchAll));
   margin: 0.2rem 0 0;
   font-size: 0.72rem;
   color: #64748b;
+}
+.kpi-util {
+  margin-top: 0.35rem;
+}
+.kpi-util .micro-bar {
+  margin-top: 0.35rem;
+  margin-bottom: 0.35rem;
+}
+.kpi-capacity-link {
+  font-weight: 700;
+  color: #1A4731;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.kpi-capacity-link:hover {
+  color: #14532d;
 }
 .kpi-card > :last-child {
   margin-top: auto;
