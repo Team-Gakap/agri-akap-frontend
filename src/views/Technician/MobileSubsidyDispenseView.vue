@@ -204,7 +204,7 @@ import {
   qrCodeOutline, alertCircleOutline, checkmarkCircleOutline,
   cloudOfflineOutline, chatbubbleEllipsesOutline,
 } from 'ionicons/icons';
-import { getPrograms, lookupFarmer, searchFarmers, isOnline, isRetryableSyncError } from '@/services/syncService';
+import { getPrograms, lookupFarmer, searchFarmers, isOnline, isRetryableSyncError, getCachedSubsidyBeneficiary, programHasCachedBeneficiaries } from '@/services/syncService';
 import { scanFarmerQr, showScannerBackground, stopLiveQrScan } from '@/composables/useNativeHardware';
 import { claimSubsidyRelease, type SubsidyClaimData } from '@/composables/useSubsidyClaim';
 import { useDistributionStore, type ReleaseContext } from '@/stores/distributionStore';
@@ -494,7 +494,32 @@ const claimForCurrentFarmer = async () => {
   try {
     let ctx: ReleaseContext;
     if (!isOnline()) {
-      ctx = buildOfflineContext(program, source);
+      if (source === 'subsidy') {
+        const programId = selectedProgramId.value;
+        const hasList = await programHasCachedBeneficiaries(programId);
+        if (hasList) {
+          const beneficiary = await getCachedSubsidyBeneficiary(programId, {
+            id: farmer.value.id,
+            rsbsa_no: farmer.value.rsbsa_no || farmer.value.rsbsaNo,
+          });
+          if (!beneficiary) {
+            await toast('This farmer is not on the masterlist for this program.', 'danger');
+            return;
+          }
+          if (String(beneficiary.status || '').toLowerCase() === 'claimed') {
+            await toast('This farmer has already claimed their allocation for this program.', 'danger');
+            return;
+          }
+          ctx = {
+            ...buildOfflineContext(program, source),
+            beneficiary_id: beneficiary.beneficiary_id,
+          };
+        } else {
+          ctx = buildOfflineContext(program, source);
+        }
+      } else {
+        ctx = buildOfflineContext(program, source);
+      }
     } else {
       try {
         ctx = await verifyOnline(program, source);

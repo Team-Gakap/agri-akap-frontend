@@ -162,7 +162,7 @@ const loadPlots = async () => {
     loading.value = false;
     if (!(await loadFromCache())) {
       plots.value = [];
-      error.value = 'Offline and no cached geo-tag queue on this device yet.';
+      error.value = 'Offline and no cached geo-tag queue on this device yet. Go online once and tap Download field data on the Sync tab.';
     }
     return;
   }

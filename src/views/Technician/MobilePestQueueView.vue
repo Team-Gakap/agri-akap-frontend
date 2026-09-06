@@ -141,7 +141,7 @@ const loadReports = async () => {
     loading.value = false;
     if (!(await loadFromCache())) {
       reports.value = [];
-      error.value = 'Offline and no cached pest reports on this device yet.';
+      error.value = 'Offline and no cached pest reports on this device yet. Go online once and tap Download field data on the Sync tab.';
     }
     return;
   }

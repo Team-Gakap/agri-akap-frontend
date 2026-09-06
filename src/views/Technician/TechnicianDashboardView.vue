@@ -143,6 +143,7 @@
           <div>
             <h2>Pending sync</h2>
             <p>{{ sheetSubtitle }}</p>
+            <p v-if="fieldCacheLabel" class="sheet-cache">{{ fieldCacheLabel }}</p>
           </div>
           <ion-button
             class="sheet-sync-btn"
@@ -152,6 +153,16 @@
             {{ syncStore.isSyncing ? 'Syncing…' : 'Sync Now' }}
           </ion-button>
         </header>
+
+        <ion-button
+          fill="outline"
+          expand="block"
+          class="sheet-download-btn"
+          :disabled="!syncStore.online || syncStore.isPrefetching || syncStore.isSyncing"
+          @click="runDownload"
+        >
+          {{ syncStore.isPrefetching ? 'Downloading…' : 'Download field data' }}
+        </ion-button>
 
         <div v-if="pendingItems.length" class="sheet-list">
           <article v-for="item in pendingItems" :key="item.key" class="sheet-row">
@@ -222,6 +233,14 @@ const sheetSubtitle = computed(() => {
   return 'All queued field work is synced.';
 });
 
+const fieldCacheLabel = computed(() => {
+  const at = syncStore.fieldCacheAt;
+  if (!at) return 'No field data downloaded on this device yet.';
+  const d = new Date(at);
+  if (Number.isNaN(d.getTime())) return 'Field data on device.';
+  return `Field data: ${d.toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`;
+});
+
 const formatWhen = (iso?: string) => {
   if (!iso) return '';
   const d = new Date(iso);
@@ -236,14 +255,24 @@ const refreshQueue = async () => {
 
 const openSyncDrawer = async () => {
   await refreshQueue();
+  syncStore.refreshFieldCacheAt();
   syncOpen.value = true;
 };
 
 const runSync = async () => {
-  await syncStore.sync();
+  await syncStore.sync({ forceFieldCache: true });
   await refreshQueue();
   if (syncStore.lastMessage) {
     await presentToast(syncStore.lastMessage, syncStore.pending ? 'warning' : 'success');
+  }
+};
+
+const runDownload = async () => {
+  const result = await syncStore.downloadFieldData(true);
+  if (result.ok) {
+    await presentToast(syncStore.lastMessage || 'Field data downloaded.', 'success');
+  } else {
+    await presentToast(result.message || 'Could not download field data.', 'warning');
   }
 };
 
@@ -256,6 +285,10 @@ const goHistory = () => {
 
 onIonViewWillEnter(() => {
   refreshQueue();
+  syncStore.refreshFieldCacheAt();
+  if (syncStore.online) {
+    void syncStore.downloadFieldData(false);
+  }
 });
 </script>
 
@@ -571,12 +604,25 @@ onIonViewWillEnter(() => {
   color: #334155;
 }
 
+.sheet-cache {
+  color: #64748b !important;
+  font-weight: 500 !important;
+}
+
 .sheet-sync-btn {
   --background: #1b4d3e;
   --color: #fff;
   font-weight: 800;
   text-transform: none;
   flex-shrink: 0;
+}
+
+.sheet-download-btn {
+  --border-color: #1b4d3e;
+  --color: #1b4d3e;
+  font-weight: 700;
+  text-transform: none;
+  margin-bottom: 0.75rem;
 }
 
 .sheet-list {

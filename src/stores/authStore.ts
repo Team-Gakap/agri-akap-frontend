@@ -4,6 +4,7 @@ import apiClient from '../utils/axios';
 import { ensureApiBaseUrl } from '../utils/apiBase';
 import router, { homeForRole } from '../router';
 import { pendingQueueCount, getDeviceId } from '@/services/db';
+import { prefetchFieldCache } from '@/services/syncService';
 
 export type UserRole = 'super_admin' | 'admin' | 'technician' | 'barangay_official';
 
@@ -261,6 +262,9 @@ export const useAuthStore = defineStore('auth', () => {
     clearLockFlags();
     persistActivity(Date.now());
     startInactivityWatcher();
+    if (data.user?.role === 'technician' || data.user?.role === 'admin') {
+      void prefetchFieldCache();
+    }
     if (navigate) {
       clearMfaChallenge();
       router.replace(

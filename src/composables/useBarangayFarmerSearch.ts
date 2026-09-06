@@ -1,9 +1,9 @@
 import { ref, computed } from 'vue';
 import apiClient from '@/utils/axios';
 import { db } from '@/database/db';
-import { cacheFarmer, isNetworkError, isOnline } from '@/services/syncService';
+import { cacheFarmer, farmerHasCommodity, farmerMatchesSearchTerm, isNetworkError, isOnline } from '@/services/syncService';
 
-/** Filters previously-cached farmers by name/RSBSA + optional barangay/commodity — used offline. */
+/** Filters previously-cached farmers by name/RSBSA/id/QR + optional barangay/commodity — used offline. */
 async function searchCachedFarmersLocal(term: string, barangay?: string, commodity?: string): Promise<any[]> {
   const value = term.trim().toLowerCase();
   const rows = await db.cachedFarmers.toArray();
@@ -11,14 +11,9 @@ async function searchCachedFarmersLocal(term: string, barangay?: string, commodi
     .map((r) => r.payload)
     .filter((f: any) => {
       if (barangay && String(f.permanent_brgy || '').toLowerCase() !== barangay.toLowerCase()) return false;
-      if (commodity) {
-        const plots = f.farm_plots || f.farmPlots || [];
-        const hasCommodity = plots.some((p: any) => String(p.commodity || '').toLowerCase() === commodity.toLowerCase());
-        if (!hasCommodity) return false;
-      }
+      if (commodity && !farmerHasCommodity(f, commodity)) return false;
       if (!value) return true;
-      const name = `${f.surname || ''}, ${f.first_name || ''} ${f.middle_name || ''}`.toLowerCase();
-      return name.includes(value) || String(f.rsbsa_no || '').toLowerCase().includes(value);
+      return farmerMatchesSearchTerm(f, value);
     })
     .slice(0, 15);
 }

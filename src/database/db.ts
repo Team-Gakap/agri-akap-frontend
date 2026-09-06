@@ -273,6 +273,20 @@ export interface CachedQueueList {
   cached_at: string;
 }
 
+/** Slim subsidy beneficiary row for offline eligibility checks. */
+export interface CachedSubsidyBeneficiary {
+  id: string;
+  beneficiary_id: string;
+  program_id: string;
+  farmer_id?: string;
+  rsbsa_no?: string;
+  surname?: string;
+  first_name?: string;
+  middle_name?: string;
+  status?: string;
+  cached_at: string;
+}
+
 /**
  * Central IndexedDB database for AGRI-AKAP offline-first sync.
  */
@@ -292,6 +306,7 @@ class AgriAkapDB extends Dexie {
   offline_standing_crop_logs!: Table<OfflineStandingCropLog, number>;
   cachedQueueLists!: Table<CachedQueueList, string>;
   cachedActivePlanting!: Table<CachedRecord, string>;
+  cachedSubsidyBeneficiaries!: Table<CachedSubsidyBeneficiary, string>;
 
   constructor() {
     // IndexedDB name kept as `agri-akap` so existing queued rows survive upgrades.
@@ -389,6 +404,10 @@ class AgriAkapDB extends Dexie {
     // v9 — last-seen active planting log + computed crop stage (offline autofill).
     this.version(9).stores({
       cachedActivePlanting: 'id, cached_at',
+    });
+    // v10 — subsidy beneficiary snapshot for offline Give Subsidy eligibility.
+    this.version(10).stores({
+      cachedSubsidyBeneficiaries: 'id, program_id, farmer_id, rsbsa_no, cached_at',
     });
   }
 }

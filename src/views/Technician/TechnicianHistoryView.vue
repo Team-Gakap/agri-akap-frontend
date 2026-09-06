@@ -8,14 +8,27 @@
 
     <ion-content class="ion-padding page-bg">
       <header class="page-head">
-        <p>Pending uploads and recent field work in one place.</p>
-        <ion-button
-          class="sync-btn"
-          :disabled="!syncStore.online || syncStore.isSyncing || !syncStore.hasPending"
-          @click="runSync"
-        >
-          {{ syncStore.isSyncing ? 'Syncing…' : 'Sync Now' }}
-        </ion-button>
+        <div>
+          <p>Pending uploads and recent field work in one place.</p>
+          <p class="cache-meta">{{ fieldCacheLabel }}</p>
+        </div>
+        <div class="page-actions">
+          <ion-button
+            fill="outline"
+            class="download-btn"
+            :disabled="!syncStore.online || syncStore.isPrefetching || syncStore.isSyncing"
+            @click="runDownload"
+          >
+            {{ syncStore.isPrefetching ? 'Downloading…' : 'Download field data' }}
+          </ion-button>
+          <ion-button
+            class="sync-btn"
+            :disabled="!syncStore.online || syncStore.isSyncing || !syncStore.hasPending"
+            @click="runSync"
+          >
+            {{ syncStore.isSyncing ? 'Syncing…' : 'Sync Now' }}
+          </ion-button>
+        </div>
       </header>
 
       <section class="block">
@@ -105,6 +118,14 @@ const historyItems = ref<HistoryItem[]>([]);
 const loadingHistory = ref(false);
 const failedCount = computed(() => pendingItems.value.filter((i) => i.status === 'failed').length);
 
+const fieldCacheLabel = computed(() => {
+  const at = syncStore.fieldCacheAt;
+  if (!at) return 'No field data downloaded yet — tap Download field data while online.';
+  const d = new Date(at);
+  if (Number.isNaN(d.getTime())) return 'Field data is on this device.';
+  return `Field data last downloaded ${d.toLocaleString('en-PH', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.`;
+});
+
 const formatWhen = (iso?: string) => {
   if (!iso) return '';
   const d = new Date(iso);
@@ -114,6 +135,7 @@ const formatWhen = (iso?: string) => {
 
 const loadPending = async () => {
   await syncStore.refreshCount();
+  syncStore.refreshFieldCacheAt();
   pendingItems.value = await listPendingQueueItems();
 };
 
@@ -162,11 +184,20 @@ const openHistoryDetail = async (item: HistoryItem) => {
 };
 
 const runSync = async () => {
-  await syncStore.sync();
+  await syncStore.sync({ forceFieldCache: true });
   await loadPending();
   await loadHistory();
   if (syncStore.lastMessage) {
     await presentToast(syncStore.lastMessage, syncStore.pending ? 'warning' : 'success');
+  }
+};
+
+const runDownload = async () => {
+  const result = await syncStore.downloadFieldData(true);
+  if (result.ok) {
+    await presentToast(syncStore.lastMessage || 'Field data downloaded.', 'success');
+  } else {
+    await presentToast(result.message || 'Could not download field data.', 'warning');
   }
 };
 
@@ -198,12 +229,32 @@ onIonViewWillEnter(async () => {
   color: #64748b;
 }
 
+.cache-meta {
+  margin-top: 0.35rem !important;
+  font-size: 0.8rem !important;
+  color: #475569 !important;
+}
+
+.page-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  flex-shrink: 0;
+  align-items: stretch;
+}
+
+.download-btn {
+  --border-color: #1a4731;
+  --color: #1a4731;
+  font-weight: 700;
+  text-transform: none;
+}
+
 .sync-btn {
   --background: #1a4731;
   --color: #fff;
   font-weight: 700;
   text-transform: none;
-  flex-shrink: 0;
 }
 
 .block {

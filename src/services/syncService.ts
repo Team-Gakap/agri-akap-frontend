@@ -32,6 +32,67 @@ export function isOnline(): boolean {
 
 export { isNetworkError, isRetryableSyncError };
 
+const FIELD_CACHE_AT_KEY = 'agri_field_cache_at';
+const FIELD_CACHE_STALE_MS = 12 * 60 * 60 * 1000;
+let prefetchingFieldCache = false;
+
+export function getFieldCacheAt(): string | null {
+  try {
+    return localStorage.getItem(FIELD_CACHE_AT_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function isFieldCacheStale(maxAgeMs = FIELD_CACHE_STALE_MS): boolean {
+  const at = getFieldCacheAt();
+  if (!at) return true;
+  const ts = Date.parse(at);
+  if (Number.isNaN(ts)) return true;
+  return Date.now() - ts > maxAgeMs;
+}
+
+function setFieldCacheAt(iso: string) {
+  try {
+    localStorage.setItem(FIELD_CACHE_AT_KEY, iso);
+  } catch {
+    /* ignore quota */
+  }
+}
+
+function farmerDisplayNameLower(f: any): string {
+  const given = [f?.first_name, f?.middle_name].filter(Boolean).join(' ');
+  return `${f?.surname || ''}, ${given}`.replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+/** Offline match keys — same identifiers the server lookup accepts. */
+export function farmerMatchesSearchTerm(farmer: any, term: string): boolean {
+  const value = term.trim().toLowerCase();
+  if (!value) return true;
+  if (String(farmer?.id || '').toLowerCase() === value) return true;
+  if (String(farmer?.qr_code_hash || '').toLowerCase() === value) return true;
+  if (String(farmer?.transaction_code || '').toLowerCase() === value) return true;
+  if (String(farmer?.rsbsa_no || '').toLowerCase().includes(value)) return true;
+  if (farmerDisplayNameLower(farmer).includes(value)) return true;
+  if (String(farmer?.permanent_brgy || farmer?.barangay || '').toLowerCase().includes(value)) return true;
+  return false;
+}
+
+/** Commodity filter aligned with FarmerController (High-Value / HVC soft match). */
+export function farmerHasCommodity(farmer: any, commodity: string): boolean {
+  const key = commodity.trim().toLowerCase();
+  if (!key) return true;
+  const plots = farmer?.farm_plots || farmer?.farmPlots || [];
+  if (!Array.isArray(plots) || !plots.length) return false;
+  if (['high-value', 'high-value crops', 'hvc'].includes(key)) {
+    return plots.some((p: any) => {
+      const c = String(p?.commodity || '').toLowerCase();
+      return c.includes('high-value') || c.includes('hvc');
+    });
+  }
+  return plots.some((p: any) => String(p?.commodity || '').toLowerCase() === key);
+}
+
 /* ----------------------------- Read caching ----------------------------- */
 
 async function cacheAll(
@@ -169,19 +230,14 @@ export async function searchFarmers(term: string): Promise<any[]> {
   return searchCachedFarmers(value);
 }
 
-/** Filter previously-cached farmers by name/RSBSA/barangay — used offline. */
+/** Filter previously-cached farmers by id/QR/RSBSA/name/barangay — used offline. */
 export async function searchCachedFarmers(term: string): Promise<any[]> {
   const value = term.trim().toLowerCase();
   if (value.length < 2) return [];
   const cached = await db.cachedFarmers.toArray();
   return cached
     .map((r) => r.payload)
-    .filter((f: any) => {
-      const name = `${f.surname || ''}, ${f.first_name || ''} ${f.middle_name || ''}`.toLowerCase();
-      return name.includes(value)
-        || String(f.rsbsa_no || '').toLowerCase().includes(value)
-        || String(f.permanent_brgy || f.barangay || '').toLowerCase().includes(value);
-    })
+    .filter((f: any) => farmerMatchesSearchTerm(f, value))
     .slice(0, 20);
 }
 
@@ -208,6 +264,7 @@ export async function lookupFarmer(qr: string): Promise<any | null> {
         String(f.id) === value
         || String(f.rsbsa_no || '').toLowerCase() === value.toLowerCase()
         || String(f.qr_code_hash || '') === value
+        || String(f.transaction_code || '') === value
       );
       const farmer = exact || (rows.length === 1 ? rows[0] : null);
       if (farmer) await cacheFarmer(farmer);
@@ -221,13 +278,142 @@ export async function lookupFarmer(qr: string): Promise<any | null> {
   if (cachedById) return cachedById.payload;
 
   const cached = await db.cachedFarmers.toArray();
+  const lower = value.toLowerCase();
   const match = cached.find((r) => {
     const f = r.payload || {};
-    return String(f.rsbsa_no || '').toLowerCase() === value.toLowerCase()
-      || String(f.qr_code_hash || '') === value
-      || `${f.surname || ''}, ${f.first_name || ''}`.toLowerCase().includes(value.toLowerCase());
+    return String(f.id || '').toLowerCase() === lower
+      || String(f.rsbsa_no || '').toLowerCase() === lower
+      || String(f.qr_code_hash || '').toLowerCase() === lower
+      || String(f.transaction_code || '').toLowerCase() === lower
+      || farmerDisplayNameLower(f).includes(lower);
   });
   return match ? match.payload : null;
+}
+
+/**
+ * Download slim farmers + programs + beneficiaries + dispatch queues for offline
+ * search/scan. Replaces Dexie read caches (not outbound upload queues).
+ */
+export async function prefetchFieldCache(options: { force?: boolean } = {}): Promise<{
+  ok: boolean;
+  farmerCount: number;
+  message?: string;
+}> {
+  if (!isOnline()) {
+    return { ok: false, farmerCount: 0, message: 'Go online to download field data.' };
+  }
+  if (prefetchingFieldCache) {
+    return { ok: false, farmerCount: 0, message: 'Download already in progress.' };
+  }
+  if (!options.force && !isFieldCacheStale()) {
+    const count = await db.cachedFarmers.count();
+    return { ok: true, farmerCount: count };
+  }
+
+  prefetchingFieldCache = true;
+  try {
+    const res = await apiClient.get('/offline/field-cache', { timeout: 120_000 });
+    const data = res.data?.data ?? {};
+    const now = new Date().toISOString();
+    const generatedAt = typeof data.generated_at === 'string' ? data.generated_at : now;
+
+    const farmers: any[] = Array.isArray(data.farmers) ? data.farmers : [];
+    const programs: any[] = Array.isArray(data.programs) ? data.programs : [];
+    const beneficiaries: any[] = Array.isArray(data.beneficiaries) ? data.beneficiaries : [];
+    const queues = data.queues ?? {};
+
+    const farmerRows = farmers
+      .filter((f) => f?.id)
+      .map((f) => ({ id: f.id, payload: f, cached_at: now }));
+
+    const plotRows: Array<{ id: string; payload: any; cached_at: string }> = [];
+    for (const f of farmers) {
+      const plots = f?.farm_plots ?? f?.farmPlots ?? [];
+      if (!Array.isArray(plots)) continue;
+      for (const p of plots) {
+        if (p?.id) plotRows.push({ id: p.id, payload: { ...p, farmer_id: f.id }, cached_at: now });
+      }
+    }
+
+    const mappedPrograms = programs.map(mapSubsidyProgram).filter((p: any) => p?.id);
+    const programRows = mappedPrograms.map((p: any) => ({ id: p.id, payload: p, cached_at: now }));
+
+    const beneficiaryRows = beneficiaries
+      .filter((b) => b?.id || b?.beneficiary_id)
+      .map((b) => ({
+        id: String(b.id || b.beneficiary_id),
+        beneficiary_id: String(b.beneficiary_id || b.id),
+        program_id: String(b.program_id || ''),
+        farmer_id: b.farmer_id ? String(b.farmer_id) : undefined,
+        rsbsa_no: b.rsbsa_no ? String(b.rsbsa_no) : undefined,
+        surname: b.surname,
+        first_name: b.first_name,
+        middle_name: b.middle_name,
+        status: b.status,
+        cached_at: now,
+      }));
+
+    await db.transaction(
+      'rw',
+      db.cachedFarmers,
+      db.cachedFarmPlots,
+      db.cachedPrograms,
+      db.cachedSubsidyBeneficiaries,
+      db.cachedQueueLists,
+      async () => {
+        await db.cachedFarmers.clear();
+        await db.cachedFarmPlots.clear();
+        await db.cachedPrograms.clear();
+        await db.cachedSubsidyBeneficiaries.clear();
+        if (farmerRows.length) await db.cachedFarmers.bulkPut(farmerRows);
+        if (plotRows.length) await db.cachedFarmPlots.bulkPut(plotRows);
+        if (programRows.length) await db.cachedPrograms.bulkPut(programRows);
+        if (beneficiaryRows.length) await db.cachedSubsidyBeneficiaries.bulkPut(beneficiaryRows);
+        await cacheQueueList('pest', Array.isArray(queues.pest) ? queues.pest : []);
+        await cacheQueueList('calamity', Array.isArray(queues.calamity) ? queues.calamity : []);
+        await cacheQueueList('geotag', Array.isArray(queues.geotag) ? queues.geotag : []);
+      },
+    );
+
+    setFieldCacheAt(generatedAt);
+    markReachable();
+    return { ok: true, farmerCount: farmerRows.length };
+  } catch (err: any) {
+    if (isNetworkError(err)) markUnreachable();
+    return {
+      ok: false,
+      farmerCount: 0,
+      message: err?.response?.data?.message || 'Could not download field data.',
+    };
+  } finally {
+    prefetchingFieldCache = false;
+  }
+}
+
+/** Look up a cached beneficiary for offline subsidy eligibility messaging. */
+export async function getCachedSubsidyBeneficiary(
+  programId: string,
+  farmer: { id?: string; rsbsa_no?: string | null },
+): Promise<{ id: string; status?: string; beneficiary_id: string } | null> {
+  if (!programId) return null;
+  const rows = await db.cachedSubsidyBeneficiaries.where('program_id').equals(programId).toArray();
+  if (!rows.length) return null;
+  const farmerId = String(farmer.id || '');
+  const rsbsa = String(farmer.rsbsa_no || '').trim().toLowerCase();
+  const hit = rows.find((r) =>
+    (farmerId && r.farmer_id === farmerId)
+    || (rsbsa && String(r.rsbsa_no || '').toLowerCase() === rsbsa),
+  );
+  return hit
+    ? { id: hit.id, beneficiary_id: hit.beneficiary_id, status: hit.status }
+    : null;
+}
+
+/** True when this device already has at least one cached beneficiary for the program. */
+export async function programHasCachedBeneficiaries(programId: string): Promise<boolean> {
+  if (!programId) return false;
+  const count = await db.cachedSubsidyBeneficiaries.where('program_id').equals(programId).count();
+  return count > 0;
 }
 
 /* ------------------------------- Queueing ------------------------------- */
@@ -740,10 +926,6 @@ async function applyAllBulkResults(
   await clearSyncedRows('offline_geo_refusals', rows.geo_refusals, results.geo_tag_refusals, counters, missing);
   await clearSyncedRows('offline_harvest_logs', rows.harvest_logs, results.harvest_logs, counters, missing);
   await clearSyncedRows('offline_standing_crop_logs', rows.standing_crop_logs, results.standing_crop_logs, counters, missing);
-
-  if (counters.synced > 0) {
-    await db.cachedQueueLists.clear();
-  }
 }
 
 export async function resetSyncingToPending() {

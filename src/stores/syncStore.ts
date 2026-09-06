@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { isOnline, syncAllPendingData, pendingCount, resetSyncingToPending } from '@/services/syncService';
+import { isOnline, syncAllPendingData, pendingCount, resetSyncingToPending, prefetchFieldCache } from '@/services/syncService';
 import { initConnectivity, onConnectivityChange, refreshConnectivity } from '@/services/connectivity';
 
 export const useSyncStore = defineStore('sync', () => {
@@ -10,6 +10,8 @@ export const useSyncStore = defineStore('sync', () => {
   const lastSyncAt = ref<string | null>(null);
   const lastMessage = ref<string | null>(null);
   const lastSyncFailed = ref(false);
+  const fieldCacheAt = ref<string | null>(null);
+  const isPrefetching = ref(false);
 
   const hasPending = computed(() => pending.value > 0);
 
@@ -20,7 +22,34 @@ export const useSyncStore = defineStore('sync', () => {
     pending.value = await pendingCount();
   }
 
-  async function sync() {
+  function refreshFieldCacheAt() {
+    try {
+      fieldCacheAt.value = localStorage.getItem('agri_field_cache_at');
+    } catch {
+      fieldCacheAt.value = null;
+    }
+  }
+
+  async function downloadFieldData(force = true) {
+    if (!online.value || isPrefetching.value) return { ok: false as const, message: 'Cannot download right now.' };
+    isPrefetching.value = true;
+    try {
+      const result = await prefetchFieldCache({ force });
+      refreshFieldCacheAt();
+      if (result.ok) {
+        lastMessage.value = `Field data updated (${result.farmerCount} farmer${result.farmerCount === 1 ? '' : 's'}).`;
+        lastSyncFailed.value = false;
+      } else if (result.message) {
+        lastMessage.value = result.message;
+        lastSyncFailed.value = true;
+      }
+      return result;
+    } finally {
+      isPrefetching.value = false;
+    }
+  }
+
+  async function sync(options: { forceFieldCache?: boolean } = {}) {
     if (isSyncing.value || !online.value) return;
     isSyncing.value = true;
     try {
@@ -32,6 +61,18 @@ export const useSyncStore = defineStore('sync', () => {
       } else if (synced || failed) {
         lastMessage.value = `Synced ${synced} record(s)` + (failed ? `, ${failed} failed` : '');
       }
+      if (!errored) {
+        const syncMsg = lastMessage.value;
+        const force = options.forceFieldCache === true || synced > 0;
+        const download = await downloadFieldData(force);
+        if (!download.ok && syncMsg) {
+          // Keep the upload result visible; download failure is secondary.
+          lastMessage.value = syncMsg;
+          lastSyncFailed.value = false;
+        }
+      } else {
+        refreshFieldCacheAt();
+      }
     } finally {
       isSyncing.value = false;
       await refreshCount();
@@ -41,6 +82,7 @@ export const useSyncStore = defineStore('sync', () => {
   /** Wire native/web connectivity events + periodic reachability probe. Call once on app start. */
   function init() {
     initConnectivity();
+    refreshFieldCacheAt();
     unsubConnectivity?.();
     unsubConnectivity = onConnectivityChange((next) => {
       const cameOnline = next && !online.value;
@@ -83,8 +125,12 @@ export const useSyncStore = defineStore('sync', () => {
     lastSyncAt,
     lastMessage,
     lastSyncFailed,
+    fieldCacheAt,
+    isPrefetching,
     hasPending,
     refreshCount,
+    refreshFieldCacheAt,
+    downloadFieldData,
     sync,
     init,
     recheck,
