@@ -52,12 +52,6 @@ const routes: Array<RouteRecordRaw> = [
     meta: { requiresAuth: false },
   },
   {
-    path: "/session-lock",
-    name: "SessionLock",
-    component: () => import("@/views/SessionLockPage.vue"),
-    meta: { requiresAuth: false },
-  },
-  {
     path: "/change-password",
     name: "ChangePassword",
     component: () => import("@/views/ChangePasswordPage.vue"),
@@ -244,13 +238,6 @@ router.beforeEach((to, _from, next) => {
   const userRole = authStore.userRole;
   const home = homeForRole(userRole);
   const hasValidSession = isAuthenticated && home !== "/login";
-
-  if (authStore.sessionLocked && to.name !== "SessionLock" && to.name !== "Login" && to.name !== "ForgotPassword" && to.name !== "ResetPassword") {
-    return next({ name: "SessionLock" });
-  }
-  if (!authStore.sessionLocked && to.name === "SessionLock") {
-    return next(hasValidSession ? home : { name: "Login" });
-  }
 
   if (to.meta.requiresAuth && !hasValidSession) {
     return to.name === "Login" ? next() : next({ name: "Login" });

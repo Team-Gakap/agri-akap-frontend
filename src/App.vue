@@ -21,9 +21,8 @@ let resumeListenerHandle: { remove: () => void } | null = null;
 onMounted(async () => {
   await applyNativeChrome();
   syncStore.init();
-  // Validate cached token; start inactivity watcher; honor soft-lock without wiping IndexedDB.
+  // Validate cached token without wiping IndexedDB.
   await authStore.restoreSession();
-  authStore.startInactivityWatcher();
 
   // A technician's phone regains signal most often while the app is backgrounded
   // (in a pocket). Re-probe connectivity and flush the queue as soon as we resume.

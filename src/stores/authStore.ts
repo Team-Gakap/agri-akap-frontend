@@ -3,7 +3,6 @@ import { ref, computed } from 'vue';
 import apiClient from '../utils/axios';
 import { ensureApiBaseUrl } from '../utils/apiBase';
 import router, { homeForRole } from '../router';
-import { pendingQueueCount, getDeviceId } from '@/services/db';
 import { prefetchFieldCache } from '@/services/syncService';
 
 export type UserRole = 'super_admin' | 'admin' | 'technician' | 'barangay_official';
@@ -33,68 +32,30 @@ export interface MfaChallengePayload {
   stored_at?: number;
 }
 
-const INACTIVITY_MS = 60 * 60 * 1000; // 60 minutes — matches Sanctum token expiry
-const ACTIVITY_KEY = 'agri_last_activity';
-const LOCKED_KEY = 'agri_session_locked';
 const MFA_KEY = 'agri_mfa_challenge';
 const MFA_TTL_MS = 5 * 60 * 1000;
+const LEGACY_LOCKED_KEY = 'agri_session_locked';
+const LEGACY_ACTIVITY_KEY = 'agri_last_activity';
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(JSON.parse(localStorage.getItem('user') || 'null'));
   const token = ref<string | null>(localStorage.getItem('token') || null);
-  const sessionLocked = ref(localStorage.getItem(LOCKED_KEY) === '1');
-  const lockReason = ref<string | null>(null);
-  const lastActivityAt = ref<number>(Number(localStorage.getItem(ACTIVITY_KEY) || Date.now()));
   const mfaChallenge = ref<MfaChallengePayload | null>(null);
   const pendingMfaSession = ref<{ access_token: string; user: User } | null>(null);
 
-  let inactivityTimer: ReturnType<typeof setInterval> | null = null;
-  let activityWired = false;
   let handlingUnauthorized = false;
 
-  const isAuthenticated = computed(() => !!token.value && !sessionLocked.value);
+  const isAuthenticated = computed(() => !!token.value);
   const userRole = computed(() => user.value?.role ?? null);
   const userName = computed(() => user.value?.name ?? null);
-  const lockedEmail = computed(() => user.value?.email ?? '');
   const isSuperAdmin = computed(() => userRole.value === 'super_admin');
   const isMunicipalAdmin = computed(() => userRole.value === 'admin' || userRole.value === 'super_admin');
   const mustChangePassword = computed(() => !!user.value?.must_change_password);
   const requiresMfa = computed(() => !!user.value?.requires_mfa || isSuperAdmin.value);
 
-  const persistActivity = (ts: number) => {
-    lastActivityAt.value = ts;
-    localStorage.setItem(ACTIVITY_KEY, String(ts));
-  };
-
-  const touchActivity = () => {
-    if (!token.value || sessionLocked.value) return;
-    persistActivity(Date.now());
-  };
-
-  /**
-   * Soft-lock: drop the bearer token so the device is unusable, but keep the
-   * user profile and IndexedDB queue so field data can be uploaded after re-auth.
-   */
-  const lockSession = (reason?: string) => {
-    if (sessionLocked.value && !token.value) {
-      lockReason.value = reason || lockReason.value;
-      return;
-    }
-    token.value = null;
-    localStorage.removeItem('token');
-    sessionLocked.value = true;
-    localStorage.setItem(LOCKED_KEY, '1');
-    lockReason.value = reason
-      || 'Your session has expired, but you have unsynced field data. Please re-authenticate to safely upload your records.';
-    if (router.currentRoute.value.path !== '/session-lock') {
-      router.push('/session-lock');
-    }
-  };
-
-  const clearLockFlags = () => {
-    sessionLocked.value = false;
-    lockReason.value = null;
-    localStorage.removeItem(LOCKED_KEY);
+  const clearLegacyLockKeys = () => {
+    localStorage.removeItem(LEGACY_LOCKED_KEY);
+    localStorage.removeItem(LEGACY_ACTIVITY_KEY);
   };
 
   /**
@@ -104,58 +65,16 @@ export const useAuthStore = defineStore('auth', () => {
   const clearAuthState = () => {
     token.value = null;
     user.value = null;
-    clearLockFlags();
     mfaChallenge.value = null;
     pendingMfaSession.value = null;
     sessionStorage.removeItem(MFA_KEY);
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-  };
-
-  const checkInactivity = () => {
-    if (!user.value) return;
-    // Only soft-lock when we still have a usable session identity.
-    if (!token.value && !sessionLocked.value) return;
-    if (sessionLocked.value) return;
-
-    const elapsed = Date.now() - lastActivityAt.value;
-    if (elapsed >= INACTIVITY_MS) {
-      lockSession(
-        'Your session locked after 60 minutes of inactivity. Re-enter your password to continue. Offline field data is preserved.'
-      );
-    }
-  };
-
-  const onActivityEvent = () => touchActivity();
-
-  const startInactivityWatcher = () => {
-    checkInactivity();
-    if (inactivityTimer) return;
-    inactivityTimer = setInterval(checkInactivity, 30_000);
-
-    if (!activityWired && typeof window !== 'undefined') {
-      activityWired = true;
-      ['pointerdown', 'keydown', 'touchstart', 'scroll'].forEach((evt) => {
-        window.addEventListener(evt, onActivityEvent, { passive: true });
-      });
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') {
-          checkInactivity();
-        }
-      });
-    }
-  };
-
-  const stopInactivityWatcher = () => {
-    if (inactivityTimer) {
-      clearInterval(inactivityTimer);
-      inactivityTimer = null;
-    }
+    clearLegacyLockKeys();
   };
 
   /**
-   * Offline-aware 401 handler. Never clears IndexedDB.
-   * Sync attempts with pending queue → lock screen; otherwise → login.
+   * 401 handler. Never clears IndexedDB. Sends the user to login.
    */
   const handleUnauthorized = async (requestUrl = '') => {
     if (handlingUnauthorized) return;
@@ -164,18 +83,7 @@ export const useAuthStore = defineStore('auth', () => {
       const url = requestUrl.toLowerCase();
       if (url.includes('/login') || url.includes('/auth/mfa')) return;
 
-      const pending = await pendingQueueCount();
-      const isSyncAttempt = url.includes('/sync');
-
-      if (pending > 0 || isSyncAttempt) {
-        lockSession(
-          'Your session has expired, but you have unsynced field data. Please re-authenticate to safely upload your records.'
-        );
-        return;
-      }
-
       clearAuthState();
-      stopInactivityWatcher();
       if (router.currentRoute.value.name !== 'Login') {
         router.push('/login');
       }
@@ -186,24 +94,15 @@ export const useAuthStore = defineStore('auth', () => {
 
   /**
    * Called on app init to validate a cached token against the server.
-   * Offline / locked sessions skip the network check so field data stays reachable.
+   * Offline sessions skip the network check so field data stays reachable.
    */
   const restoreSession = async () => {
-    startInactivityWatcher();
-
-    if (sessionLocked.value) {
-      if (router.currentRoute.value.path !== '/session-lock') {
-        router.push('/session-lock');
-      }
-      return;
-    }
+    // Drop leftover soft-lock flags from older builds.
+    clearLegacyLockKeys();
 
     if (!token.value) return;
 
-    checkInactivity();
-    if (sessionLocked.value) return;
-
-    // Offline: keep local session; inactivity watcher still enforces the soft lock.
+    // Offline: keep local session.
     if (typeof navigator !== 'undefined' && !navigator.onLine) {
       return;
     }
@@ -212,7 +111,6 @@ export const useAuthStore = defineStore('auth', () => {
       const res = await apiClient.get('/me');
       user.value = res.data.data?.user ?? res.data.data ?? res.data.user;
       localStorage.setItem('user', JSON.stringify(user.value));
-      touchActivity();
     } catch (error: any) {
       const status = error?.response?.status;
       if (status === 401) {
@@ -259,9 +157,7 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = data.user;
     localStorage.setItem('token', data.access_token);
     localStorage.setItem('user', JSON.stringify(data.user));
-    clearLockFlags();
-    persistActivity(Date.now());
-    startInactivityWatcher();
+    clearLegacyLockKeys();
     if (data.user?.role === 'technician' || data.user?.role === 'admin') {
       void prefetchFieldCache();
     }
@@ -393,21 +289,6 @@ export const useAuthStore = defineStore('auth', () => {
     }
   };
 
-  /** Re-auth from the session lock screen — preserves IndexedDB and resumes home. */
-  const reauthenticate = async (password: string, turnstileToken?: string): Promise<LoginResult> => {
-    const email = user.value?.email;
-    if (!email) {
-      return { success: false as const, mfa_required: false as const, message: 'No cached user. Please sign in from the login page.' };
-    }
-    const result = await login({
-      email,
-      password,
-      device_name: getDeviceId(),
-      turnstile_token: turnstileToken,
-    });
-    return result;
-  };
-
   const applyUser = (next: User | null) => {
     user.value = next;
     if (next) {
@@ -490,7 +371,6 @@ export const useAuthStore = defineStore('auth', () => {
       }
     }
     clearAuthState();
-    stopInactivityWatcher();
     if (router.currentRoute.value.fullPath !== '/login') {
       router.replace('/login');
     }
@@ -499,14 +379,10 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     user,
     token,
-    sessionLocked,
-    lockReason,
-    lastActivityAt,
     mfaChallenge,
     isAuthenticated,
     userRole,
     userName,
-    lockedEmail,
     isSuperAdmin,
     isMunicipalAdmin,
     mustChangePassword,
@@ -525,11 +401,6 @@ export const useAuthStore = defineStore('auth', () => {
     verifyMfa,
     sendMfaSms,
     verifyMfaSms,
-    touchActivity,
-    checkInactivity,
-    startInactivityWatcher,
-    lockSession,
-    reauthenticate,
     handleUnauthorized,
   };
 });
