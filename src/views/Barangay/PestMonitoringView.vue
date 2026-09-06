@@ -86,7 +86,7 @@
                     <td class="col-num">{{ e.area_damage_pct }}</td>
                     <td>{{ splitDamageBy(e.damage_by, e.crop || crop).pest || '—' }}</td>
                     <td>{{ splitDamageBy(e.damage_by, e.crop || crop).disease || '—' }}</td>
-                    <td class="no-print" :data-debug-row="logActionsCell(e, i)">
+                    <td class="no-print">
                       <ReportRowActions
                         :can-edit="isPestPending(e)"
                         :can-remove="isPestPending(e)"
@@ -516,9 +516,6 @@ const loadLedger = async () => {
         crop: r.crop || '',
       } as PestEntry;
     });
-    // #region agent log
-    fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'062738'},body:JSON.stringify({sessionId:'062738',runId:'post-fix',hypothesisId:'A,B',location:'PestMonitoringView.vue:loadLedger',message:'pest ledger rows mapped for Actions column',data:{rowCount:entries.value.length,rows:entries.value.map((e)=>({id:e.id,hasPhotoUrl:!!e.photo_url,photoUrlHost:e.photo_url?(()=>{try{return new URL(e.photo_url).hostname}catch{return 'relative'}})():null,hasLatitude:e.latitude!=null,isPending:!e.photo_url||e.latitude==null,willShowImgInActions:false,willShowView:!!e.photo_url,willShowEditRemove:!e.photo_url||e.latitude==null})},timestamp:Date.now()})}).catch(()=>{});
-    // #endregion
   } catch {
     entries.value = [];
   }
@@ -715,19 +712,6 @@ const pestEditFields = ref<ReportEditField[]>([]);
 function isPestPending(entry: PestEntry): boolean {
   return !entry.photo_url || entry.latitude == null;
 }
-
-// #region agent log
-const _actionsCellLogged = new Set<string>();
-function logActionsCell(entry: PestEntry, index: number): string {
-  const key = `post-${entry.id}-${!!entry.photo_url}-${entry.latitude}`;
-  if (!_actionsCellLogged.has(key)) {
-    _actionsCellLogged.add(key);
-    const pending = isPestPending(entry);
-    fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'062738'},body:JSON.stringify({sessionId:'062738',runId:'post-fix',hypothesisId:'A,B',location:'PestMonitoringView.vue:actionsCell',message:'Actions cell render decision after fix',data:{index,id:entry.id,hasPhotoUrl:!!entry.photo_url,hasLatitude:entry.latitude!=null,isPending:pending,showsEvidenceImg:false,showsViewButton:!!entry.photo_url,showsEditRemove:pending,imgInsideActionsColumn:false},timestamp:Date.now()})}).catch(()=>{});
-  }
-  return String(entry.id ?? index);
-}
-// #endregion
 
 function openEdit(entry: PestEntry) {
   if (!entry.id || !isPestPending(entry)) return;
