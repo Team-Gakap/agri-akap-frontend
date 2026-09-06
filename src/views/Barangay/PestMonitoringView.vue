@@ -86,18 +86,13 @@
                     <td class="col-num">{{ e.area_damage_pct }}</td>
                     <td>{{ splitDamageBy(e.damage_by, e.crop || crop).pest || '—' }}</td>
                     <td>{{ splitDamageBy(e.damage_by, e.crop || crop).disease || '—' }}</td>
-                    <td class="no-print">
-                      <img
-                        v-if="e.photo_url"
-                        :src="e.photo_url"
-                        class="ledger-thumb"
-                        alt="Evidence"
-                        @click="viewingPhoto = e.photo_url!"
-                      />
+                    <td class="no-print" :data-debug-row="logActionsCell(e, i)">
                       <ReportRowActions
                         :can-edit="isPestPending(e)"
                         :can-remove="isPestPending(e)"
+                        :can-view="!!e.photo_url"
                         @edit="openEdit(e)"
+                        @view="viewingPhoto = e.photo_url!"
                         @remove="promptDelete({ endpoint: `/pest-monitoring/${e.id}`, label: 'Pest inspection', onSuccess: loadLedger })"
                       />
                     </td>
@@ -521,6 +516,9 @@ const loadLedger = async () => {
         crop: r.crop || '',
       } as PestEntry;
     });
+    // #region agent log
+    fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'062738'},body:JSON.stringify({sessionId:'062738',runId:'post-fix',hypothesisId:'A,B',location:'PestMonitoringView.vue:loadLedger',message:'pest ledger rows mapped for Actions column',data:{rowCount:entries.value.length,rows:entries.value.map((e)=>({id:e.id,hasPhotoUrl:!!e.photo_url,photoUrlHost:e.photo_url?(()=>{try{return new URL(e.photo_url).hostname}catch{return 'relative'}})():null,hasLatitude:e.latitude!=null,isPending:!e.photo_url||e.latitude==null,willShowImgInActions:false,willShowView:!!e.photo_url,willShowEditRemove:!e.photo_url||e.latitude==null})},timestamp:Date.now()})}).catch(()=>{});
+    // #endregion
   } catch {
     entries.value = [];
   }
@@ -717,6 +715,19 @@ const pestEditFields = ref<ReportEditField[]>([]);
 function isPestPending(entry: PestEntry): boolean {
   return !entry.photo_url || entry.latitude == null;
 }
+
+// #region agent log
+const _actionsCellLogged = new Set<string>();
+function logActionsCell(entry: PestEntry, index: number): string {
+  const key = `post-${entry.id}-${!!entry.photo_url}-${entry.latitude}`;
+  if (!_actionsCellLogged.has(key)) {
+    _actionsCellLogged.add(key);
+    const pending = isPestPending(entry);
+    fetch('http://127.0.0.1:7440/ingest/917f7865-68a4-4d35-ba9c-b9fc945e4639',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'062738'},body:JSON.stringify({sessionId:'062738',runId:'post-fix',hypothesisId:'A,B',location:'PestMonitoringView.vue:actionsCell',message:'Actions cell render decision after fix',data:{index,id:entry.id,hasPhotoUrl:!!entry.photo_url,hasLatitude:entry.latitude!=null,isPending:pending,showsEvidenceImg:false,showsViewButton:!!entry.photo_url,showsEditRemove:pending,imgInsideActionsColumn:false},timestamp:Date.now()})}).catch(()=>{});
+  }
+  return String(entry.id ?? index);
+}
+// #endregion
 
 function openEdit(entry: PestEntry) {
   if (!entry.id || !isPestPending(entry)) return;
@@ -977,15 +988,6 @@ watch(viewMode, (mode) => {
   font-size: 0.88rem;
 }
 .entry-actions li:last-child { border-bottom: none; }
-.ledger-thumb {
-  width: 36px;
-  height: 36px;
-  object-fit: cover;
-  border-radius: 6px;
-  cursor: pointer;
-  border: 1px solid #e2e8f0;
-  flex-shrink: 0;
-}
 .photo-overlay {
   position: fixed;
   inset: 0;

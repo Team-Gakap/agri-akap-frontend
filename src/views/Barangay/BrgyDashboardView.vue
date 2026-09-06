@@ -167,60 +167,8 @@
             <p>The municipal climate sync has not stored a 6-hour window for this barangay yet.</p>
           </div>
         </section>
-
-        <!-- ── 4. Prescriptive Action Center ──────────────────────────── -->
-        <section class="panel-card lg:col-span-12 action-card">
-          <header class="panel-head">
-            <div>
-              <h2>Prescriptive Action Center</h2>
-              <p>Weather, pest, and field triggers · {{ displayAlerts.length }} active</p>
-            </div>
-          </header>
-          <div class="alert-list">
-            <div v-for="(alert, i) in displayAlerts" :key="i" class="alert-row">
-              <span class="sev-badge" :class="alert.severity || alert.type">{{ alert.label || alertTypeLabel(alert.type) }}</span>
-              <p class="alert-copy">{{ alert.message }}</p>
-              <ion-button
-                fill="outline"
-                size="small"
-                class="action-btn"
-                @click="handleAlert(alert)"
-              >
-                {{ alert.action || 'Take Action' }}
-              </ion-button>
-            </div>
-            <div v-if="!displayAlerts.length" class="alert-row empty">
-              <p class="alert-copy">No automated actions required. All indicators nominal.</p>
-            </div>
-          </div>
-        </section>
       </div>
     </ion-content>
-
-    <ion-modal :is-open="smsOpen" @didDismiss="smsOpen = false">
-      <ion-header>
-        <ion-toolbar color="primary">
-          <ion-title>Barangay SMS Advisory</ion-title>
-          <ion-buttons slot="end">
-            <ion-button @click="smsOpen = false">Close</ion-button>
-          </ion-buttons>
-        </ion-toolbar>
-      </ion-header>
-      <ion-content class="ion-padding">
-        <p class="sms-hint">Barangay accounts copy this draft for the local SMS blast. MAO retains the municipal broadcast queue.</p>
-        <ion-textarea
-          label="Advisory"
-          label-placement="stacked"
-          :auto-grow="true"
-          :value="smsDraft"
-          :rows="5"
-          @ionInput="(e: any) => smsDraft = e.detail.value || ''"
-        ></ion-textarea>
-        <ion-button expand="block" size="small" class="copy-btn" :disabled="!smsDraft.trim()" @click="copySmsDraft">
-          Copy message
-        </ion-button>
-      </ion-content>
-    </ion-modal>
   </ion-page>
 </template>
 
@@ -229,8 +177,8 @@ import AppHeader from '@/components/Navigation/AppHeader.vue';
 import { computed, onMounted, onBeforeUnmount, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import {
-  IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
-  IonButton, IonIcon, IonSpinner, IonModal, IonTextarea, IonSkeletonText,
+  IonPage, IonContent,
+  IonButton, IonIcon, IonSpinner, IonSkeletonText,
   onIonViewWillEnter,
 } from '@ionic/vue';
 import {
@@ -250,7 +198,6 @@ import {
   LinearScale,
 } from 'chart.js';
 import apiClient from '@/utils/axios';
-import { toast } from '@/utils/toast';
 import { useAuthStore } from '@/stores/authStore';
 
 ChartJS.register(Title, Tooltip, Legend, ArcElement, BarElement, CategoryScale, LinearScale);
@@ -275,16 +222,6 @@ interface HourlyForecast {
   precipitation_probability?: number | null;
   wind_speed?: number | null;
   weather_code?: number | null;
-}
-
-interface ActionAlert {
-  type: string;
-  message: string;
-  action?: string;
-  label?: string;
-  severity?: string;
-  route?: string | null;
-  sms_message?: string;
 }
 
 interface CropStages {
@@ -359,8 +296,6 @@ const barangayName = computed(() => assignedBarangay.value || 'Barangay');
 const loading = ref(false);
 const loaded = ref(false);
 const error = ref('');
-const smsOpen = ref(false);
-const smsDraft = ref('');
 
 const dashboardData = reactive<DashboardData>({
   total_farmers: 0,
@@ -381,7 +316,6 @@ const dashboardData = reactive<DashboardData>({
 
 const currentWeather = ref<CurrentWeather | null>(null);
 const hourlyForecast = ref<HourlyForecast[]>([]);
-const apiAlerts = ref<ActionAlert[]>([]);
 
 const subsidyTotal = computed(
   () => Number(dashboardData.claimed_subsidies) + Number(dashboardData.unclaimed_subsidies),
@@ -438,22 +372,6 @@ const harvestPeriodTotal = computed(() =>
 const damagePeriodTotal = computed(() =>
   dashboardData.monthly_yield_damage.reduce((s, r) => s + Number(r.damage ?? 0), 0),
 );
-
-const displayAlerts = computed<ActionAlert[]>(() => {
-  const derived: ActionAlert[] = [];
-  const rainLow = hourlyForecast.value.every(h => (h.precipitation_probability ?? 100) < 50);
-  if (soilStatus.value.tone === 'good' && rainLow && hourlyForecast.value.length) {
-    derived.push({
-      type: 'planting',
-      severity: 'info',
-      label: 'Planting Window',
-      message: 'Optimal planting window: soil moisture is adequate with low rain risk.',
-      action: 'Open Planting Ledger',
-      route: '/brgy/planting-ledger',
-    });
-  }
-  return [...apiAlerts.value, ...derived];
-});
 
 const stageTotal = computed(() =>
   CROP_STAGE_LABELS.reduce((s, k) => s + Number(dashboardData.crop_stages[k] ?? 0), 0),
@@ -597,13 +515,6 @@ const hourFlag = (hour: HourlyForecast) => {
   return 'Safe';
 };
 
-const alertTypeLabel = (type: string) => {
-  if (type === 'pest') return 'Pest Report';
-  if (type === 'calamity') return 'Calamity Loss';
-  if (type === 'planting') return 'Planting Window';
-  return 'Weather Advisory';
-};
-
 function normalizeStages(raw: Partial<CropStages> | undefined): CropStages {
   const next: CropStages = { seedling: 0, vegetative: 0, reproductive: 0, maturity: 0 };
   for (const key of CROP_STAGE_LABELS) {
@@ -672,43 +583,11 @@ const fetchDashboard = async () => {
 
     currentWeather.value = diag.current_weather ?? null;
     hourlyForecast.value = payload.predictive?.hourly_forecast ?? [];
-    apiAlerts.value = payload.prescriptive?.alerts ?? [];
     loaded.value = true;
   } catch (e: any) {
     error.value = e?.response?.data?.message || 'Could not load barangay command center.';
   } finally {
     loading.value = false;
-  }
-};
-
-const handleAlert = (alert: ActionAlert) => {
-  const action = (alert.action || '').toLowerCase();
-  if (action.includes('sms') || alert.type === 'weather') {
-    smsDraft.value = alert.sms_message || alert.message;
-    smsOpen.value = true;
-    return;
-  }
-  if (alert.route) {
-    void router.push(alert.route);
-    return;
-  }
-  if (alert.type === 'calamity') {
-    void router.push('/brgy/calamity-assessment');
-    return;
-  }
-  if (action.includes('planting') || alert.type === 'planting') {
-    void router.push('/brgy/planting-ledger');
-    return;
-  }
-  void router.push('/brgy/pest-monitoring');
-};
-
-const copySmsDraft = async () => {
-  try {
-    await navigator.clipboard.writeText(smsDraft.value.trim());
-    await toast.success('Advisory copied.', 2000);
-  } catch {
-    await toast.error('Copy failed — select text manually.', 2000);
   }
 };
 
@@ -743,8 +622,7 @@ onIonViewWillEnter(() => {
 
 @media (max-width: 1023px) {
   .diag-col,
-  .climate-card,
-  .action-card {
+  .climate-card {
     grid-column: 1 / -1;
   }
 }
@@ -986,66 +864,8 @@ onIonViewWillEnter(() => {
 .wx-empty strong { display: block; color: #334155; margin: 0.35rem 0 0.2rem; }
 .wx-empty p { margin: 0; font-size: 0.82rem; line-height: 1.4; }
 
-.alert-list { display: flex; flex-direction: column; gap: 8px; }
-.alert-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px 14px;
-  background: #f8fafc;
-  border: 1px solid #E2E8F0;
-  border-radius: 10px;
-  padding: 12px 14px;
-}
-.alert-row.empty { background: #fff; }
-.alert-copy {
-  margin: 0;
-  flex: 1 1 220px;
-  font-size: 0.9rem;
-  font-weight: 650;
-  color: #1e293b;
-  line-height: 1.4;
-}
-.sev-badge {
-  display: inline-block;
-  font-size: 0.68rem;
-  font-weight: 800;
-  border-radius: 999px;
-  padding: 0.18rem 0.55rem;
-  background: #e2e8f0;
-  color: #334155;
-}
-.sev-badge.critical, .sev-badge.pest { background: #fef2f2; color: #b91c1c; }
-.sev-badge.warning, .sev-badge.calamity { background: #fff7ed; color: #c2410c; }
-.sev-badge.weather, .sev-badge.info { background: #eff6ff; color: #1d4ed8; }
-.sev-badge.planting { background: #ecfdf5; color: #047857; }
-.action-btn {
-  --border-color: #1A4731;
-  --color: #1A4731;
-  --padding-start: 12px;
-  --padding-end: 12px;
-  text-transform: none;
-  font-weight: 750;
-  font-size: 0.78rem;
-  min-height: 34px;
-  margin: 0;
-}
-.copy-btn {
-  --background: #1A4731;
-  text-transform: none;
-  font-weight: 800;
-  margin-top: 0.75rem;
-}
-.sms-hint {
-  margin: 0 0 0.75rem;
-  font-size: 0.82rem;
-  color: #64748b;
-  line-height: 1.4;
-}
-
 @media (max-width: 639px) {
   .soil-indicator { grid-template-columns: 1fr auto; }
   .soil-badge { grid-column: 1 / -1; justify-self: start; }
-  .action-btn { width: 100%; }
 }
 </style>
