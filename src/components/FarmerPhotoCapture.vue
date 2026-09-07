@@ -50,19 +50,27 @@
         @click="openGallery"
       >
         <ion-icon slot="start" :icon="imagesOutline"></ion-icon>
-        {{ hasPhoto ? 'Replace from gallery' : 'Choose from gallery' }}
+        {{ galleryLabel }}
       </ion-button>
     </div>
 
     <p v-if="error" class="capture-error">{{ error }}</p>
+
+    <WebcamCaptureModal
+      :is-open="isCameraModalOpen"
+      @close="isCameraModalOpen = false"
+      @captured="onWebcamCaptured"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
+import { Capacitor } from '@capacitor/core';
 import { IonButton, IonIcon } from '@ionic/vue';
 import { cameraOutline, imagesOutline } from 'ionicons/icons';
-import { resizeImageForId } from '@/utils/resizeImageForId';
+import WebcamCaptureModal from '@/components/Common/WebcamCaptureModal.vue';
+import { resizeBase64Image, resizeImageForId } from '@/utils/resizeImageForId';
 
 const props = withDefaults(
   defineProps<{
@@ -81,8 +89,34 @@ const galleryInput = ref<HTMLInputElement | null>(null);
 const pendingDataUrl = ref('');
 const busy = ref(false);
 const error = ref('');
+const isCameraModalOpen = ref(false);
 
-const openCamera = () => cameraInput.value?.click();
+/** Desktop web: live webcam modal. Mobile / native: file input with capture. */
+const prefersWebcamCapture = (): boolean => {
+  if (Capacitor.isNativePlatform()) return false;
+  if (!navigator.mediaDevices?.getUserMedia) return false;
+  if (typeof window.matchMedia === 'function' && window.matchMedia('(pointer: fine)').matches) {
+    return true;
+  }
+  return !/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+};
+
+const useWebcam = prefersWebcamCapture();
+
+const galleryLabel = computed(() => {
+  if (useWebcam) return 'Or upload file';
+  return props.hasPhoto ? 'Replace from gallery' : 'Choose from gallery';
+});
+
+const openCamera = () => {
+  error.value = '';
+  if (useWebcam) {
+    isCameraModalOpen.value = true;
+    return;
+  }
+  cameraInput.value?.click();
+};
+
 const openGallery = () => galleryInput.value?.click();
 
 const retake = () => {
@@ -96,6 +130,21 @@ const confirm = () => {
   pendingDataUrl.value = '';
 };
 
+const onWebcamCaptured = async (dataUrl: string) => {
+  isCameraModalOpen.value = false;
+  busy.value = true;
+  error.value = '';
+  try {
+    pendingDataUrl.value = await resizeBase64Image(dataUrl, 800, 0.82);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : '';
+    error.value = message || 'Could not prepare the photo.';
+    pendingDataUrl.value = '';
+  } finally {
+    busy.value = false;
+  }
+};
+
 const onFile = async (ev: Event, _source: 'camera' | 'gallery') => {
   const input = ev.target as HTMLInputElement;
   const file = input.files?.[0];
@@ -106,8 +155,9 @@ const onFile = async (ev: Event, _source: 'camera' | 'gallery') => {
   error.value = '';
   try {
     pendingDataUrl.value = await resizeImageForId(file);
-  } catch (err: any) {
-    error.value = err?.message || 'Could not prepare the photo.';
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : '';
+    error.value = message || 'Could not prepare the photo.';
     pendingDataUrl.value = '';
   } finally {
     busy.value = false;

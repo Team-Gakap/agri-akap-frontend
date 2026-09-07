@@ -57,55 +57,62 @@
           </ion-card-content>
         </ion-card>
 
-        <p class="section-label">Crop Production Logs</p>
-        <ion-grid class="tool-grid">
-          <ion-row>
-            <ion-col size="6">
-              <ion-card button class="tool-card" @click="go('/tech/planting')">
-                <ion-ripple-effect type="bounded"></ion-ripple-effect>
-                <ion-card-content class="tool-content">
-                  <div class="tool-icon planting">
-                    <ion-icon :icon="leafOutline"></ion-icon>
-                  </div>
-                  <h3>Planting Log</h3>
-                </ion-card-content>
-              </ion-card>
-            </ion-col>
-            <ion-col size="6">
-              <ion-card button class="tool-card" @click="go('/tech/standing-crop')">
-                <ion-ripple-effect type="bounded"></ion-ripple-effect>
-                <ion-card-content class="tool-content">
-                  <div class="tool-icon standing">
-                    <ion-icon :icon="nutritionOutline"></ion-icon>
-                  </div>
-                  <h3>Standing Crop</h3>
-                </ion-card-content>
-              </ion-card>
-            </ion-col>
-            <ion-col size="6">
-              <ion-card button class="tool-card" @click="go('/tech/harvest')">
-                <ion-ripple-effect type="bounded"></ion-ripple-effect>
-                <ion-card-content class="tool-content">
-                  <div class="tool-icon harvest">
-                    <ion-icon :icon="basketOutline"></ion-icon>
-                  </div>
-                  <h3>Harvest Log</h3>
-                </ion-card-content>
-              </ion-card>
-            </ion-col>
-            <ion-col size="6">
-              <ion-card button class="tool-card" @click="go('/tech/pest-queue')">
-                <ion-ripple-effect type="bounded"></ion-ripple-effect>
-                <ion-card-content class="tool-content">
-                  <div class="tool-icon pest">
-                    <ion-icon :icon="bugOutline"></ion-icon>
-                  </div>
-                  <h3>Pest Report</h3>
-                </ion-card-content>
-              </ion-card>
-            </ion-col>
-          </ion-row>
-        </ion-grid>
+        <p class="section-label">Field Surveillance</p>
+        <ion-card button class="row-card" @click="go('/tech/pest-queue')">
+          <ion-ripple-effect type="bounded"></ion-ripple-effect>
+          <ion-card-content class="row-content">
+            <div class="tool-icon pest">
+              <ion-icon :icon="bugOutline"></ion-icon>
+            </div>
+            <div class="row-copy">
+              <h3>Pest Report</h3>
+              <p>Scouting &amp; Outbreaks</p>
+            </div>
+            <ion-icon class="row-chevron" :icon="chevronForwardOutline"></ion-icon>
+          </ion-card-content>
+        </ion-card>
+
+        <!-- Temporarily hidden crop production cards (restore via showCropProductionLogs) -->
+        <template v-if="showCropProductionLogs">
+          <p class="section-label">Crop Production Logs</p>
+          <ion-grid class="tool-grid">
+            <ion-row>
+              <ion-col size="6">
+                <ion-card button class="tool-card" @click="go('/tech/planting')">
+                  <ion-ripple-effect type="bounded"></ion-ripple-effect>
+                  <ion-card-content class="tool-content">
+                    <div class="tool-icon planting">
+                      <ion-icon :icon="leafOutline"></ion-icon>
+                    </div>
+                    <h3>Planting Log</h3>
+                  </ion-card-content>
+                </ion-card>
+              </ion-col>
+              <ion-col size="6">
+                <ion-card button class="tool-card" @click="go('/tech/standing-crop')">
+                  <ion-ripple-effect type="bounded"></ion-ripple-effect>
+                  <ion-card-content class="tool-content">
+                    <div class="tool-icon standing">
+                      <ion-icon :icon="nutritionOutline"></ion-icon>
+                    </div>
+                    <h3>Standing Crop</h3>
+                  </ion-card-content>
+                </ion-card>
+              </ion-col>
+              <ion-col size="6">
+                <ion-card button class="tool-card" @click="go('/tech/harvest')">
+                  <ion-ripple-effect type="bounded"></ion-ripple-effect>
+                  <ion-card-content class="tool-content">
+                    <div class="tool-icon harvest">
+                      <ion-icon :icon="basketOutline"></ion-icon>
+                    </div>
+                    <h3>Harvest Log</h3>
+                  </ion-card-content>
+                </ion-card>
+              </ion-col>
+            </ion-row>
+          </ion-grid>
+        </template>
 
         <p class="section-label">Calamity &amp; Auditing</p>
         <ion-card button class="row-card calamity" @click="go('/tech/calamity-queue')">
@@ -203,6 +210,9 @@ import { presentToast } from '@/utils/toast';
 const router = useRouter();
 const authStore = useAuthStore();
 const syncStore = useSyncStore();
+
+/** Temporary hide for Planting / Standing / Harvest home cards. Set true to restore. */
+const showCropProductionLogs = false;
 
 const syncOpen = ref(false);
 const pendingItems = ref<PendingQueueItem[]>([]);
