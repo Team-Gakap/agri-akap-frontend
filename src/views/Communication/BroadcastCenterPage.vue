@@ -315,7 +315,7 @@ const smsMeter = computed(() => {
 const filteredBarangays = computed(() => {
   const query = barangaySearch.value.trim().toLowerCase();
   if (!query) return barangays.value;
-  return barangays.value.filter((barangay) => barangay.toLowerCase().includes(query));
+  return barangays.value.filter((barangay) => barangay.toLowerCase().startsWith(query));
 });
 
 const interpolate = (text: string) => {
