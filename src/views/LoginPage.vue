@@ -110,7 +110,11 @@
               </ion-button>
             </form>
 
-            <p class="auth-footer">© 2026 MAO Echague</p>
+            <p class="auth-footer">
+              <a href="/public/dashboard" @click.prevent="goPublic">View public municipal snapshot</a>
+              <span aria-hidden="true"> · </span>
+              © 2026 MAO Echague
+            </p>
           </div>
 
           <p class="mobile-status" role="status">
@@ -169,6 +173,10 @@ const togglePassword = () => {
 
 const goForgot = () => {
   router.push({ name: "ForgotPassword" });
+};
+
+const goPublic = () => {
+  router.push({ name: "PublicDashboard" });
 };
 
 onIonViewDidEnter(() => {
@@ -434,6 +442,12 @@ const onMfaCompleted = () => {
   font-weight: 600;
   color: #64748b;
   line-height: 1.4;
+}
+
+.auth-footer a {
+  color: #1a4731;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .mobile-status {

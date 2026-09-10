@@ -12,12 +12,17 @@ export interface TenurePlotInput {
   is_agrarian_reform_beneficiary?: boolean;
 }
 
+export const OTHER_TENURIAL_DOCUMENT = 'Other';
+
 export const TENURIAL_DOCUMENTS: Record<TenureCategory, string[]> = {
   registered_owner: [
     'Certificate of Title / Regular Title (TCT or OCT)',
     'Tax Declaration (agricultural land)',
     'Free Patent / Homestead Patent / Agricultural Sales Patent',
     'Deed of Absolute Sale / Donation / Extrajudicial Settlement',
+    'Special Power of Attorney / Authorization to Till',
+    'Affidavit of Ownership / Absolute Ownership',
+    OTHER_TENURIAL_DOCUMENT,
   ],
   arb: [
     'Certificate of Land Ownership Award (CLOA) — Individual',
@@ -25,25 +30,34 @@ export const TENURIAL_DOCUMENTS: Record<TenureCategory, string[]> = {
     'Certificate of Land Ownership Award (CLOA) — Co-ownership',
     'Emancipation Patent (EP)',
     'Certificate of Land Transfer (CLT)',
+    OTHER_TENURIAL_DOCUMENT,
   ],
   ip_cc: [
     'Certificate of Ancestral Domain Title (CADT)',
     'Certificate of Ancestral Land Title (CALT)',
     'NCIP Certification (traditional land rights)',
+    OTHER_TENURIAL_DOCUMENT,
   ],
   tenant: [
     'Notarized Agricultural Leasehold Contract / Tenancy Agreement',
     'Barangay Agrarian Reform Committee (BARC) Certification',
     'Barangay Certificate / Landowner Affidavit',
+    'Affidavit of Tenancy / Actual Tillage',
+    OTHER_TENURIAL_DOCUMENT,
   ],
   lessee: [
     'Lease Contract / Contract of Lease',
     'Notarized Landowner Consent / Usufruct Agreement',
+    'Special Power of Attorney / Authorization to Till',
+    OTHER_TENURIAL_DOCUMENT,
   ],
   others: [
     'Barangay Certification of Actual Tillage / Land Occupancy',
     'Affidavit of Heirship / Consent of Co-heirs',
     'Urban/Peri-Urban Agriculture Certification',
+    'Affidavit of Ownership / Absolute Ownership',
+    'Special Power of Attorney / Authorization to Till',
+    OTHER_TENURIAL_DOCUMENT,
   ],
 };
 
@@ -79,12 +93,9 @@ export function tenureCategoryLabel(category: TenureCategory): string {
 }
 
 export function tenurialDocumentHint(plot: TenurePlotInput): string {
-  const category = resolveTenureCategory(plot);
-  if (category === 'tenant') {
-    return 'For tenants: document must reflect the registered landowner\'s name and RSBSA number when available.';
-  }
-  if (category === 'lessee') {
-    return 'Lease documents should state lessor, lessee, duration, area, and location.';
-  }
-  return `Documents for ${tenureCategoryLabel(category)} per DA RSBSA enrollment requirements.`;
+  return `Suggested documents for ${tenureCategoryLabel(resolveTenureCategory(plot))}. Choose Other to type a document not listed.`;
+}
+
+export function isOtherTenurialDocument(document: string | null | undefined): boolean {
+  return String(document || '').trim() === OTHER_TENURIAL_DOCUMENT;
 }

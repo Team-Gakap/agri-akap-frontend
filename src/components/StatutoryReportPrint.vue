@@ -194,11 +194,13 @@
         <p class="sig-date-val">{{ submissionDate || '_______________' }}</p>
       </div>
     </div>
+    <SystemGeneratedPrintFooter />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import SystemGeneratedPrintFooter from '@/components/SystemGeneratedPrintFooter.vue';
 
 const props = defineProps<{
   report: any;

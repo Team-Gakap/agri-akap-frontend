@@ -274,6 +274,10 @@
                   <ion-input v-model="farmer.id_number" class="finput" />
                 </div>
               </div>
+              <div v-if="farmer.id_type === 'Others'" class="field-wrap mt6">
+                <label class="flabel req">SPECIFY ID TYPE</label>
+                <ion-input v-model="farmer.id_type_other" class="finput compact" placeholder="Type the ID type" />
+              </div>
             </div>
           </div>
 
@@ -349,6 +353,30 @@
             </div>
           </div>
 
+          <div class="subsection">
+            <div class="subsection-title">OTHER LIVELIHOOD (OPTIONAL)</div>
+            <div class="subsection-body">
+              <div class="fgrid g2">
+                <div class="field-wrap">
+                  <label class="flabel">OTHER LIVELIHOOD TYPE</label>
+                  <ion-select v-model="farmer.other_livelihood_type" interface="popover" class="fselect" placeholder="Select if any">
+                    <ion-select-option value="">— None —</ion-select-option>
+                    <ion-select-option v-for="lv in livelihoodTypes" :key="'o'+lv.value" :value="lv.value">{{ lv.label }}</ion-select-option>
+                    <ion-select-option value="Other">Other</ion-select-option>
+                  </ion-select>
+                </div>
+                <div class="field-wrap" v-if="farmer.other_livelihood_type">
+                  <label class="flabel">SPECIFY / DETAIL</label>
+                  <ion-input
+                    v-model="farmer.other_livelihood_detail"
+                    class="finput"
+                    :placeholder="farmer.other_livelihood_type === 'Other' ? 'Type other livelihood' : 'Optional detail'"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div><!-- /PART 2 -->
 
         <!-- Part 3 -->
@@ -409,6 +437,10 @@
                       </label>
                     </div>
                   </div>
+                  <div v-if="plot.ownership_type === 'Others'" class="field-wrap mt6">
+                    <label class="flabel req">SPECIFY OWNERSHIP / TENURIAL STATUS</label>
+                    <ion-input v-model="plot.ownership_type_other" class="finput" placeholder="Type ownership status" />
+                  </div>
                 </div>
                 <div class="chk-row mt6">
                   <ion-checkbox
@@ -441,17 +473,23 @@
                     <ion-input v-model="plot.land_owner_first_name" class="finput" />
                   </div>
                   <div class="field-wrap">
+                    <label class="flabel">LAND OWNER'S MIDDLE NAME</label>
+                    <ion-input v-model="plot.land_owner_middle_name" class="finput" />
+                  </div>
+                  <div class="field-wrap">
                     <label class="flabel" :class="{ req: needsLandOwner(plot) }">LAND OWNER'S SURNAME</label>
                     <ion-input v-model="plot.land_owner_surname" class="finput" />
                   </div>
+                </div>
+                <div class="fgrid g2 mt6">
                   <div class="field-wrap">
                     <label class="flabel">LAND OWNER'S EXT. NAME</label>
-                    <ion-input v-model="plot.land_owner_ext_name" class="finput" />
+                    <ion-input v-model="plot.land_owner_ext_name" class="finput compact" />
                   </div>
-                </div>
-                <div class="field-wrap mt6" v-if="needsLandOwner(plot)">
-                  <label class="flabel req">LAND OWNER'S RSBSA NO.</label>
-                  <ion-input v-model="plot.land_owner_rsbsa_no" class="finput" placeholder="Landowner's RSBSA reference number" />
+                  <div class="field-wrap" v-if="needsLandOwner(plot)">
+                    <label class="flabel req">LAND OWNER'S RSBSA NO.</label>
+                    <ion-input v-model="plot.land_owner_rsbsa_no" class="finput" placeholder="Landowner's RSBSA reference number" />
+                  </div>
                 </div>
                 <div class="field-wrap mt6">
                   <SearchableSelect
@@ -467,6 +505,10 @@
                   />
                   <p class="field-hint">{{ tenurialDocumentHint(plot) }}</p>
                 </div>
+                <div v-if="isOtherTenurialDocument(plot.proof_of_ownership_document)" class="field-wrap mt6">
+                  <label class="flabel req">SPECIFY DOCUMENT</label>
+                  <ion-input v-model="plot.proof_of_ownership_other" class="finput" placeholder="Type the document name" />
+                </div>
               </div>
             </div>
 
@@ -477,17 +519,23 @@
                 <div class="fgrid g3">
                   <div class="field-wrap">
                     <label class="flabel req">COMMODITY</label>
-                    <ion-select v-model="plot.commodity" interface="popover" class="fselect" placeholder="Select commodity">
+                    <ion-select
+                      v-model="plot.commodity"
+                      interface="popover"
+                      class="fselect"
+                      placeholder="Select commodity"
+                      @ionChange="onCommodityChange(plot)"
+                    >
                       <ion-select-option v-for="c in commodityOptions" :key="c" :value="c">{{ c }}</ion-select-option>
                     </ion-select>
                   </div>
                   <div class="field-wrap">
                     <label class="flabel req">SIZE (ha)</label>
-                    <ion-input type="number" v-model="plot.size_ha" class="finput" placeholder="0.0000" />
+                    <ion-input type="number" v-model="plot.size_ha" class="finput compact" placeholder="0.0000" />
                   </div>
-                  <div class="field-wrap">
+                  <div class="field-wrap" v-if="isHighValueCommodity(plot.commodity)">
                     <label class="flabel">NO. OF HEADS / TREES</label>
-                    <ion-input type="number" v-model="plot.no_of_heads_or_trees" class="finput" placeholder="0" />
+                    <ion-input type="number" v-model="plot.no_of_heads_or_trees" class="finput compact" placeholder="0" />
                   </div>
                 </div>
                 <div class="fgrid g3 mt6">
@@ -496,6 +544,10 @@
                     <ion-select v-model="plot.farm_type" interface="popover" class="fselect" placeholder="Select farm type">
                       <ion-select-option v-for="ft in farmTypes" :key="ft" :value="ft">{{ ft }}</ion-select-option>
                     </ion-select>
+                  </div>
+                  <div class="field-wrap" v-if="plot.farm_type === 'Other'">
+                    <label class="flabel req">SPECIFY FARM TYPE</label>
+                    <ion-input v-model="plot.farm_type_other" class="finput" placeholder="Type farm type" />
                   </div>
                   <div class="field-wrap">
                     <label class="flabel">ORGANIC PRACTITIONER</label>
@@ -510,14 +562,25 @@
                     <label class="flabel">CROPPING SCHEDULE</label>
                     <ion-input v-model="plot.cropping_schedule" class="finput" placeholder="e.g. April–June, Oct–Dec" />
                   </div>
+                </div>
+                <div class="subsection-title mt6" style="margin-left:0;padding-left:0;border:none;">ROTATIONAL TILLER NAME</div>
+                <div class="fgrid g3 mt6">
                   <div class="field-wrap">
-                    <label class="flabel">ROTATIONAL TILLER'S FULL NAME</label>
-                    <ion-input v-model="plot.rotational_tiller_full_name" class="finput" />
+                    <label class="flabel">FIRST NAME</label>
+                    <ion-input v-model="plot.rotational_tiller_first_name" class="finput" />
+                  </div>
+                  <div class="field-wrap">
+                    <label class="flabel">MIDDLE NAME</label>
+                    <ion-input v-model="plot.rotational_tiller_middle_name" class="finput" />
+                  </div>
+                  <div class="field-wrap">
+                    <label class="flabel">SURNAME</label>
+                    <ion-input v-model="plot.rotational_tiller_surname" class="finput" />
                   </div>
                 </div>
                 <div class="field-wrap mt6">
                   <label class="flabel">REMARKS</label>
-                  <ion-textarea v-model="plot.remarks" class="ftextarea" :rows="2" placeholder="Optional remarks..." />
+                  <ion-textarea v-model="plot.remarks" class="ftextarea" :rows="4" placeholder="Optional remarks..." />
                 </div>
               </div>
             </div>
@@ -568,6 +631,7 @@ import { isOutsideEchagueCity } from "@/composables/usePsgcLocations";
 import {
   tenurialDocumentOptions,
   tenurialDocumentHint,
+  isOtherTenurialDocument,
 } from "@/constants/rsbsaTenurialDocuments";
 import {
   COMMODITY_OPTIONS,
@@ -624,9 +688,14 @@ const livelihoodTypes = [
   { value: "Agri-Youth", label: "Agri-youth" },
 ];
 const ownershipTypes  = ["Registered Owner","Tenant","Lessee","Others"];
-const farmTypes       = ["Irrigated","Rainfed Upland","Rainfed Lowland","Urban/Peri-Urban"];
+const farmTypes       = ["Irrigated","Rainfed Upland","Rainfed Lowland","Urban/Peri-Urban","Other"];
 const needsLandOwner  = (plot: { ownership_type: string }) =>
   plot.ownership_type === "Tenant" || plot.ownership_type === "Lessee";
+const isHighValueCommodity = (commodity: string) =>
+  /high[\s-]?value/i.test(String(commodity || ""));
+const onCommodityChange = (plot: { commodity: string; no_of_heads_or_trees: string | number }) => {
+  if (!isHighValueCommodity(plot.commodity)) plot.no_of_heads_or_trees = "";
+};
 
 // DA RSBSA livelihood sub-classifications, keyed by the broad livelihood type.
 const livelihoodDetailMap: Record<string, string[]> = {
@@ -685,7 +754,8 @@ const farmer = reactive({
   spouse_ext_name: "",
   highest_education: "", 
   religion: "",
-  id_type: "", 
+  id_type: "",
+  id_type_other: "",
   id_number: "",
   is_icc_ip: false, 
   icc_ip_name: "", 
@@ -696,6 +766,8 @@ const farmer = reactive({
   association_3: "",
   livelihood_type: "",
   livelihood_detail: "",
+  other_livelihood_type: "",
+  other_livelihood_detail: "",
 });
 
 /* ── farm plots ── */
@@ -709,19 +781,26 @@ const createPlot = () => ({
   total_parcel_area_ha: "" as string|number,
   is_ancestral_domain: false, 
   is_agrarian_reform_beneficiary: false,
-  ownership_type: "", 
-  land_owner_first_name: "", 
+  ownership_type: "",
+  ownership_type_other: "",
+  land_owner_first_name: "",
+  land_owner_middle_name: "",
   land_owner_surname: "",
   land_owner_ext_name: "", 
   land_owner_rsbsa_no: "",
   proof_of_ownership_document: "",
+  proof_of_ownership_other: "",
   commodity: "", 
   size_ha: "" as string|number,
   no_of_heads_or_trees: "" as string|number,
-  farm_type: "", 
+  farm_type: "",
+  farm_type_other: "",
   is_organic: false, 
   cropping_schedule: "",
-  rotational_tiller_full_name: "", 
+  rotational_tiller_full_name: "",
+  rotational_tiller_surname: "",
+  rotational_tiller_first_name: "",
+  rotational_tiller_middle_name: "",
   remarks: "",
 });
 const farmPlots = reactive([createPlot()]);
@@ -819,18 +898,25 @@ const applyFarmerRecord = (data: any) => {
         is_ancestral_domain: !!p.is_ancestral_domain,
         is_agrarian_reform_beneficiary: !!p.is_agrarian_reform_beneficiary,
         ownership_type: p.ownership_type || '',
+        ownership_type_other: p.ownership_type_other || '',
         land_owner_first_name: p.land_owner_first_name || '',
+        land_owner_middle_name: p.land_owner_middle_name || '',
         land_owner_surname: p.land_owner_surname || '',
         land_owner_ext_name: p.land_owner_ext_name || '',
         land_owner_rsbsa_no: p.land_owner_rsbsa_no || '',
         proof_of_ownership_document: p.proof_of_ownership_document || '',
+        proof_of_ownership_other: p.proof_of_ownership_other || '',
         commodity: p.commodity || '',
         size_ha: p.size_ha ?? '',
         no_of_heads_or_trees: p.no_of_heads_or_trees ?? '',
         farm_type: p.farm_type || '',
+        farm_type_other: p.farm_type_other || '',
         is_organic: !!p.is_organic,
         cropping_schedule: p.cropping_schedule || '',
         rotational_tiller_full_name: p.rotational_tiller_full_name || '',
+        rotational_tiller_surname: p.rotational_tiller_surname || '',
+        rotational_tiller_first_name: p.rotational_tiller_first_name || '',
+        rotational_tiller_middle_name: p.rotational_tiller_middle_name || '',
         remarks: p.remarks || '',
       });
       farmPlots.push(row);
@@ -884,6 +970,14 @@ const validate = (): boolean => {
   if (!farmer.civil_status)          { errorMsg.value = "Civil Status is required."; return false; }
   if (!farmer.highest_education)     { errorMsg.value = "Highest Education is required."; return false; }
   if (!farmer.livelihood_type)       { errorMsg.value = "Livelihood type is required."; return false; }
+  if (farmer.id_type === 'Others' && !farmer.id_type_other.trim()) {
+    errorMsg.value = "Please specify the government ID type.";
+    return false;
+  }
+  if (farmer.other_livelihood_type === 'Other' && !farmer.other_livelihood_detail.trim()) {
+    errorMsg.value = "Please specify the other livelihood.";
+    return false;
+  }
   
   for (let i = 0; i < farmPlots.length; i++) {
     const p = farmPlots[i], n = `Farm Plot ${i+1}`;
@@ -892,15 +986,27 @@ const validate = (): boolean => {
     if (!p.location_province.trim())           { errorMsg.value = `${n}: Province is required.`;             return false; }
     if (!p.total_parcel_area_ha)               { errorMsg.value = `${n}: Total Parcel Area is required.`;    return false; }
     if (!p.ownership_type)                     { errorMsg.value = `${n}: Ownership Type is required.`;       return false; }
+    if (p.ownership_type === 'Others' && !p.ownership_type_other.trim()) {
+      errorMsg.value = `${n}: Please specify the ownership / tenurial status.`;
+      return false;
+    }
     if (needsLandOwner(p)) {
       if (!p.land_owner_first_name.trim())     { errorMsg.value = `${n}: Landowner first name is required for tenants/lessees.`; return false; }
       if (!p.land_owner_surname.trim())        { errorMsg.value = `${n}: Landowner surname is required for tenants/lessees.`;    return false; }
       if (!p.land_owner_rsbsa_no.trim())       { errorMsg.value = `${n}: Landowner RSBSA number is required for tenants/lessees.`; return false; }
     }
     if (!p.proof_of_ownership_document.trim()) { errorMsg.value = `${n}: Proof of Ownership is required.`;   return false; }
+    if (isOtherTenurialDocument(p.proof_of_ownership_document) && !p.proof_of_ownership_other.trim()) {
+      errorMsg.value = `${n}: Please specify the proof of ownership document.`;
+      return false;
+    }
     if (!p.commodity.trim())                   { errorMsg.value = `${n}: Commodity is required.`;            return false; }
     if (!p.size_ha)                            { errorMsg.value = `${n}: Farm Size (ha) is required.`;       return false; }
     if (!p.farm_type)                          { errorMsg.value = `${n}: Farm Type is required.`;            return false; }
+    if (p.farm_type === 'Other' && !p.farm_type_other.trim()) {
+      errorMsg.value = `${n}: Please specify the farm type.`;
+      return false;
+    }
   }
   return true;
 };
@@ -924,18 +1030,32 @@ const submitForm = async () => {
       is_ancestral_domain: !!p.is_ancestral_domain,
       is_agrarian_reform_beneficiary: !!p.is_agrarian_reform_beneficiary,
       ownership_type: p.ownership_type,
+      ownership_type_other: p.ownership_type === 'Others' ? (p.ownership_type_other || null) : null,
       land_owner_first_name: p.land_owner_first_name || null,
+      land_owner_middle_name: p.land_owner_middle_name || null,
       land_owner_surname: p.land_owner_surname || null,
       land_owner_ext_name: p.land_owner_ext_name || null,
       land_owner_rsbsa_no: p.land_owner_rsbsa_no || null,
       proof_of_ownership_document: p.proof_of_ownership_document,
+      proof_of_ownership_other: isOtherTenurialDocument(p.proof_of_ownership_document)
+        ? (p.proof_of_ownership_other || null)
+        : null,
       commodity: p.commodity,
       size_ha: p.size_ha,
-      no_of_heads_or_trees: p.no_of_heads_or_trees === '' ? null : p.no_of_heads_or_trees,
+      no_of_heads_or_trees: isHighValueCommodity(p.commodity)
+        ? (p.no_of_heads_or_trees === '' ? null : p.no_of_heads_or_trees)
+        : null,
       farm_type: p.farm_type,
+      farm_type_other: p.farm_type === 'Other' ? (p.farm_type_other || null) : null,
       is_organic: !!p.is_organic,
       cropping_schedule: p.cropping_schedule || null,
-      rotational_tiller_full_name: p.rotational_tiller_full_name || null,
+      rotational_tiller_surname: p.rotational_tiller_surname || null,
+      rotational_tiller_first_name: p.rotational_tiller_first_name || null,
+      rotational_tiller_middle_name: p.rotational_tiller_middle_name || null,
+      rotational_tiller_full_name: [p.rotational_tiller_first_name, p.rotational_tiller_middle_name, p.rotational_tiller_surname]
+        .map((x) => String(x || '').trim())
+        .filter(Boolean)
+        .join(' ') || null,
       remarks: p.remarks || null,
     }));
 
@@ -943,6 +1063,11 @@ const submitForm = async () => {
 
     const payload = {
       ...farmerPayload,
+      id_type_other: farmer.id_type === 'Others' ? (farmer.id_type_other || null) : null,
+      other_livelihood_type: farmer.other_livelihood_type || null,
+      other_livelihood_detail: farmer.other_livelihood_type
+        ? (farmer.other_livelihood_detail || null)
+        : null,
       rsbsa_no: isEdit.value ? (farmer.rsbsa_no || null) : null,
       plots,
     };
@@ -1258,6 +1383,14 @@ const submitForm = async () => {
   max-width: 100%;
   box-sizing: border-box;
   overflow: visible;
+}
+.finput.compact {
+  max-width: 16rem;
+}
+@media (max-width: 640px) {
+  .finput.compact {
+    max-width: 100%;
+  }
 }
 .finput.ion-focused,
 .finput:focus-within {

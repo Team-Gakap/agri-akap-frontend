@@ -241,6 +241,7 @@
             <p class="sig-name">Prepared by</p>
           </div>
         </div>
+        <p class="print-only system-generated-footer">This is a system-generated document from Agri-AKAP.</p>
       </div>
     </ion-content>
 

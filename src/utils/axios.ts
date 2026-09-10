@@ -31,7 +31,7 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 401) {
       const url = String(error.config?.url || '');
       // Failed login attempts must not trigger logout loops.
-      if (!url.includes('/login') && !url.includes('/auth/mfa')) {
+      if (!url.includes('/login') && !url.includes('/auth/mfa') && !url.includes('/public/')) {
         const authStore = useAuthStore();
         await authStore.handleUnauthorized(url);
       }

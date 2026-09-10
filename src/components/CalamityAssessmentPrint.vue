@@ -58,12 +58,14 @@
         <p class="sig-title">Brgy. Captain</p>
       </div>
     </div>
+    <SystemGeneratedPrintFooter />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
 import MaoFormHeader from '@/components/MaoFormHeader.vue';
+import SystemGeneratedPrintFooter from '@/components/SystemGeneratedPrintFooter.vue';
 
 const props = withDefaults(
   defineProps<{

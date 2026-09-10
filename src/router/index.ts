@@ -31,7 +31,14 @@ const adminGovernanceRedirect =
   };
 
 const routes: Array<RouteRecordRaw> = [
-  { path: "/", redirect: "/login" },
+  { path: "/", redirect: "/public/dashboard" },
+
+  {
+    path: "/public/dashboard",
+    name: "PublicDashboard",
+    component: () => import("@/views/PublicDashboardView.vue"),
+    meta: { requiresAuth: false, title: "Municipal Snapshot" },
+  },
 
   {
     path: "/login",
@@ -217,8 +224,8 @@ const routes: Array<RouteRecordRaw> = [
   { path: "/home", redirect: "/tech/dashboard" },
   { path: "/technician-home", redirect: "/tech/dashboard" },
 
-  // Catch-all: bounce to login (guard then routes to the correct home).
-  { path: "/:pathMatch(.*)*", redirect: "/login" },
+  // Catch-all: bounce to public dashboard (guard then routes authenticated users home).
+  { path: "/:pathMatch(.*)*", redirect: "/public/dashboard" },
 ];
 
 const router = createRouter({
@@ -240,7 +247,9 @@ router.beforeEach((to, _from, next) => {
   const hasValidSession = isAuthenticated && home !== "/login";
 
   if (to.meta.requiresAuth && !hasValidSession) {
-    return to.name === "Login" ? next() : next({ name: "Login" });
+    return to.name === "Login" || to.name === "PublicDashboard"
+      ? next()
+      : next({ name: "PublicDashboard" });
   }
 
   if (hasValidSession && authStore.mustChangePassword && to.name !== "ChangePassword") {

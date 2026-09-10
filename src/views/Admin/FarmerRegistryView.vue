@@ -53,6 +53,7 @@
             </tr>
           </tbody>
         </table>
+        <p class="system-generated-footer">This is a system-generated document from Agri-AKAP.</p>
       </div>
 
       <div class="rpt-shell no-print">
@@ -282,7 +283,7 @@
             <ion-button @click="closeDossier">Close</ion-button>
           </ion-buttons>
         </ion-toolbar>
-        <ion-toolbar>
+        <ion-toolbar class="dossier-segment-bar">
           <ion-segment :value="dossierTab" @ionChange="(e: any) => dossierTab = e.detail.value">
             <ion-segment-button value="profile"><ion-label>Profile</ion-label></ion-segment-button>
             <ion-segment-button value="parcels"><ion-label>Parcels</ion-label></ion-segment-button>
@@ -300,8 +301,29 @@
           <section v-if="dossierTab === 'profile'" class="card">
             <div class="info-row"><span>Birthdate</span><strong>{{ fmtDate(selectedFarmer.birthdate) }}</strong></div>
             <div class="info-row"><span>Sex</span><strong>{{ selectedFarmer.sex || '—' }}</strong></div>
+            <div class="info-row"><span>Civil status</span><strong>{{ selectedFarmer.civil_status || '—' }}</strong></div>
             <div class="info-row"><span>Contact</span><strong>{{ selectedFarmer.mobile_number || '—' }}</strong></div>
-            <div class="info-row"><span>ID</span><strong>{{ selectedFarmer.id_type || '—' }} {{ selectedFarmer.id_number ? '· ' + selectedFarmer.id_number : '' }}</strong></div>
+            <div class="info-row"><span>ID</span>
+              <strong>
+                {{ selectedFarmer.id_type || '—' }}
+                <template v-if="selectedFarmer.id_type === 'Others' && selectedFarmer.id_type_other">
+                  ({{ selectedFarmer.id_type_other }})
+                </template>
+                {{ selectedFarmer.id_number ? '· ' + selectedFarmer.id_number : '' }}
+              </strong>
+            </div>
+            <div class="info-row"><span>Main livelihood</span>
+              <strong>
+                {{ selectedFarmer.livelihood_type || '—' }}
+                <template v-if="selectedFarmer.livelihood_detail"> · {{ selectedFarmer.livelihood_detail }}</template>
+              </strong>
+            </div>
+            <div class="info-row"><span>Other livelihood</span>
+              <strong>
+                {{ selectedFarmer.other_livelihood_type || '—' }}
+                <template v-if="selectedFarmer.other_livelihood_detail"> · {{ selectedFarmer.other_livelihood_detail }}</template>
+              </strong>
+            </div>
             <div class="info-row"><span>Priority</span>
               <strong>
                 <span v-if="selectedFarmer.is_senior" class="chip gold">Senior</span>
@@ -346,7 +368,19 @@
                     <span v-if="p.geotag_assigned_name || p.assigned_technician">
                       · Assigned: {{ p.geotag_assigned_name || p.assigned_technician?.name }}
                     </span>
-                    <span v-if="p.proof_of_ownership_document"> · {{ p.proof_of_ownership_document }}</span>
+                    <span v-if="p.proof_of_ownership_document">
+                      · {{ p.proof_of_ownership_document }}
+                      <template v-if="p.proof_of_ownership_document === 'Other' && p.proof_of_ownership_other">
+                        ({{ p.proof_of_ownership_other }})
+                      </template>
+                    </span>
+                    <span v-if="p.farm_type">
+                      · {{ p.farm_type }}
+                      <template v-if="p.farm_type === 'Other' && p.farm_type_other"> ({{ p.farm_type_other }})</template>
+                    </span>
+                    <span v-if="p.land_owner_first_name || p.land_owner_surname">
+                      · Owner: {{ [p.land_owner_first_name, p.land_owner_middle_name, p.land_owner_surname].filter(Boolean).join(' ') }}
+                    </span>
                   </p>
                 </div>
                 <div class="plot-actions">
@@ -391,6 +425,9 @@
                       <option value="Others">Others</option>
                     </select>
                   </label>
+                  <label v-if="editForm.ownership_type === 'Others'" class="span-2">Specify ownership
+                    <input class="plot-input" v-model="editForm.ownership_type_other" placeholder="Type ownership status" />
+                  </label>
                   <label>Latitude
                     <input class="plot-input" type="number" step="0.00000001" v-model="editForm.latitude" />
                   </label>
@@ -401,7 +438,7 @@
                     <input class="plot-input" v-model="editForm.georef_id" />
                   </label>
                   <label class="span-2">Remarks
-                    <input class="plot-input" v-model="editForm.remarks" />
+                    <textarea class="plot-input plot-textarea" rows="3" v-model="editForm.remarks"></textarea>
                   </label>
                   <div class="span-2 form-btns">
                     <ion-button type="submit" size="small" :disabled="savingPlotId === p.id">
@@ -554,6 +591,7 @@ const editForm = ref({
   commodity: 'Rice',
   size_ha: '',
   ownership_type: 'Registered Owner',
+  ownership_type_other: '',
   latitude: '',
   longitude: '',
   georef_id: '',
@@ -902,6 +940,7 @@ const toggleEditPlot = (plot: any) => {
     commodity: plot.commodity || 'Rice',
     size_ha: String(plot.size_ha ?? ''),
     ownership_type: plot.ownership_type || 'Registered Owner',
+    ownership_type_other: plot.ownership_type_other || '',
     latitude: plot.latitude != null ? String(plot.latitude) : '',
     longitude: plot.longitude != null ? String(plot.longitude) : '',
     georef_id: plot.georef_id || '',
@@ -955,6 +994,9 @@ const savePlotEdit = async (plot: any) => {
     commodity: editForm.value.commodity,
     size_ha: Number(editForm.value.size_ha),
     ownership_type: editForm.value.ownership_type,
+    ownership_type_other: editForm.value.ownership_type === 'Others'
+      ? (editForm.value.ownership_type_other || null)
+      : null,
     latitude: editForm.value.latitude === '' ? null : Number(editForm.value.latitude),
     longitude: editForm.value.longitude === '' ? null : Number(editForm.value.longitude),
     georef_id: editForm.value.georef_id || null,
@@ -1105,7 +1147,35 @@ const promptRtsReason = async () => {
     ],
     buttons: [
       { text: 'Cancel', role: 'cancel' },
-      { text: 'Submit', role: 'confirm', handler: (reason) => { if (reason) returnForCorrection(reason); } },
+      {
+        text: 'Next',
+        role: 'confirm',
+        handler: (reason) => {
+          if (!reason) return false;
+          void (async () => {
+            if (reason === 'Other') {
+              const otherAlert = await alertController.create({
+                header: 'Specify other reason',
+                inputs: [{ name: 'detail', type: 'textarea', placeholder: 'Describe the correction needed', attributes: { maxlength: 500 } }],
+                buttons: [
+                  { text: 'Cancel', role: 'cancel' },
+                  {
+                    text: 'Submit',
+                    handler: (data) => {
+                      const detail = String(data?.detail || '').trim();
+                      if (!detail) return false;
+                      void returnForCorrection(`Other: ${detail}`);
+                    },
+                  },
+                ],
+              });
+              await otherAlert.present();
+              return;
+            }
+            void returnForCorrection(reason);
+          })();
+        },
+      },
     ],
   });
   await alert.present();
@@ -1442,17 +1512,47 @@ onMounted(() => {
 .bulk-bar-enter-from, .bulk-bar-leave-to { opacity: 0; }
 
 .dossier { max-width: 680px; margin: 0 auto; }
+.dossier-segment-bar {
+  --background: #f1f5f0;
+  --color: #1a4731;
+  border-bottom: 1px solid #d7e3db;
+}
+.dossier-segment-bar ion-segment {
+  --background: transparent;
+}
+.dossier-segment-bar ion-segment-button {
+  --color: #475569;
+  --color-checked: #1a4731;
+  --indicator-color: #1a4731;
+  font-weight: 700;
+}
 .dossier-head h2 { margin: 0; color: #1a4731; }
-.dossier-head p { margin: 0.25rem 0 0.85rem; color: #64748b; }
+.dossier-head p { margin: 0.25rem 0 0.85rem; color: #475569; }
 .card {
-  background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1rem;
+  background: #ffffff; border: 1px solid #d7e3db; border-radius: 12px; padding: 1rem;
 }
 .info-row {
-  display: flex; justify-content: space-between; gap: 1rem;
-  padding: 0.45rem 0; border-bottom: 1px solid #e8f0ea; font-size: 0.9rem;
+  display: grid;
+  grid-template-columns: minmax(7rem, 34%) 1fr;
+  gap: 0.75rem;
+  align-items: start;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid #e8f0ea;
+  font-size: 0.9rem;
 }
-.info-row span { color: #64748b; }
-.info-row strong { color: #1a4731; text-align: right; }
+.info-row span { color: #475569; font-weight: 600; }
+.info-row strong {
+  color: #0f172a;
+  text-align: left;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  font-weight: 700;
+}
+.plot-textarea {
+  min-height: 72px;
+  resize: vertical;
+  line-height: 1.35;
+}
 .st-pending { color: #d97706; }
 .st-approved { color: #16a34a; }
 .st-rts { color: #dc2626; }

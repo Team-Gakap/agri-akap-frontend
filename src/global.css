@@ -285,10 +285,25 @@ table.mao-table {
   display: none;
 }
 
+.system-generated-footer {
+  margin: 1.25rem 0 0;
+  padding-top: 0.65rem;
+  border-top: 1px solid #94a3b8;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #475569;
+}
+
 @media print {
   @page {
     size: A4 portrait;
     margin: 20mm;
+  }
+
+  .system-generated-footer {
+    display: block !important;
   }
 
   /* Hide Ionic app shell & chrome — never print these */

@@ -20,6 +20,7 @@
       <div class="rpt-shell">
         <StandingCropReportGrid />
       </div>
+      <p class="print-only system-generated-footer">This is a system-generated document from Agri-AKAP.</p>
     </ion-content>
   </ion-page>
 </template>

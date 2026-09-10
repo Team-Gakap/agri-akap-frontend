@@ -25,7 +25,10 @@
             <p class="kpi-meta">
               {{ fmt(descriptive.farmers_male) }} M · {{ fmt(descriptive.farmers_female) }} F
             </p>
-            <p class="kpi-hint">{{ fmt(descriptive.rsbsa_verified) }} RSBSA on file</p>
+            <p class="kpi-hint">
+              PWD {{ fmt(descriptive.pwd_male) }} M · {{ fmt(descriptive.pwd_female) }} F
+              · {{ fmt(descriptive.rsbsa_verified) }} RSBSA on file
+            </p>
           </button>
 
           <button class="kpi-card span-3" type="button" @click="go('/admin/farmers')">
@@ -61,6 +64,9 @@
             </p>
             <p v-if="lowStockPrograms" class="kpi-hint">
               {{ fmt(lowStockPrograms) }} {{ lowStockPrograms === 1 ? 'program' : 'programs' }} low stock
+            </p>
+            <p v-if="peakWeekday" class="kpi-hint">
+              Peak claim day: {{ peakWeekday }} ({{ fmt(peakWeekdayCount) }} in last {{ peakWindowDays }}d)
             </p>
           </button>
 
@@ -125,6 +131,34 @@
                 <p v-if="!distributionRows.length" class="empty-note">No active program allocations yet.</p>
               </section>
             </div>
+
+            <section v-if="peakWeekdayBars.length" class="panel-card peak-panel">
+              <header class="panel-head">
+                <div>
+                  <h2>Peak Disbursement Days</h2>
+                  <p>Claim volume by weekday · last {{ peakWindowDays }} days</p>
+                </div>
+              </header>
+              <ul class="peak-weekday-bars">
+                <li v-for="row in peakWeekdayBars" :key="row.day">
+                  <span class="peak-day-name">{{ row.short }}</span>
+                  <div class="peak-bar-track">
+                    <div
+                      class="peak-bar-fill"
+                      :class="{ is-peak: row.day === peakWeekday }"
+                      :style="{ width: row.pct + '%' }"
+                    ></div>
+                  </div>
+                  <span class="peak-day-count">{{ row.count }}</span>
+                </li>
+              </ul>
+              <p v-if="peakTopDays.length" class="peak-top-note">
+                Top days:
+                <template v-for="(d, i) in peakTopDays" :key="d.date">
+                  <span v-if="i"> · </span>{{ d.label }} ({{ d.count }})
+                </template>
+              </p>
+            </section>
           </div>
 
           <!-- ── 4. Predictive (5) ──────────────────────────────────────── -->
@@ -219,11 +253,12 @@
         <h1>AGRI-AKAP Executive Summary — MAO Echague</h1>
         <p>{{ seasonLabel }} season · Generated {{ printedAt }}</p>
         <ul>
-          <li>Farmers: {{ fmt(descriptive.total_farmers) }} ({{ fmt(descriptive.farmers_male) }} M / {{ fmt(descriptive.farmers_female) }} F) · RSBSA {{ fmt(descriptive.rsbsa_verified) }}</li>
+          <li>Farmers: {{ fmt(descriptive.total_farmers) }} ({{ fmt(descriptive.farmers_male) }} M / {{ fmt(descriptive.farmers_female) }} F) · PWD {{ fmt(descriptive.pwd_male) }} M / {{ fmt(descriptive.pwd_female) }} F · RSBSA {{ fmt(descriptive.rsbsa_verified) }}</li>
           <li>Farm Area: {{ fmtHa(descriptive.registered_land_ha ?? descriptive.total_hectares) }} ha masterlist · {{ fmt(descriptive.farmers_with_area) }} farmers with area · avg {{ fmtHa(descriptive.avg_farm_area_ha) }} ha</li>
           <li>
             Subsidy: {{ fmt(beneficiariesClaimed) }} / {{ fmt(beneficiariesEnrolled) }} beneficiaries
             ({{ fmtPct(subsidyUptake) }}%) · {{ fmt(activeCampaigns) }} active programs
+            <template v-if="peakWeekday"> · peak day {{ peakWeekday }}</template>
           </li>
           <li>
             Threats: {{ fmt(pestCount) }} pests ({{ fmt(pestCritical) }} critical)
@@ -242,6 +277,7 @@
             [{{ alert.severity }}] {{ alert.barangay || 'LGU-wide' }} — {{ alert.threat_label }}: {{ alert.recommendation || alert.message }}
           </li>
         </ol>
+        <p class="system-generated-footer">This is a system-generated document from Agri-AKAP.</p>
       </article>
 
       <ion-modal :is-open="smsOpen" @didDismiss="smsOpen = false">
@@ -395,6 +431,22 @@ const threatTotal = computed(() => Number(descriptive.threat_total ?? (
 )));
 const seasonLabel = computed(() => predictive.season || 'Current');
 const stageTotal = computed(() => stageRows.value.reduce((s: number, r: any) => s + Number(r.total ?? 0), 0));
+
+const peakDisbursement = computed(() => descriptive.peak_disbursement || {});
+const peakWeekday = computed(() => peakDisbursement.value.peak_weekday || null);
+const peakWeekdayCount = computed(() => Number(peakDisbursement.value.peak_weekday_count || 0));
+const peakWindowDays = computed(() => Number(peakDisbursement.value.window_days || 90));
+const peakTopDays = computed(() => Array.isArray(peakDisbursement.value.top_days) ? peakDisbursement.value.top_days : []);
+const peakWeekdayBars = computed(() => {
+  const rows = Array.isArray(peakDisbursement.value.by_weekday) ? peakDisbursement.value.by_weekday : [];
+  const max = Math.max(1, ...rows.map((r: any) => Number(r.count || 0)));
+  return rows.map((r: any) => ({
+    day: r.day,
+    short: String(r.day || '').slice(0, 3),
+    count: Number(r.count || 0),
+    pct: Math.round((Number(r.count || 0) / max) * 100),
+  }));
+});
 
 const zoneAlerts = computed(() =>
   alerts.value.filter((a: any) => Boolean(a?.barangay)),
@@ -923,6 +975,55 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchAll));
 }
 .chart-pair .panel-card {
   height: auto;
+}
+
+.peak-panel {
+  margin-top: 1rem;
+}
+.peak-weekday-bars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.peak-weekday-bars li {
+  display: grid;
+  grid-template-columns: 2.2rem 1fr 2rem;
+  gap: 0.5rem;
+  align-items: center;
+}
+.peak-day-name {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748b;
+}
+.peak-bar-track {
+  height: 8px;
+  background: #e8efe9;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.peak-bar-fill {
+  height: 100%;
+  background: #1A4731;
+  border-radius: 999px;
+  min-width: 0;
+}
+.peak-bar-fill.is-peak {
+  background: #D4AF37;
+}
+.peak-day-count {
+  text-align: right;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #1A4731;
+}
+.peak-top-note {
+  margin: 0.65rem 0 0;
+  font-size: 0.75rem;
+  color: #64748b;
 }
 
 .chart-box { height: 210px; position: relative; }

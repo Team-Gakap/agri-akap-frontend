@@ -46,12 +46,14 @@
         <p class="sig-title">Municipal Agriculturist</p>
       </div>
     </footer>
+    <SystemGeneratedPrintFooter />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
 import MaoFormHeader from '@/components/MaoFormHeader.vue';
+import SystemGeneratedPrintFooter from '@/components/SystemGeneratedPrintFooter.vue';
 import {
   columnsForCategory,
   REPORT_PRINT_TITLES,

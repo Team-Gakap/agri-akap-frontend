@@ -56,11 +56,13 @@
         <p>Prepared by (MAO Staff)</p>
       </div>
     </div>
+    <SystemGeneratedPrintFooter />
   </div>
 </template>
 
 <script setup lang="ts">
 import MaoFormHeader from '@/components/MaoFormHeader.vue';
+import SystemGeneratedPrintFooter from '@/components/SystemGeneratedPrintFooter.vue';
 
 withDefaults(
   defineProps<{
