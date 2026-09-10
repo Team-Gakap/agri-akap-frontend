@@ -50,6 +50,15 @@
                 >
                   + {{ tag.label }}
                 </button>
+
+                <button
+                  v-if="form.message"
+                  type="button"
+                  class="clear-compose-btn"
+                  @click="form.message = ''"
+                >
+                  Clear all
+                </button>
               </div>
               <textarea
                 v-model="form.message"
@@ -626,6 +635,20 @@ onUnmounted(() => {
   font-size: 1rem;
   font-weight: 800;
   color: #1a4731;
+}
+
+.clear-compose-btn {
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #dc2626;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-family: inherit;
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  margin-left: auto; 
 }
 
 .tag-row { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
