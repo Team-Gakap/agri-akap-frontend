@@ -174,7 +174,7 @@
               <div class="fgrid g2">
                 <div class="field-wrap">
                   <label class="flabel req">MOBILE NUMBER</label>
-                  <ion-input v-model="farmer.mobile_number" class="finput" placeholder="09XXXXXXXXX" :maxlength="11" />
+                  <ion-input v-model="farmer.mobile_number" class="finput compact" placeholder="09XXXXXXXXX" :maxlength="11" />
                   <div class="inline-chk mt4">
                     <ion-checkbox v-model="farmer.is_mobile_owner" class="fcheck" />
                     <span class="chk-label">I am the owner of this mobile number</span>
@@ -220,9 +220,9 @@
             </div>
           </div>
 
-          <!-- Civil Status  -->
+          <!-- Civil Status and Education -->
           <div class="subsection">
-            <div class="subsection-title">CIVIL STATUS</div>
+            <div class="subsection-title">CIVIL STATUS &amp; EDUCATION</div>
             <div class="subsection-body">
               <div class="fgrid g2">
                 <div class="field-wrap">
@@ -242,18 +242,12 @@
                     <ion-input v-model="farmer.spouse_ext_name" class="finput" placeholder="Ext. Name" />
                   </div>
                 </div>
-              </div>
-            </div>
-          </div>
-
-          <!--  Education  -->
-          <div class="subsection">
-            <div class="subsection-title">HIGHEST EDUCATIONAL ATTAINMENT</div>
-            <div class="subsection-body">
-              <div class="field-wrap">
-                <ion-select v-model="farmer.highest_education" interface="popover" class="fselect" placeholder="Select Educational Attainment">
-                  <ion-select-option v-for="edu in educationOptions" :key="edu" :value="edu">{{ edu }}</ion-select-option>
-                </ion-select>
+                <div class="field-wrap">
+                  <label class="flabel req">HIGHEST EDUCATIONAL ATTAINMENT</label>
+                  <ion-select v-model="farmer.highest_education" interface="popover" class="fselect" placeholder="Select Educational Attainment">
+                    <ion-select-option v-for="edu in educationOptions" :key="edu" :value="edu">{{ edu }}</ion-select-option>
+                  </ion-select>
+                </div>
               </div>
             </div>
           </div>
@@ -271,10 +265,10 @@
                 </div>
                 <div class="field-wrap">
                   <label class="flabel">ID NUMBER</label>
-                  <ion-input v-model="farmer.id_number" class="finput" />
+                  <ion-input v-model="farmer.id_number" class="finput compact" />
                 </div>
               </div>
-              <div v-if="farmer.id_type === 'Others'" class="field-wrap mt6">
+              <div v-if="farmer.id_type === 'Others'" class="field-wrap mt6 narrow-field">
                 <label class="flabel req">SPECIFY ID TYPE</label>
                 <ion-input v-model="farmer.id_type_other" class="finput compact" placeholder="Type the ID type" />
               </div>
@@ -344,9 +338,20 @@
             <div class="subsection-title">SPECIFIC LIVELIHOOD CLASSIFICATION</div>
             <div class="subsection-body">
               <div class="field-wrap">
-                <label class="flabel">CLASSIFICATION DETAIL</label>
-                <ion-select v-model="farmer.livelihood_detail" interface="popover" class="fselect"
-                  :placeholder="`Select ${farmer.livelihood_type} classification`">
+                <label class="flabel">{{ farmer.livelihood_type === 'Other' ? 'SPECIFY MAIN LIVELIHOOD' : 'CLASSIFICATION DETAIL' }}</label>
+                <ion-input
+                  v-if="farmer.livelihood_type === 'Other'"
+                  v-model="farmer.livelihood_detail"
+                  class="finput compact"
+                  placeholder="Type other livelihood"
+                />
+                <ion-select
+                  v-else
+                  v-model="farmer.livelihood_detail"
+                  interface="popover"
+                  class="fselect compact"
+                  :placeholder="`Select ${farmer.livelihood_type} classification`"
+                >
                   <ion-select-option v-for="d in livelihoodDetailOptions" :key="d" :value="d">{{ d }}</ion-select-option>
                 </ion-select>
               </div>
@@ -686,6 +691,7 @@ const livelihoodTypes = [
   { value: "Farm Worker", label: "Farmworker" },
   { value: "Fisher", label: "Fisherfolk" },
   { value: "Agri-Youth", label: "Agri-youth" },
+  { value: "Other", label: "Other" },
 ];
 const ownershipTypes  = ["Registered Owner","Tenant","Lessee","Others"];
 const farmTypes       = ["Irrigated","Rainfed Upland","Rainfed Lowland","Urban/Peri-Urban","Other"];
@@ -970,6 +976,10 @@ const validate = (): boolean => {
   if (!farmer.civil_status)          { errorMsg.value = "Civil Status is required."; return false; }
   if (!farmer.highest_education)     { errorMsg.value = "Highest Education is required."; return false; }
   if (!farmer.livelihood_type)       { errorMsg.value = "Livelihood type is required."; return false; }
+  if (farmer.livelihood_type === 'Other' && !farmer.livelihood_detail.trim()) {
+    errorMsg.value = "Please specify the main livelihood.";
+    return false;
+  }
   if (farmer.id_type === 'Others' && !farmer.id_type_other.trim()) {
     errorMsg.value = "Please specify the government ID type.";
     return false;
@@ -1387,8 +1397,12 @@ const submitForm = async () => {
 .finput.compact {
   max-width: 16rem;
 }
+.fselect.compact {
+  max-width: 16rem;
+}
 @media (max-width: 640px) {
-  .finput.compact {
+  .finput.compact,
+  .fselect.compact {
     max-width: 100%;
   }
 }
@@ -1530,6 +1544,9 @@ const submitForm = async () => {
   padding: 8px 0;
   overflow: visible;
   text-overflow: clip;
+}
+.narrow-field {
+  max-width: 34rem;
 }
 
 /* ═══════ RADIO ═══════ */
@@ -1706,6 +1723,7 @@ const submitForm = async () => {
 }
 @media (max-width: 640px) {
   .g4, .g3, .g2 { grid-template-columns: 1fr; }
+  .narrow-field { max-width: none; }
   .tx-row { grid-template-columns: 1fr; }
   .letterhead { flex-direction: column; gap: 10px; align-items: flex-start; }
   .lh-right { align-self: flex-end; }

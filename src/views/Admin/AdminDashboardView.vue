@@ -955,7 +955,7 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchAll));
   gap: 1rem;
   min-width: 0;
 }
-.diag-col { align-self: stretch; }
+.diag-col { align-self: start; }
 .pred-col { align-self: start; height: auto; }
 .pred-col .panel-card {
   flex: 0 0 auto;
@@ -969,7 +969,7 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchAll));
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 1rem;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-height: 0;
   align-items: stretch;
 }

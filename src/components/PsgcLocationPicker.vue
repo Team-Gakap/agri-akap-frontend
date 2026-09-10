@@ -278,6 +278,9 @@ watch(() => props.outsideEchague, async (outside) => {
   opacity: 0.65;
   pointer-events: none;
 }
+.psgc-picker {
+  max-width: 58rem;
+}
 .toggle-row {
   display: flex;
   align-items: center;
@@ -295,6 +298,7 @@ watch(() => props.outsideEchague, async (outside) => {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.65rem;
   margin-bottom: 0.65rem;
+  max-width: 58rem;
 }
 .cascade-grid.birthplace-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -302,6 +306,10 @@ watch(() => props.outsideEchague, async (outside) => {
 .locked-grid.no-region,
 .cascade-grid.no-region {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.psgc-picker > :deep(.ss),
+.cascade-grid :deep(.ss) {
+  max-width: 36rem;
 }
 .locked-field {
   border: 1px solid #e2e8f0;
@@ -325,10 +333,18 @@ watch(() => props.outsideEchague, async (outside) => {
   font-weight: 600;
 }
 @media (max-width: 900px) {
+  .psgc-picker {
+    max-width: none;
+  }
   .locked-grid,
   .cascade-grid,
   .cascade-grid.birthplace-grid {
     grid-template-columns: 1fr;
+    max-width: none;
+  }
+  .psgc-picker > :deep(.ss),
+  .cascade-grid :deep(.ss) {
+    max-width: none;
   }
 }
 </style>
