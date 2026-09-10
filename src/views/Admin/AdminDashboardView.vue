@@ -145,7 +145,7 @@
                   <div class="peak-bar-track">
                     <div
                       class="peak-bar-fill"
-                      :class="{ is-peak: row.day === peakWeekday }"
+                      :class="{ 'is-peak': row.day === peakWeekday }"
                       :style="{ width: row.pct + '%' }"
                     ></div>
                   </div>
