@@ -81,8 +81,6 @@
                     Select All ({{ barangays.length }})
                   </button>
                   <button type="button" class="bulk-btn" @click="clearBarangays">Clear All</button>
-                  <button type="button" class="bulk-btn" @click="selectCluster('am')">A–M</button>
-                  <button type="button" class="bulk-btn" @click="selectCluster('nz')">N–Z</button>
                 </div>
 
                 <p class="selected-count">
@@ -90,9 +88,19 @@
                   (Est. {{ estimatedRecipients.toLocaleString('en-PH') }} Farmers)
                 </p>
 
+                <label class="barangay-search">
+                  <span>Search Barangays</span>
+                  <input
+                    v-model="barangaySearch"
+                    type="search"
+                    placeholder="Search by barangay name"
+                    aria-label="Search barangays"
+                  />
+                </label>
+
                 <div class="brgy-grid" role="group" aria-label="Target barangays">
                   <label
-                    v-for="b in barangays"
+                    v-for="b in filteredBarangays"
                     :key="b"
                     class="brgy-chip"
                     :class="{ on: selectedBarangays.includes(b) }"
@@ -105,6 +113,9 @@
                     <span>{{ b }}</span>
                   </label>
                   <p v-if="!barangays.length" class="empty-brgy">No barangays loaded.</p>
+                  <p v-else-if="!filteredBarangays.length" class="empty-brgy">
+                    No barangays match your search.
+                  </p>
                 </div>
               </div>
 
@@ -248,6 +259,7 @@ const detailLog = ref<any | null>(null);
 const advisory = ref<WeatherAdvisory | null>(null);
 const advisoryLoading = ref(true);
 const estimatedRecipients = ref(0);
+const barangaySearch = ref('');
 const clock = ref('');
 let previewTimer: ReturnType<typeof setTimeout> | undefined;
 let clockTimer: ReturnType<typeof setInterval> | undefined;
@@ -289,6 +301,12 @@ const smsMeter = computed(() => {
   if (chars <= 70) return { chars, limit: 70, parts: 1 };
   const parts = Math.ceil(chars / 67);
   return { chars, limit: parts * 67, parts };
+});
+
+const filteredBarangays = computed(() => {
+  const query = barangaySearch.value.trim().toLowerCase();
+  if (!query) return barangays.value;
+  return barangays.value.filter((barangay) => barangay.toLowerCase().includes(query));
 });
 
 const interpolate = (text: string) => {
@@ -703,6 +721,31 @@ onUnmounted(() => {
   font-size: 0.82rem;
   font-weight: 700;
   color: #1a4731;
+}
+.barangay-search {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 8px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.barangay-search input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  font-size: 0.85rem;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+  color: #0f172a;
+  background: #fff;
+  font-family: inherit;
 }
 
 .brgy-grid {

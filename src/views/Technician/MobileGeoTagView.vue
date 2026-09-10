@@ -319,21 +319,9 @@
               <span class="area-val">{{ finalVerifiedAreaHa.toFixed(4) }} ha</span>
             </div>
             <p v-if="polygonExceedsQuota" class="budget-warn">
-              Polygon exceeds remaining registered area. Adjust the boundary, or flag spatial discrepancy to save as an undeclared field revision.
+              Polygon exceeds remaining registered area. Adjust the boundary to stay within the unmapped quota.
             </p>
           </div>
-
-          <ion-item class="discrepancy-item" lines="none">
-            <ion-checkbox
-              slot="start"
-              :checked="meta.has_discrepancy"
-              @ionChange="(e: any) => meta.has_discrepancy = e.detail.checked"
-            ></ion-checkbox>
-            <ion-label class="discrepancy-label">
-              Flag Spatial Discrepancy
-              <p class="discrepancy-sub">Farm overlaps another property, or an undeclared field was found. Required to save when the polygon exceeds the remaining registered area.</p>
-            </ion-label>
-          </ion-item>
 
           <div class="photo-block">
             <ion-button
@@ -386,7 +374,7 @@ import { useRoute } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonBackButton,
   IonButton, IonIcon, IonModal, IonList, IonItem, IonInput, IonSelect, IonSelectOption,
-  IonTextarea, IonCheckbox, IonLabel, toastController, alertController, onIonViewDidEnter,
+  IonTextarea, toastController, alertController, onIonViewDidEnter,
 } from '@ionic/vue';
 import { cameraOutline, qrCodeOutline } from 'ionicons/icons';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
@@ -719,7 +707,6 @@ const meta = reactive({
   incident_type: 'none' as GeoTagIncidentType,
   observations: '',
   non_productive_area_sqm: '' as string | number,
-  has_discrepancy: false,
   photoBase64: null as string | null,
   photoPreviewSrc: null as string | null,
 });
@@ -867,7 +854,7 @@ const canSave = computed(() =>
   && !!meta.planting_end_month
   && hasFarmerSignature.value
   && hasAewSignature.value
-  && (!polygonExceedsQuota.value || !!meta.has_discrepancy)
+  && !polygonExceedsQuota.value
 );
 
 const toast = (message: string, color: 'success' | 'warning' | 'danger' | 'primary' = 'primary') =>
@@ -882,7 +869,6 @@ const resetMetaForm = () => {
   meta.incident_type = pendingGeometry.value?.type === 'polygon' ? 'none' : 'pest';
   meta.observations = '';
   meta.non_productive_area_sqm = '';
-  meta.has_discrepancy = false;
   meta.photoBase64 = null;
   meta.photoPreviewSrc = null;
   farmerSigRef.value?.clear();
@@ -1331,7 +1317,7 @@ const saveGeoTagRecord = async () => {
       non_productive_area_sqm: isPolygon ? nonProductiveAreaSqm.value : null,
       final_area_sqm: isPolygon ? finalVerifiedAreaSqm.value : null,
       final_area_ha: isPolygon ? finalVerifiedAreaHa.value : null,
-      has_discrepancy: meta.has_discrepancy,
+      has_discrepancy: false,
       planting_start_month: meta.planting_start_month,
       planting_end_month: meta.planting_end_month,
       farmer_signature_base64: farmerSigRef.value?.toBase64() ?? null,
@@ -1884,29 +1870,6 @@ onBeforeUnmount(async () => {
   font-size: 0.72rem;
   color: #94a3b8;
   line-height: 1.4;
-}
-
-.discrepancy-item {
-  --background: #fff7ed;
-  border: 1px solid #fed7aa;
-  border-radius: 12px;
-  margin-bottom: 0.75rem;
-  --padding-start: 0.75rem;
-  --inner-padding-end: 0.75rem;
-}
-
-.discrepancy-label {
-  font-size: 0.85rem;
-  font-weight: 800;
-  color: #9a3412;
-}
-
-.discrepancy-sub {
-  margin: 0.15rem 0 0;
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: #b45309;
-  white-space: normal;
 }
 
 .photo-block {

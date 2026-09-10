@@ -191,7 +191,13 @@
         <ion-content class="ion-padding">
           <ion-list>
             <ion-item>
-              <ion-input label="Full name *" label-placement="stacked" v-model="form.name"></ion-input>
+              <ion-input label="First name *" label-placement="stacked" v-model="form.first_name"></ion-input>
+            </ion-item>
+            <ion-item>
+              <ion-input label="Middle name" label-placement="stacked" v-model="form.middle_name"></ion-input>
+            </ion-item>
+            <ion-item>
+              <ion-input label="Last name *" label-placement="stacked" v-model="form.last_name"></ion-input>
             </ion-item>
             <ion-item>
               <ion-input type="email" label="Email *" label-placement="stacked" v-model="form.email"></ion-input>
@@ -301,7 +307,15 @@ const formOpen = ref(false);
 const secretOpen = ref(false);
 const revealedSecret = ref('');
 const editing = ref<StaffRow | null>(null);
-const form = reactive({ name: '', email: '', role: 'technician', assigned_barangay: '', enforce_mfa: false });
+const form = reactive({
+  first_name: '',
+  middle_name: '',
+  last_name: '',
+  email: '',
+  role: 'technician',
+  assigned_barangay: '',
+  enforce_mfa: false,
+});
 const summary = reactive({
   total: 0,
   by_role: {} as Record<string, number>,
@@ -467,9 +481,32 @@ const refresh = async (nextPage = page.value) => {
   await Promise.all([load(nextPage), loadSummary()]);
 };
 
+const joinFullName = (first: string, middle: string, last: string) =>
+  [first, middle, last].map((part) => part.trim()).filter(Boolean).join(' ');
+
+const splitFullName = (fullName: string) => {
+  const parts = fullName.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) {
+    return { first_name: '', middle_name: '', last_name: '' };
+  }
+  if (parts.length === 1) {
+    return { first_name: parts[0], middle_name: '', last_name: '' };
+  }
+  if (parts.length === 2) {
+    return { first_name: parts[0], middle_name: '', last_name: parts[1] };
+  }
+  return {
+    first_name: parts[0],
+    middle_name: parts.slice(1, -1).join(' '),
+    last_name: parts[parts.length - 1],
+  };
+};
+
 const openCreate = () => {
   editing.value = null;
-  form.name = '';
+  form.first_name = '';
+  form.middle_name = '';
+  form.last_name = '';
   form.email = '';
   form.role = creatableRoles.value[0];
   form.assigned_barangay = '';
@@ -479,7 +516,10 @@ const openCreate = () => {
 
 const openEdit = (row: StaffRow) => {
   editing.value = row;
-  form.name = row.name;
+  const parts = splitFullName(row.name);
+  form.first_name = parts.first_name;
+  form.middle_name = parts.middle_name;
+  form.last_name = parts.last_name;
   form.email = row.email;
   form.role = row.role === 'super_admin' ? row.role : row.role;
   form.assigned_barangay = row.assigned_barangay || '';
@@ -488,10 +528,17 @@ const openEdit = (row: StaffRow) => {
 };
 
 const save = async () => {
+  const first = form.first_name.trim();
+  const last = form.last_name.trim();
+  if (!first || !last) {
+    await toast.error('First name and last name are required.');
+    return;
+  }
+  const fullName = joinFullName(form.first_name, form.middle_name, form.last_name);
   saving.value = true;
   try {
     const body: Record<string, unknown> = {
-      name: form.name,
+      name: fullName,
       email: form.email,
     };
     if (!editingSelfSuperAdmin.value) {
