@@ -52,7 +52,6 @@
                 </button>
 
                 <button
-                  v-if="form.message"
                   type="button"
                   class="clear-compose-btn"
                   @click="form.message = ''"
