@@ -46,30 +46,26 @@
           <div class="subsection">
             <div class="subsection-title">NAME</div>
             <div class="subsection-body">
-              <div class="fgrid g4">
-                <div class="field-wrap">
-                  <label class="flabel req">LAST NAME / SURNAME</label>
-                  <ion-input v-model="farmer.surname" class="finput" placeholder="e.g. DELA CRUZ" />
+              <div class="name-row">
+                <div class="field-wrap name-surname">
+                  <label class="flabel req">SURNAME</label>
+                  <ion-input v-model="farmer.surname" class="finput" placeholder="e.g. DELA CRUZ" tabindex="1" />
                 </div>
-                <div class="field-wrap">
+                <div class="field-wrap name-first">
                   <label class="flabel req">FIRST NAME</label>
-                  <ion-input v-model="farmer.first_name" class="finput" placeholder="e.g. JUAN" />
+                  <ion-input v-model="farmer.first_name" class="finput" placeholder="e.g. JUAN" tabindex="2" />
                 </div>
-                <div class="field-wrap">
+                <div class="field-wrap name-middle">
                   <label class="flabel">MIDDLE NAME</label>
-                  <ion-input v-model="farmer.middle_name" class="finput" :disabled="farmer.no_middle_name" />
+                  <ion-input v-model="farmer.middle_name" class="finput" :disabled="farmer.no_middle_name" tabindex="3" />
                   <div class="inline-chk">
                     <ion-checkbox v-model="farmer.no_middle_name" @ionChange="onNoMiddleName" class="fcheck" />
                     <span class="chk-label">No Middle Name</span>
                   </div>
                 </div>
-                <div class="field-wrap">
-                  <label class="flabel">EXTENSION NAME</label>
-                  <ion-input v-model="farmer.ext_name" class="finput" placeholder="Jr / Sr / III" :disabled="farmer.no_ext_name" />
-                  <div class="inline-chk">
-                    <ion-checkbox v-model="farmer.no_ext_name" @ionChange="onNoExtName" class="fcheck" />
-                    <span class="chk-label">No Extension Name</span>
-                  </div>
+                <div class="field-wrap name-ext">
+                  <label class="flabel">EXT.</label>
+                  <ion-input v-model="farmer.ext_name" class="finput" placeholder="Jr / III" tabindex="4" />
                 </div>
               </div>
             </div>
@@ -77,27 +73,27 @@
 
           <!-- Personal Details -->
           <div class="subsection">
-            <div class="subsection-title">PERSONAL DETAILS</div>
+            <div class="subsection-title">DEMOGRAPHICS</div>
             <div class="subsection-body">
-              <div class="fgrid g4">
-                <div class="field-wrap">
+              <div class="demo-row">
+                <div class="field-wrap w-md">
                   <label class="flabel req">SEX</label>
-                  <ion-select v-model="farmer.sex" interface="popover" class="fselect" placeholder="Select Sex">
+                  <ion-select v-model="farmer.sex" interface="popover" class="fselect" placeholder="Select" tabindex="5">
                     <ion-select-option value="Male">Male</ion-select-option>
                     <ion-select-option value="Female">Female</ion-select-option>
                   </ion-select>
                 </div>
-                <div class="field-wrap">
+                <div class="field-wrap w-mid">
                   <label class="flabel req">BIRTHDATE</label>
-                  <ion-input type="date" v-model="farmer.birthdate" class="finput" @ionChange="computeAge" />
+                  <ion-input type="date" v-model="farmer.birthdate" class="finput" @ionChange="computeAge" tabindex="6" />
                 </div>
-                <div class="field-wrap">
+                <div class="field-wrap w-xs">
                   <label class="flabel">AGE</label>
-                  <ion-input :value="computedAge" class="finput" readonly placeholder="Auto" />
+                  <ion-input :value="computedAge" class="finput" readonly placeholder="—" tabindex="-1" />
                 </div>
-                <div class="field-wrap">
+                <div class="field-wrap flex-fill">
                   <label class="flabel">RELIGION</label>
-                  <ion-input v-model="farmer.religion" class="finput" placeholder="e.g. Roman Catholic" />
+                  <ion-input v-model="farmer.religion" class="finput" placeholder="e.g. Roman Catholic" tabindex="7" />
                 </div>
               </div>
               <PsgcLocationPicker
@@ -113,20 +109,23 @@
 
           <!-- Permanent Address -->
           <div class="subsection">
-            <div class="subsection-title">PERMANENT ADDRESS</div>
+            <div class="subsection-title">
+              PERMANENT ADDRESS
+              <span v-if="!permanentOutsideEchague" class="jurisdiction-badge">📍 Echague, Isabela (Region II)</span>
+            </div>
             <div class="subsection-body">
-              <div class="fgrid g3">
-                <div class="field-wrap">
+              <div class="addr-row">
+                <div class="field-wrap w-sm">
                   <label class="flabel">HOUSE NO.</label>
-                  <ion-input v-model="farmer.permanent_house_no" class="finput" />
+                  <ion-input v-model="farmer.permanent_house_no" class="finput" tabindex="8" />
                 </div>
-                <div class="field-wrap">
-                  <label class="flabel">STREET</label>
-                  <ion-input v-model="farmer.permanent_street" class="finput" />
+                <div class="field-wrap flex-fill">
+                  <label class="flabel">STREET / SITIO / PUROK</label>
+                  <ion-input v-model="farmer.permanent_street" class="finput" tabindex="9" />
                 </div>
               </div>
               <PsgcLocationPicker
-                class="mt6"
+                class="mt6 psgc-compact"
                 v-model:region="farmer.permanent_region"
                 v-model:province="farmer.permanent_province"
                 v-model:city="farmer.permanent_city"
@@ -145,18 +144,18 @@
           <div class="subsection">
             <div class="subsection-title">PROVINCIAL / MAILING ADDRESS</div>
             <div class="subsection-body">
-              <div class="fgrid g3">
-                <div class="field-wrap">
+              <div class="addr-row">
+                <div class="field-wrap w-sm">
                   <label class="flabel">HOUSE NO.</label>
                   <ion-input v-model="farmer.provincial_house_no" class="finput" :disabled="sameAddress" />
                 </div>
-                <div class="field-wrap">
-                  <label class="flabel">STREET</label>
+                <div class="field-wrap flex-fill">
+                  <label class="flabel">STREET / SITIO / PUROK</label>
                   <ion-input v-model="farmer.provincial_street" class="finput" :disabled="sameAddress" />
                 </div>
               </div>
               <PsgcLocationPicker
-                class="mt6"
+                class="mt6 psgc-compact"
                 v-model:region="farmer.provincial_region"
                 v-model:province="farmer.provincial_province"
                 v-model:city="farmer.provincial_city"
@@ -167,30 +166,50 @@
             </div>
           </div>
 
-          <!-- Contact  -->
+          <!-- Contact & Identification -->
           <div class="subsection">
-            <div class="subsection-title">CONTACT INFORMATION</div>
+            <div class="subsection-title">CONTACT & IDENTIFICATION</div>
             <div class="subsection-body">
-              <div class="fgrid g2">
-                <div class="field-wrap">
-                  <label class="flabel req">MOBILE NUMBER</label>
-                  <ion-input v-model="farmer.mobile_number" class="finput compact" placeholder="09XXXXXXXXX" :maxlength="11" />
-                  <div class="inline-chk mt4">
-                    <ion-checkbox v-model="farmer.is_mobile_owner" class="fcheck" />
-                    <span class="chk-label">I am the owner of this mobile number</span>
-                  </div>
+              <div class="contact-row">
+                <div class="field-wrap w-mid">
+                  <label class="flabel req">MOBILE NO.</label>
+                  <ion-input v-model="farmer.mobile_number" class="finput" placeholder="09XXXXXXXXX" :maxlength="11" tabindex="10" />
                 </div>
-                <div class="field-wrap" v-if="!farmer.is_mobile_owner">
-                  <label class="flabel">MOBILE NUMBER OWNER'S NAME</label>
-                  <div class="fgrid g2">
+                <div class="field-wrap w-std">
+                  <label class="flabel">GOV'T ID TYPE</label>
+                  <ion-select v-model="farmer.id_type" interface="popover" class="fselect" placeholder="Select ID" tabindex="11">
+                    <ion-select-option v-for="id in govIdTypes" :key="id" :value="id">{{ id }}</ion-select-option>
+                  </ion-select>
+                </div>
+                <div class="field-wrap w-std">
+                  <label class="flabel">ID NUMBER</label>
+                  <ion-input v-model="farmer.id_number" class="finput" tabindex="12" />
+                </div>
+              </div>
+              <div class="inline-chk mt4">
+                <ion-checkbox v-model="farmer.is_mobile_owner" class="fcheck" />
+                <span class="chk-label">I am the owner of this mobile number</span>
+              </div>
+              <div v-if="!farmer.is_mobile_owner" class="mt6">
+                <label class="flabel" style="margin-bottom:6px;">MOBILE OWNER'S NAME</label>
+                <div class="name-row">
+                  <div class="field-wrap name-surname">
+                    <ion-input v-model="farmer.mobile_owner_surname" class="finput" placeholder="Surname" />
+                  </div>
+                  <div class="field-wrap name-first">
                     <ion-input v-model="farmer.mobile_owner_first_name" class="finput" placeholder="First Name" />
+                  </div>
+                  <div class="field-wrap name-middle">
                     <ion-input v-model="farmer.mobile_owner_middle_name" class="finput" placeholder="Middle Name" />
                   </div>
-                  <div class="fgrid g2 mt6">
-                    <ion-input v-model="farmer.mobile_owner_surname" class="finput" placeholder="Surname" />
-                    <ion-input v-model="farmer.mobile_owner_ext_name" class="finput" placeholder="Ext. Name" />
+                  <div class="field-wrap name-ext">
+                    <ion-input v-model="farmer.mobile_owner_ext_name" class="finput" placeholder="Ext." />
                   </div>
                 </div>
+              </div>
+              <div v-if="farmer.id_type === 'Others'" class="field-wrap mt6 narrow-field">
+                <label class="flabel req">SPECIFY ID TYPE</label>
+                <ion-input v-model="farmer.id_type_other" class="finput compact" placeholder="Type the ID type" />
               </div>
             </div>
           </div>
@@ -199,22 +218,22 @@
           <div class="subsection">
             <div class="subsection-title">MOTHER'S MAIDEN NAME</div>
             <div class="subsection-body">
-              <div class="fgrid g4">
-                <div class="field-wrap">
+              <div class="name-row">
+                <div class="field-wrap name-surname">
                   <label class="flabel req">SURNAME</label>
                   <ion-input v-model="farmer.mothers_maiden_surname" class="finput" />
                 </div>
-                <div class="field-wrap">
+                <div class="field-wrap name-first">
                   <label class="flabel req">FIRST NAME</label>
                   <ion-input v-model="farmer.mothers_maiden_first_name" class="finput" />
                 </div>
-                <div class="field-wrap">
+                <div class="field-wrap name-middle">
                   <label class="flabel">MIDDLE NAME</label>
                   <ion-input v-model="farmer.mothers_maiden_middle_name" class="finput" />
                 </div>
-                <div class="field-wrap">
-                  <label class="flabel">EXTENSION NAME</label>
-                  <ion-input v-model="farmer.mothers_maiden_ext_name" class="finput" />
+                <div class="field-wrap name-ext">
+                  <label class="flabel">EXT.</label>
+                  <ion-input v-model="farmer.mothers_maiden_ext_name" class="finput" placeholder="Jr / III" />
                 </div>
               </div>
             </div>
@@ -252,28 +271,7 @@
             </div>
           </div>
 
-          <!--  Government ID -->
-          <div class="subsection">
-            <div class="subsection-title">GOVERNMENT-ISSUED IDENTIFICATION</div>
-            <div class="subsection-body">
-              <div class="fgrid g2">
-                <div class="field-wrap">
-                  <label class="flabel">ID TYPE</label>
-                  <ion-select v-model="farmer.id_type" interface="popover" class="fselect" placeholder="Select ID Type">
-                    <ion-select-option v-for="id in govIdTypes" :key="id" :value="id">{{ id }}</ion-select-option>
-                  </ion-select>
-                </div>
-                <div class="field-wrap">
-                  <label class="flabel">ID NUMBER</label>
-                  <ion-input v-model="farmer.id_number" class="finput compact" />
-                </div>
-              </div>
-              <div v-if="farmer.id_type === 'Others'" class="field-wrap mt6 narrow-field">
-                <label class="flabel req">SPECIFY ID TYPE</label>
-                <ion-input v-model="farmer.id_type_other" class="finput compact" placeholder="Type the ID type" />
-              </div>
-            </div>
-          </div>
+          <!-- Government ID: merged into Contact & Identification above -->
 
           <!--  Vulnerability & Membership -->
           <div class="subsection">
@@ -333,51 +331,17 @@
             </div>
           </div>
 
-          <!--  Livelihood sub-classification (DA RSBSA) -->
-          <div class="subsection" v-if="farmer.livelihood_type">
-            <div class="subsection-title">SPECIFIC LIVELIHOOD CLASSIFICATION</div>
+          <!--  Other livelihood detail -->
+          <div class="subsection" v-if="farmer.livelihood_type === 'Other'">
+            <div class="subsection-title">OTHER LIVELIHOOD</div>
             <div class="subsection-body">
               <div class="field-wrap">
-                <label class="flabel">{{ farmer.livelihood_type === 'Other' ? 'SPECIFY MAIN LIVELIHOOD' : 'CLASSIFICATION DETAIL' }}</label>
+                <label class="flabel req">SPECIFY MAIN LIVELIHOOD</label>
                 <ion-input
-                  v-if="farmer.livelihood_type === 'Other'"
                   v-model="farmer.livelihood_detail"
                   class="finput compact"
                   placeholder="Type other livelihood"
                 />
-                <ion-select
-                  v-else
-                  v-model="farmer.livelihood_detail"
-                  interface="popover"
-                  class="fselect compact"
-                  :placeholder="`Select ${farmer.livelihood_type} classification`"
-                >
-                  <ion-select-option v-for="d in livelihoodDetailOptions" :key="d" :value="d">{{ d }}</ion-select-option>
-                </ion-select>
-              </div>
-            </div>
-          </div>
-
-          <div class="subsection">
-            <div class="subsection-title">OTHER LIVELIHOOD (OPTIONAL)</div>
-            <div class="subsection-body">
-              <div class="fgrid g2">
-                <div class="field-wrap">
-                  <label class="flabel">OTHER LIVELIHOOD TYPE</label>
-                  <ion-select v-model="farmer.other_livelihood_type" interface="popover" class="fselect" placeholder="Select if any">
-                    <ion-select-option value="">— None —</ion-select-option>
-                    <ion-select-option v-for="lv in livelihoodTypes" :key="'o'+lv.value" :value="lv.value">{{ lv.label }}</ion-select-option>
-                    <ion-select-option value="Other">Other</ion-select-option>
-                  </ion-select>
-                </div>
-                <div class="field-wrap" v-if="farmer.other_livelihood_type">
-                  <label class="flabel">SPECIFY / DETAIL</label>
-                  <ion-input
-                    v-model="farmer.other_livelihood_detail"
-                    class="finput"
-                    :placeholder="farmer.other_livelihood_type === 'Other' ? 'Type other livelihood' : 'Optional detail'"
-                  />
-                </div>
               </div>
             </div>
           </div>
@@ -596,6 +560,9 @@
             <ion-button fill="outline" expand="block" class="add-plot-btn" @click="addPlot">
               + ADD ANOTHER FARM PLOT
             </ion-button>
+            <div class="plot-tally">
+              Total Registered Farm Area: <strong>{{ totalFarmArea }} ha</strong>
+            </div>
           </div>
 
         </div>
@@ -703,16 +670,6 @@ const onCommodityChange = (plot: { commodity: string; no_of_heads_or_trees: stri
   if (!isHighValueCommodity(plot.commodity)) plot.no_of_heads_or_trees = "";
 };
 
-// DA RSBSA livelihood sub-classifications, keyed by the broad livelihood type.
-const livelihoodDetailMap: Record<string, string[]> = {
-  "Farmer":      ["Rice", "Corn", "Other Crops", "Livestock", "Poultry"],
-  "Farm Worker": ["Land Preparation", "Planting/Transplanting", "Cultivation", "Harvesting"],
-  "Fisher":      ["Fish Capture", "Aquaculture", "Gleaning", "Processing", "Fish Vending"],
-  "Agri-Youth":  ["Agri-Youth", "Farming Household"],
-};
-const livelihoodDetailOptions = computed(
-  () => livelihoodDetailMap[farmer.livelihood_type] ?? []
-);
 const onLivelihoodTypeChange = () => { farmer.livelihood_detail = ""; };
 
 /* farmer details */
@@ -772,8 +729,6 @@ const farmer = reactive({
   association_3: "",
   livelihood_type: "",
   livelihood_detail: "",
-  other_livelihood_type: "",
-  other_livelihood_detail: "",
 });
 
 /* ── farm plots ── */
@@ -817,6 +772,9 @@ const commodityOptions = computed(() => {
   return [...COMMODITY_OPTIONS, ...Array.from(new Set(extra))];
 });
 const addPlot    = () => farmPlots.push(createPlot());
+const totalFarmArea = computed(() =>
+  farmPlots.reduce((sum, p) => sum + (parseFloat(String(p.size_ha)) || 0), 0).toFixed(4)
+);
 const removePlot = (i: number) => farmPlots.splice(i, 1);
 
 /* age compute */
@@ -984,10 +942,6 @@ const validate = (): boolean => {
     errorMsg.value = "Please specify the government ID type.";
     return false;
   }
-  if (farmer.other_livelihood_type === 'Other' && !farmer.other_livelihood_detail.trim()) {
-    errorMsg.value = "Please specify the other livelihood.";
-    return false;
-  }
   
   for (let i = 0; i < farmPlots.length; i++) {
     const p = farmPlots[i], n = `Farm Plot ${i+1}`;
@@ -1074,10 +1028,6 @@ const submitForm = async () => {
     const payload = {
       ...farmerPayload,
       id_type_other: farmer.id_type === 'Others' ? (farmer.id_type_other || null) : null,
-      other_livelihood_type: farmer.other_livelihood_type || null,
-      other_livelihood_detail: farmer.other_livelihood_type
-        ? (farmer.other_livelihood_detail || null)
-        : null,
       rsbsa_no: isEdit.value ? (farmer.rsbsa_no || null) : null,
       plots,
     };
@@ -1714,6 +1664,86 @@ const submitForm = async () => {
   padding: 0 4px;
 }
 
+/* ═══════ PROPORTIONAL WIDTH TOKENS ═══════ */
+.w-xs    { max-width: 80px;  flex: 0 0 80px; }
+.w-sm    { max-width: 100px; flex: 0 0 100px; }
+.w-md    { max-width: 140px; flex: 0 0 140px; }
+.w-mid   { max-width: 180px; flex: 0 0 180px; }
+.w-std   { max-width: 200px; flex: 0 0 200px; }
+.w-wide  { max-width: 260px; flex: 0 0 260px; }
+.flex-fill { flex: 1 1 160px; min-width: 120px; }
+
+/* ═══════ PROPORTIONAL FLEX ROWS ═══════ */
+.name-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: flex-start;
+}
+.name-surname { flex: 3 1 180px; min-width: 140px; }
+.name-first   { flex: 3 1 180px; min-width: 140px; }
+.name-middle  { flex: 2.5 1 150px; min-width: 120px; }
+.name-ext     { flex: 0 0 100px; max-width: 100px; }
+
+.demo-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: flex-start;
+}
+
+.addr-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: flex-start;
+}
+
+.contact-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: flex-start;
+}
+
+/* ═══════ JURISDICTION BADGE ═══════ */
+.jurisdiction-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--sub-head-bg);
+  border: 1px solid var(--sub-border);
+  border-radius: 4px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--sub-head-txt);
+  margin-left: 10px;
+  vertical-align: middle;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* ═══════ COMPACT PSGC OVERRIDE ═══════ */
+.psgc-compact :deep(.locked-grid) {
+  display: none;
+}
+
+/* ═══════ FARM PLOT TALLY ═══════ */
+.plot-tally {
+  text-align: right;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-text);
+  padding: 8px 4px 0;
+  letter-spacing: 0.2px;
+}
+.plot-tally strong {
+  color: var(--c-green);
+  font-weight: 800;
+  font-size: 14px;
+}
+
 /* ═══════ RESPONSIVE ═══════ */
 @media (max-width: 1100px) {
   .g4 { grid-template-columns: 1fr 1fr; }
@@ -1727,6 +1757,15 @@ const submitForm = async () => {
   .tx-row { grid-template-columns: 1fr; }
   .letterhead { flex-direction: column; gap: 10px; align-items: flex-start; }
   .lh-right { align-self: flex-end; }
+  .name-row, .demo-row, .addr-row, .contact-row {
+    flex-direction: column;
+  }
+  .w-xs, .w-sm, .w-md, .w-mid, .w-std, .w-wide {
+    max-width: none !important;
+    flex: 1 1 auto;
+  }
+  .name-ext { max-width: none; flex: 1 1 auto; }
+  .flex-fill { min-width: 0; }
 }
 
 /* ═══════ ERROR / SUBMIT ═══════ */
