@@ -123,16 +123,16 @@
                   <label class="flabel">STREET / SITIO / PUROK</label>
                   <ion-input v-model="farmer.permanent_street" class="finput" tabindex="9" />
                 </div>
+                <PsgcLocationPicker
+                  class="psgc-compact"
+                  v-model:region="farmer.permanent_region"
+                  v-model:province="farmer.permanent_province"
+                  v-model:city="farmer.permanent_city"
+                  v-model:barangay="farmer.permanent_brgy"
+                  v-model:outside-echague="permanentOutsideEchague"
+                  @update:barangay="onPermanentLocationChange"
+                />
               </div>
-              <PsgcLocationPicker
-                class="mt6 psgc-compact"
-                v-model:region="farmer.permanent_region"
-                v-model:province="farmer.permanent_province"
-                v-model:city="farmer.permanent_city"
-                v-model:barangay="farmer.permanent_brgy"
-                v-model:outside-echague="permanentOutsideEchague"
-                @update:barangay="onPermanentLocationChange"
-              />
               <div class="ncr-note">
                 <ion-checkbox v-model="sameAddress" @ionChange="onSameAddress" class="fcheck" />
                 <span class="chk-label">Answer only if full and permanent address is in NCR — <em>Ilagay lamang kung ang permanenteng tirahan ay sa NCR.</em></span>
@@ -386,7 +386,7 @@
               <div class="subsection-title">OWNERSHIP / TENURIAL STATUS</div>
               <div class="subsection-body">
                 <div class="fgrid g2">
-                  <div class="field-wrap">
+                  <div class="field-wrap w-md">
                     <label class="flabel req">AREA (ha)</label>
                     <ion-input type="number" v-model="plot.total_parcel_area_ha" class="finput" placeholder="0.0000" />
                   </div>
@@ -451,7 +451,7 @@
                   </div>
                 </div>
                 <div class="fgrid g2 mt6">
-                  <div class="field-wrap">
+                  <div class="field-wrap w-sm">
                     <label class="flabel">LAND OWNER'S EXT. NAME</label>
                     <ion-input v-model="plot.land_owner_ext_name" class="finput compact" />
                   </div>
@@ -498,7 +498,7 @@
                       <ion-select-option v-for="c in commodityOptions" :key="c" :value="c">{{ c }}</ion-select-option>
                     </ion-select>
                   </div>
-                  <div class="field-wrap">
+                  <div class="field-wrap w-md">
                     <label class="flabel req">SIZE (ha)</label>
                     <ion-input type="number" v-model="plot.size_ha" class="finput compact" placeholder="0.0000" />
                   </div>
@@ -1728,6 +1728,17 @@ const submitForm = async () => {
 .psgc-compact :deep(.locked-grid) {
   display: none;
 }
+.psgc-compact {
+  display: contents;
+}
+.psgc-compact :deep(.toggle-row) {
+  flex: 0 0 100%;
+  order: -1;
+}
+.psgc-compact :deep(.ss) {
+  max-width: 260px;
+  flex: 0 0 260px;
+}
 
 /* ═══════ FARM PLOT TALLY ═══════ */
 .plot-tally {
@@ -1766,6 +1777,10 @@ const submitForm = async () => {
   }
   .name-ext { max-width: none; flex: 1 1 auto; }
   .flex-fill { min-width: 0; }
+  .psgc-compact :deep(.ss) {
+    max-width: none;
+    flex: 1 1 auto;
+  }
 }
 
 /* ═══════ ERROR / SUBMIT ═══════ */
