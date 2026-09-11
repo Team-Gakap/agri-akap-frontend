@@ -91,9 +91,15 @@
                   <label class="flabel">AGE</label>
                   <ion-input :value="computedAge" class="finput" readonly placeholder="—" tabindex="-1" />
                 </div>
-                <div class="field-wrap flex-fill">
+                <div class="field-wrap w-lg">
                   <label class="flabel">RELIGION</label>
                   <ion-input v-model="farmer.religion" class="finput" placeholder="e.g. Roman Catholic" tabindex="7" />
+                </div>
+                <div class="field-wrap w-sm">
+                  <label class="flabel req">CIVIL STATUS</label>
+                  <ion-select v-model="farmer.civil_status" interface="popover" class="fselect" placeholder="Select" tabindex="8">
+                    <ion-select-option v-for="cs in civilStatusOptions" :key="cs" :value="cs">{{ cs }}</ion-select-option>
+                  </ion-select>
                 </div>
               </div>
               <PsgcLocationPicker
@@ -115,7 +121,7 @@
             </div>
             <div class="subsection-body">
               <div class="addr-row">
-                <div class="field-wrap w-sm">
+                <div class="field-wrap w-xs">
                   <label class="flabel">HOUSE NO.</label>
                   <ion-input v-model="farmer.permanent_house_no" class="finput" tabindex="8" />
                 </div>
@@ -171,9 +177,13 @@
             <div class="subsection-title">CONTACT & IDENTIFICATION</div>
             <div class="subsection-body">
               <div class="contact-row">
-                <div class="field-wrap w-mid">
+                <div class="field-wrap w-md">
                   <label class="flabel req">MOBILE NO.</label>
-                  <ion-input v-model="farmer.mobile_number" class="finput" placeholder="09XXXXXXXXX" :maxlength="11" tabindex="10" />
+                  <ion-input v-model="farmer.mobile_number" class="finput" type="tel" inputmode="numeric" placeholder="09XXXXXXXXX" :maxlength="11" tabindex="10" />
+                </div>
+                <div class="inline-chk contact-owner">
+                  <ion-checkbox v-model="farmer.is_mobile_owner" class="fcheck" />
+                  <span class="chk-label">Mobile owner</span>
                 </div>
                 <div class="field-wrap w-std">
                   <label class="flabel">GOV'T ID TYPE</label>
@@ -185,10 +195,6 @@
                   <label class="flabel">ID NUMBER</label>
                   <ion-input v-model="farmer.id_number" class="finput" tabindex="12" />
                 </div>
-              </div>
-              <div class="inline-chk mt4">
-                <ion-checkbox v-model="farmer.is_mobile_owner" class="fcheck" />
-                <span class="chk-label">I am the owner of this mobile number</span>
               </div>
               <div v-if="!farmer.is_mobile_owner" class="mt6">
                 <label class="flabel" style="margin-bottom:6px;">MOBILE OWNER'S NAME</label>
@@ -231,25 +237,15 @@
                   <label class="flabel">MIDDLE NAME</label>
                   <ion-input v-model="farmer.mothers_maiden_middle_name" class="finput" />
                 </div>
-                <div class="field-wrap name-ext">
-                  <label class="flabel">EXT.</label>
-                  <ion-input v-model="farmer.mothers_maiden_ext_name" class="finput" placeholder="Jr / III" />
-                </div>
               </div>
             </div>
           </div>
 
-          <!-- Civil Status and Education -->
+          <!-- Education and spouse details -->
           <div class="subsection">
-            <div class="subsection-title">CIVIL STATUS &amp; EDUCATION</div>
+            <div class="subsection-title">EDUCATION</div>
             <div class="subsection-body">
               <div class="fgrid g2">
-                <div class="field-wrap">
-                  <label class="flabel req">CIVIL STATUS</label>
-                  <ion-select v-model="farmer.civil_status" interface="popover" class="fselect" placeholder="Select Civil Status">
-                    <ion-select-option v-for="cs in civilStatusOptions" :key="cs" :value="cs">{{ cs }}</ion-select-option>
-                  </ion-select>
-                </div>
                 <div class="field-wrap" v-if="farmer.civil_status === 'Married'">
                   <label class="flabel">SPOUSE'S NAME</label>
                   <div class="fgrid g2">
@@ -356,212 +352,103 @@
             <div class="part-title">FARM PLOT INFORMATION</div>
           </div>
 
-          <div v-for="(plot, idx) in farmPlots" :key="idx" class="plot-card">
-
-            <div class="plot-card-header">
-              <span class="plot-num">FARM PLOT {{ idx + 1 }}</span>
-              <ion-button v-if="farmPlots.length > 1" fill="clear" size="small"
-                class="del-plot-btn" @click="removePlot(idx)">
-                ✕ Remove Plot
-              </ion-button>
-            </div>
-
-            <!-- Location -->
-            <div class="subsection">
-              <div class="subsection-title">LOCATION OF FARM PLOT</div>
-              <div class="subsection-body">
-                <PsgcLocationPicker
-                  v-model:region="plot.location_region_helper"
-                  v-model:province="plot.location_province"
-                  v-model:city="plot.location_city"
-                  v-model:barangay="plot.location_brgy"
-                  v-model:outside-echague="plot.outside_echague"
-                  :include-region="plot.outside_echague"
-                />
-              </div>
-            </div>
-
-            <!-- Ownership -->
-            <div class="subsection">
-              <div class="subsection-title">OWNERSHIP / TENURIAL STATUS</div>
-              <div class="subsection-body">
-                <div class="fgrid g2">
-                  <div class="field-wrap w-md">
-                    <label class="flabel req">AREA (ha)</label>
-                    <ion-input type="number" v-model="plot.total_parcel_area_ha" class="finput" placeholder="0.0000" />
-                  </div>
-                  <div class="field-wrap">
-                    <label class="flabel req">TENURIAL STATUS</label>
-                    <div class="radio-row wrap">
-                      <label v-for="ot in ownershipTypes" :key="ot"
-                        class="radio-pill" :class="{ active: plot.ownership_type === ot }">
-                        <input
-                          type="radio"
-                          v-model="plot.ownership_type"
-                          :value="ot"
-                          class="r-hidden"
-                          @change="syncPlotTenurialDocument(plot)"
+          <div class="plot-matrix-wrap">
+            <table class="plot-matrix">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>LOCATION (BARANGAY)</th>
+                  <th>COMMODITY</th>
+                  <th>SIZE (ha)</th>
+                  <th>TENURIAL STATUS</th>
+                  <th>PROOF OF OWNERSHIP</th>
+                  <th>COORDINATES / GEOREF</th>
+                  <th aria-label="Actions"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <template v-for="(plot, idx) in farmPlots" :key="idx">
+                  <tr>
+                    <td class="plot-index">{{ idx + 1 }}</td>
+                    <td>
+                      <ion-select v-model="plot.location_brgy" interface="popover" class="matrix-select" placeholder="Barangay" :disabled="plot.outside_echague">
+                        <ion-select-option v-for="barangay in ECHAGUE_BARANGAYS" :key="barangay" :value="barangay">{{ barangay }}</ion-select-option>
+                      </ion-select>
+                    </td>
+                    <td>
+                      <ion-select v-model="plot.commodity" interface="popover" class="matrix-select" placeholder="Commodity" @ionChange="onCommodityChange(plot)">
+                        <ion-select-option v-for="commodity in commodityOptions" :key="commodity" :value="commodity">{{ commodity }}</ion-select-option>
+                      </ion-select>
+                    </td>
+                    <td><ion-input :value="plot.size_ha || plot.total_parcel_area_ha" type="number" step="0.0001" class="matrix-input" placeholder="0.0000" @ionInput="plot.size_ha = $event.detail.value ?? ''; plot.total_parcel_area_ha = $event.detail.value ?? ''" /></td>
+                    <td>
+                      <ion-select v-model="plot.ownership_type" interface="popover" class="matrix-select" placeholder="Status" @ionChange="syncPlotTenurialDocument(plot)">
+                        <ion-select-option v-for="status in ownershipTypes" :key="status" :value="status">{{ status }}</ion-select-option>
+                      </ion-select>
+                    </td>
+                    <td>
+                      <ion-select v-model="plot.proof_of_ownership_document" interface="popover" class="matrix-select" placeholder="Document" @ionChange="syncPlotTenurialDocument(plot)">
+                        <ion-select-option v-for="document in tenurialDocumentOptions(plot)" :key="document" :value="document">{{ document }}</ion-select-option>
+                      </ion-select>
+                    </td>
+                    <td><ion-input v-model="plot.remarks" class="matrix-input" placeholder="Lat/Lng or code" /></td>
+                    <td class="plot-actions">
+                      <ion-button fill="clear" class="expand-plot-btn" :aria-label="expandedPlotIndex === idx ? 'Collapse parcel details' : 'Expand parcel details'" @click="togglePlotDetails(idx)">
+                        {{ expandedPlotIndex === idx ? '▴' : '▾' }}
+                      </ion-button>
+                      <ion-button v-if="farmPlots.length > 1" fill="clear" class="delete-plot-btn" aria-label="Delete parcel" @click="removePlot(idx)">✕</ion-button>
+                    </td>
+                  </tr>
+                  <tr v-if="expandedPlotIndex === idx" class="plot-detail-row">
+                    <td colspan="8">
+                      <div class="plot-detail-grid">
+                        <PsgcLocationPicker
+                          class="plot-location-picker"
+                          v-model:region="plot.location_region_helper"
+                          v-model:province="plot.location_province"
+                          v-model:city="plot.location_city"
+                          v-model:barangay="plot.location_brgy"
+                          v-model:outside-echague="plot.outside_echague"
+                          :include-region="plot.outside_echague"
                         />
-                        <span class="r-dot"></span> {{ ot }}
-                      </label>
-                    </div>
-                  </div>
-                  <div v-if="plot.ownership_type === 'Others'" class="field-wrap mt6">
-                    <label class="flabel req">SPECIFY OWNERSHIP / TENURIAL STATUS</label>
-                    <ion-input v-model="plot.ownership_type_other" class="finput" placeholder="Type ownership status" />
-                  </div>
-                </div>
-                <div class="chk-row mt6">
-                  <ion-checkbox
-                    v-model="plot.is_ancestral_domain"
-                    class="fcheck"
-                    @ionChange="syncPlotTenurialDocument(plot)"
-                  />
-                  <span class="chk-label">Within Ancestral Domain</span>
-                  <span class="chk-sep"></span>
-                  <ion-checkbox
-                    v-model="plot.is_agrarian_reform_beneficiary"
-                    class="fcheck"
-                    @ionChange="syncPlotTenurialDocument(plot)"
-                  />
-                  <span class="chk-label">Agrarian Reform Beneficiary</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Land Owner -->
-            <div class="subsection">
-              <div class="subsection-title">
-                NAME OF LAND OWNER
-                <span v-if="needsLandOwner(plot)" class="tenant-flag">Required for Tenant / Lessee</span>
-              </div>
-              <div class="subsection-body">
-                <div class="fgrid g3">
-                  <div class="field-wrap">
-                    <label class="flabel" :class="{ req: needsLandOwner(plot) }">LAND OWNER'S FIRST NAME</label>
-                    <ion-input v-model="plot.land_owner_first_name" class="finput" />
-                  </div>
-                  <div class="field-wrap">
-                    <label class="flabel">LAND OWNER'S MIDDLE NAME</label>
-                    <ion-input v-model="plot.land_owner_middle_name" class="finput" />
-                  </div>
-                  <div class="field-wrap">
-                    <label class="flabel" :class="{ req: needsLandOwner(plot) }">LAND OWNER'S SURNAME</label>
-                    <ion-input v-model="plot.land_owner_surname" class="finput" />
-                  </div>
-                </div>
-                <div class="fgrid g2 mt6">
-                  <div class="field-wrap w-sm">
-                    <label class="flabel">LAND OWNER'S EXT. NAME</label>
-                    <ion-input v-model="plot.land_owner_ext_name" class="finput compact" />
-                  </div>
-                  <div class="field-wrap" v-if="needsLandOwner(plot)">
-                    <label class="flabel req">LAND OWNER'S RSBSA NO.</label>
-                    <ion-input v-model="plot.land_owner_rsbsa_no" class="finput" placeholder="Landowner's RSBSA reference number" />
-                  </div>
-                </div>
-                <div class="field-wrap mt6">
-                  <SearchableSelect
-                    v-model="plot.proof_of_ownership_document"
-                    label="Proof of Ownership / Tenurial Document"
-                    placeholder="Search or select document type…"
-                    :options="tenurialDocumentOptions(plot)"
-                    empty-results-label="No matching documents"
-                    wrap-selected
-                    required
-                    class="tenurial-doc-select"
-                    @update:model-value="syncPlotTenurialDocument(plot)"
-                  />
-                  <p class="field-hint">{{ tenurialDocumentHint(plot) }}</p>
-                </div>
-                <div v-if="isOtherTenurialDocument(plot.proof_of_ownership_document)" class="field-wrap mt6">
-                  <label class="flabel req">SPECIFY DOCUMENT</label>
-                  <ion-input v-model="plot.proof_of_ownership_other" class="finput" placeholder="Type the document name" />
-                </div>
-              </div>
-            </div>
-
-            <!-- Commodity -->
-            <div class="subsection">
-              <div class="subsection-title">COMMODITY DETAILS</div>
-              <div class="subsection-body">
-                <div class="fgrid g3">
-                  <div class="field-wrap">
-                    <label class="flabel req">COMMODITY</label>
-                    <ion-select
-                      v-model="plot.commodity"
-                      interface="popover"
-                      class="fselect"
-                      placeholder="Select commodity"
-                      @ionChange="onCommodityChange(plot)"
-                    >
-                      <ion-select-option v-for="c in commodityOptions" :key="c" :value="c">{{ c }}</ion-select-option>
-                    </ion-select>
-                  </div>
-                  <div class="field-wrap w-md">
-                    <label class="flabel req">SIZE (ha)</label>
-                    <ion-input type="number" v-model="plot.size_ha" class="finput compact" placeholder="0.0000" />
-                  </div>
-                  <div class="field-wrap" v-if="isHighValueCommodity(plot.commodity)">
-                    <label class="flabel">NO. OF HEADS / TREES</label>
-                    <ion-input type="number" v-model="plot.no_of_heads_or_trees" class="finput compact" placeholder="0" />
-                  </div>
-                </div>
-                <div class="fgrid g3 mt6">
-                  <div class="field-wrap">
-                    <label class="flabel req">FARM TYPE</label>
-                    <ion-select v-model="plot.farm_type" interface="popover" class="fselect" placeholder="Select farm type">
-                      <ion-select-option v-for="ft in farmTypes" :key="ft" :value="ft">{{ ft }}</ion-select-option>
-                    </ion-select>
-                  </div>
-                  <div class="field-wrap" v-if="plot.farm_type === 'Other'">
-                    <label class="flabel req">SPECIFY FARM TYPE</label>
-                    <ion-input v-model="plot.farm_type_other" class="finput" placeholder="Type farm type" />
-                  </div>
-                  <div class="field-wrap">
-                    <label class="flabel">ORGANIC PRACTITIONER</label>
-                    <div class="organic-row">
-                      <ion-checkbox v-model="plot.is_organic" class="fcheck" />
-                      <span class="chk-label">Yes, organic</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="fgrid g2 mt6">
-                  <div class="field-wrap">
-                    <label class="flabel">CROPPING SCHEDULE</label>
-                    <ion-input v-model="plot.cropping_schedule" class="finput" placeholder="e.g. April–June, Oct–Dec" />
-                  </div>
-                </div>
-                <div class="subsection-title mt6" style="margin-left:0;padding-left:0;border:none;">ROTATIONAL TILLER NAME</div>
-                <div class="fgrid g3 mt6">
-                  <div class="field-wrap">
-                    <label class="flabel">FIRST NAME</label>
-                    <ion-input v-model="plot.rotational_tiller_first_name" class="finput" />
-                  </div>
-                  <div class="field-wrap">
-                    <label class="flabel">MIDDLE NAME</label>
-                    <ion-input v-model="plot.rotational_tiller_middle_name" class="finput" />
-                  </div>
-                  <div class="field-wrap">
-                    <label class="flabel">SURNAME</label>
-                    <ion-input v-model="plot.rotational_tiller_surname" class="finput" />
-                  </div>
-                </div>
-                <div class="field-wrap mt6">
-                  <label class="flabel">REMARKS</label>
-                  <ion-textarea v-model="plot.remarks" class="ftextarea" :rows="4" placeholder="Optional remarks..." />
-                </div>
-              </div>
-            </div>
-
+                        <div class="field-wrap">
+                          <label class="flabel">LAND OWNER</label>
+                          <ion-input v-model="plot.land_owner_first_name" class="finput" placeholder="First name" />
+                        </div>
+                        <div class="field-wrap">
+                          <label class="flabel">LAND OWNER SURNAME</label>
+                          <ion-input v-model="plot.land_owner_surname" class="finput" placeholder="Surname" />
+                        </div>
+                        <div class="field-wrap">
+                          <label class="flabel">FARM TYPE</label>
+                          <ion-select v-model="plot.farm_type" interface="popover" class="fselect" placeholder="Select farm type">
+                            <ion-select-option v-for="farmType in farmTypes" :key="farmType" :value="farmType">{{ farmType }}</ion-select-option>
+                          </ion-select>
+                        </div>
+                        <div class="field-wrap">
+                          <label class="flabel">LAND OWNER RSBSA NO.</label>
+                          <ion-input v-model="plot.land_owner_rsbsa_no" class="finput" placeholder="Optional reference" />
+                        </div>
+                        <div class="plot-detail-flags">
+                          <ion-checkbox v-model="plot.is_ancestral_domain" class="fcheck" @ionChange="syncPlotTenurialDocument(plot)" />
+                          <span class="chk-label">Ancestral domain</span>
+                          <ion-checkbox v-model="plot.is_agrarian_reform_beneficiary" class="fcheck" @ionChange="syncPlotTenurialDocument(plot)" />
+                          <span class="chk-label">Agrarian reform beneficiary</span>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
           </div>
 
           <div class="add-plot-wrap">
             <ion-button fill="outline" expand="block" class="add-plot-btn" @click="addPlot">
-              + ADD ANOTHER FARM PLOT
+              + ADD FARM PARCEL
             </ion-button>
             <div class="plot-tally">
-              Total Registered Farm Area: <strong>{{ totalFarmArea }} ha</strong>
+              Total Declared Area: <strong>{{ totalFarmArea }} ha</strong>
             </div>
           </div>
 
@@ -610,6 +497,7 @@ import {
   ECHAGUE_CITY,
   ECHAGUE_PROVINCE,
   ECHAGUE_REGION,
+  ECHAGUE_BARANGAYS,
 } from "@/data/echagueBarangays";
 
 const router = useRouter();
@@ -765,6 +653,7 @@ const createPlot = () => ({
   remarks: "",
 });
 const farmPlots = reactive([createPlot()]);
+const expandedPlotIndex = ref<number | null>(null);
 const commodityOptions = computed(() => {
   const extra = farmPlots
     .map((p) => p.commodity)
@@ -776,6 +665,9 @@ const totalFarmArea = computed(() =>
   farmPlots.reduce((sum, p) => sum + (parseFloat(String(p.size_ha)) || 0), 0).toFixed(4)
 );
 const removePlot = (i: number) => farmPlots.splice(i, 1);
+const togglePlotDetails = (i: number) => {
+  expandedPlotIndex.value = expandedPlotIndex.value === i ? null : i;
+};
 
 /* age compute */
 const computeAge = () => {
@@ -1581,57 +1473,55 @@ const submitForm = async () => {
 .chk-sep { display: inline-block; width: 16px; }
 .fcheck { --size: 17px; flex-shrink: 0; }
 
-/* ═══════ PLOT CARD ═══════ */
-.plot-card {
-  border: 1px solid #cfd8d2;
-  border-radius: 8px;
+/* ═══════ FARM PARCEL MATRIX ═══════ */
+.plot-matrix-wrap {
+  overflow-x: auto;
   margin: 12px 16px 0;
-  background: #fbfcfb;
-  overflow: visible;
+  border: 1px solid #cfd8d2;
+  border-radius: 6px;
+  background: #ffffff;
 }
-.plot-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+.plot-matrix {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+  table-layout: fixed;
+  font-size: 11px;
+}
+.plot-matrix th {
   background: #1a4731;
-  padding: 8px 12px;
   color: #ffffff;
-  border-radius: 8px 8px 0 0;
+  padding: 8px 6px;
+  text-align: left;
+  font-size: 9px;
+  letter-spacing: .35px;
 }
-.plot-card .subsection + .subsection {
-  border-top: 1px solid #eef1ef;
+.plot-matrix th:nth-child(1) { width: 34px; text-align: center; }
+.plot-matrix th:nth-child(2) { width: 150px; }
+.plot-matrix th:nth-child(3) { width: 115px; }
+.plot-matrix th:nth-child(4) { width: 88px; }
+.plot-matrix th:nth-child(5) { width: 145px; }
+.plot-matrix th:nth-child(6) { width: 150px; }
+.plot-matrix th:nth-child(7) { width: 145px; }
+.plot-matrix th:nth-child(8) { width: 70px; }
+.plot-matrix td {
+  padding: 4px 5px;
+  border-top: 1px solid #e4e9e5;
+  vertical-align: middle;
 }
-.plot-card .subsection-title {
-  padding-left: 14px;
-  padding-right: 14px;
-}
-.plot-card .subsection-body {
-  padding-left: 14px;
-  padding-right: 14px;
-}
-.plot-num {
-  color: #ffffff !important;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: .6px;
-  text-transform: uppercase;
-}
-.del-plot-btn {
-  --color: #ffffff;
-  --background: transparent;
-  --background-hover: rgba(255, 255, 255, 0.12);
-  --background-activated: rgba(255, 255, 255, 0.2);
-  --ripple-color: rgba(255, 255, 255, 0.25);
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: 700;
-  margin: 0;
-  height: 28px;
-}
-.del-plot-btn::part(native) {
-  color: #ffffff;
-}
+.plot-matrix tbody tr:nth-child(4n + 1) { background: #fbfcfb; }
+.plot-index { text-align: center; font-weight: 800; color: var(--c-green); }
+.matrix-input, .matrix-select { width: 100%; --padding-start: 5px; --padding-end: 5px; }
+.matrix-input { min-height: 34px; }
+.matrix-select { min-height: 34px; font-size: 11px; }
+.plot-actions { white-space: nowrap; text-align: center; }
+.expand-plot-btn, .delete-plot-btn { margin: 0; min-width: 24px; --padding-start: 4px; --padding-end: 4px; }
+.expand-plot-btn { --color: var(--c-green); font-weight: 800; }
+.delete-plot-btn { --color: var(--c-red); }
+.plot-detail-row td { background: #f4f8f4; padding: 10px; }
+.plot-detail-grid { display: grid; grid-template-columns: minmax(240px, 1.4fr) repeat(4, minmax(140px, 1fr)); gap: 10px; align-items: start; }
+.plot-location-picker { grid-column: 1 / -1; }
+.plot-detail-flags { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
 .tenant-flag {
   margin-left: 8px;
@@ -1670,6 +1560,7 @@ const submitForm = async () => {
 .w-md    { max-width: 140px; flex: 0 0 140px; }
 .w-mid   { max-width: 180px; flex: 0 0 180px; }
 .w-std   { max-width: 200px; flex: 0 0 200px; }
+.w-lg    { max-width: 240px; flex: 0 0 240px; }
 .w-wide  { max-width: 260px; flex: 0 0 260px; }
 .flex-fill { flex: 1 1 160px; min-width: 120px; }
 
@@ -1771,7 +1662,7 @@ const submitForm = async () => {
   .name-row, .demo-row, .addr-row, .contact-row {
     flex-direction: column;
   }
-  .w-xs, .w-sm, .w-md, .w-mid, .w-std, .w-wide {
+  .w-xs, .w-sm, .w-md, .w-mid, .w-std, .w-lg, .w-wide {
     max-width: none !important;
     flex: 1 1 auto;
   }
@@ -1781,6 +1672,7 @@ const submitForm = async () => {
     max-width: none;
     flex: 1 1 auto;
   }
+  .plot-detail-grid { grid-template-columns: 1fr; }
 }
 
 /* ═══════ ERROR / SUBMIT ═══════ */
