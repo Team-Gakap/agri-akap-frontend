@@ -36,6 +36,9 @@ export interface Farmer {
   civil_status?: string;
   highest_education?: string;
   livelihood_type?: string;
+  other_livelihood_type?: string | null;
+  other_livelihood_detail?: string | null;
+  associations?: string[];
   is_pwd?: boolean;
   is_4ps_beneficiary?: boolean;
   photo_path?: string | null;

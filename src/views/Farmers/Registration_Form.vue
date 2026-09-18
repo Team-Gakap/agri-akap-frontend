@@ -294,9 +294,11 @@
                 </div>
                 <div class="field-wrap">
                   <label class="flabel">ASSOCIATIONS / COOPERATIVES (Name of Organization)</label>
-                  <ion-input v-model="farmer.association_1" class="finput" placeholder="Association / Cooperative 1" />
-                  <ion-input v-model="farmer.association_2" class="finput mt6" placeholder="Association / Cooperative 2" />
-                  <ion-input v-model="farmer.association_3" class="finput mt6" placeholder="Association / Cooperative 3" />
+                  <div v-for="(_, associationIndex) in associations" :key="associationIndex" class="association-row">
+                    <ion-input v-model="associations[associationIndex]" class="finput" :placeholder="`Association / Cooperative ${associationIndex + 1}`" />
+                    <ion-button v-if="associationIndex >= 3" fill="clear" size="small" color="medium" :aria-label="`Remove association ${associationIndex + 1}`" @click="removeAssociation(associationIndex)">Remove</ion-button>
+                  </div>
+                  <ion-button fill="outline" size="small" class="add-association-btn" @click="addAssociation">+ Add association</ion-button>
                 </div>
               </div>
             </div>
@@ -327,14 +329,18 @@
             </div>
           </div>
 
-          <!--  Other livelihood detail -->
-          <div class="subsection" v-if="farmer.livelihood_type === 'Other'">
+          <div class="subsection">
             <div class="subsection-title">OTHER LIVELIHOOD</div>
             <div class="subsection-body">
               <div class="field-wrap">
-                <label class="flabel req">SPECIFY MAIN LIVELIHOOD</label>
+                <ion-select v-model="farmer.other_livelihood_type" interface="popover" class="fselect compact" placeholder="Optional other livelihood" @ionChange="onOtherLivelihoodChange">
+                  <ion-select-option v-for="livelihood in otherLivelihoodTypes" :key="livelihood" :value="livelihood">{{ livelihood }}</ion-select-option>
+                </ion-select>
+              </div>
+              <div v-if="farmer.other_livelihood_type === 'Other'" class="field-wrap mt6 narrow-field">
+                <label class="flabel req">SPECIFY OTHER LIVELIHOOD</label>
                 <ion-input
-                  v-model="farmer.livelihood_detail"
+                  v-model="farmer.other_livelihood_detail"
                   class="finput compact"
                   placeholder="Type other livelihood"
                 />
@@ -382,12 +388,12 @@
                     </td>
                     <td><ion-input :value="plot.size_ha || plot.total_parcel_area_ha" type="number" step="0.0001" class="matrix-input" placeholder="0.0000" @ionInput="plot.size_ha = $event.detail.value ?? ''; plot.total_parcel_area_ha = $event.detail.value ?? ''" /></td>
                     <td>
-                      <ion-select v-model="plot.ownership_type" interface="popover" class="matrix-select" placeholder="Status" @ionChange="syncPlotTenurialDocument(plot)">
+                      <ion-select v-model="plot.ownership_type" interface="popover" class="matrix-select" placeholder="Status" @ionChange="onOwnershipTypeChange(plot, idx)">
                         <ion-select-option v-for="status in ownershipTypes" :key="status" :value="status">{{ status }}</ion-select-option>
                       </ion-select>
                     </td>
                     <td>
-                      <ion-select v-model="plot.proof_of_ownership_document" interface="popover" class="matrix-select" placeholder="Document" @ionChange="syncPlotTenurialDocument(plot)">
+                      <ion-select v-model="plot.proof_of_ownership_document" interface="popover" class="matrix-select" placeholder="Document" @ionChange="onProofOfOwnershipChange(plot, idx)">
                         <ion-select-option v-for="document in tenurialDocumentOptions(plot)" :key="document" :value="document">{{ document }}</ion-select-option>
                       </ion-select>
                     </td>
@@ -411,23 +417,43 @@
                           v-model:outside-echague="plot.outside_echague"
                           :include-region="plot.outside_echague"
                         />
-                        <div class="field-wrap">
-                          <label class="flabel">LAND OWNER</label>
+                        <div class="field-wrap name-first">
+                          <label class="flabel">LAND OWNER FIRST NAME</label>
                           <ion-input v-model="plot.land_owner_first_name" class="finput" placeholder="First name" />
                         </div>
-                        <div class="field-wrap">
+                        <div class="field-wrap name-middle">
+                          <label class="flabel">LAND OWNER MIDDLE NAME</label>
+                          <ion-input v-model="plot.land_owner_middle_name" class="finput" placeholder="Middle name" />
+                        </div>
+                        <div class="field-wrap name-surname">
                           <label class="flabel">LAND OWNER SURNAME</label>
                           <ion-input v-model="plot.land_owner_surname" class="finput" placeholder="Surname" />
                         </div>
+                        <div class="field-wrap name-ext">
+                          <label class="flabel">EXTENSION NAME / SUFFIX</label>
+                          <ion-input v-model="plot.land_owner_ext_name" class="finput" placeholder="Jr. / III" />
+                        </div>
                         <div class="field-wrap">
                           <label class="flabel">FARM TYPE</label>
-                          <ion-select v-model="plot.farm_type" interface="popover" class="fselect" placeholder="Select farm type">
+                          <ion-select v-model="plot.farm_type" interface="popover" class="fselect" placeholder="Select farm type" @ionChange="onFarmTypeChange(plot)">
                             <ion-select-option v-for="farmType in farmTypes" :key="farmType" :value="farmType">{{ farmType }}</ion-select-option>
                           </ion-select>
                         </div>
+                        <div v-if="plot.ownership_type === 'Others'" class="field-wrap">
+                          <label class="flabel req">SPECIFY TENURIAL STATUS</label>
+                          <ion-input v-model="plot.ownership_type_other" class="finput" placeholder="Please specify tenurial status" />
+                        </div>
+                        <div v-if="isOtherTenurialDocument(plot.proof_of_ownership_document)" class="field-wrap">
+                          <label class="flabel req">SPECIFY PROOF OF OWNERSHIP</label>
+                          <ion-input v-model="plot.proof_of_ownership_other" class="finput" placeholder="Please specify proof of ownership" />
+                        </div>
+                        <div v-if="plot.farm_type === 'Other'" class="field-wrap">
+                          <label class="flabel req">PLEASE SPECIFY FARM TYPE</label>
+                          <ion-input v-model="plot.farm_type_other" class="finput" placeholder="Please specify farm type" />
+                        </div>
                         <div class="field-wrap">
-                          <label class="flabel">LAND OWNER RSBSA NO.</label>
-                          <ion-input v-model="plot.land_owner_rsbsa_no" class="finput" placeholder="Optional reference" />
+                          <label class="flabel">ROTATIONAL TILLER FULL NAME</label>
+                          <ion-input v-model="plot.rotational_tiller_full_name" class="finput" placeholder="Full name" />
                         </div>
                         <div class="plot-detail-flags">
                           <ion-checkbox v-model="plot.is_ancestral_domain" class="fcheck" @ionChange="syncPlotTenurialDocument(plot)" />
@@ -546,8 +572,8 @@ const livelihoodTypes = [
   { value: "Farm Worker", label: "Farmworker" },
   { value: "Fisher", label: "Fisherfolk" },
   { value: "Agri-Youth", label: "Agri-youth" },
-  { value: "Other", label: "Other" },
 ];
+const otherLivelihoodTypes = ["Farmer", "Farm Worker", "Fisher", "Agri-Youth", "Other"];
 const ownershipTypes  = ["Registered Owner","Tenant","Lessee","Others"];
 const farmTypes       = ["Irrigated","Rainfed Upland","Rainfed Lowland","Urban/Peri-Urban","Other"];
 const needsLandOwner  = (plot: { ownership_type: string }) =>
@@ -559,6 +585,9 @@ const onCommodityChange = (plot: { commodity: string; no_of_heads_or_trees: stri
 };
 
 const onLivelihoodTypeChange = () => { farmer.livelihood_detail = ""; };
+const onOtherLivelihoodChange = () => {
+  if (farmer.other_livelihood_type !== 'Other') farmer.other_livelihood_detail = "";
+};
 
 /* farmer details */
 const farmer = reactive({
@@ -617,7 +646,13 @@ const farmer = reactive({
   association_3: "",
   livelihood_type: "",
   livelihood_detail: "",
+  other_livelihood_type: "",
+  other_livelihood_detail: "",
 });
+
+const associations = ref<string[]>(["", "", ""]);
+const addAssociation = () => associations.value.push("");
+const removeAssociation = (index: number) => associations.value.splice(index, 1);
 
 /* ── farm plots ── */
 const createPlot = () => ({
@@ -707,6 +742,18 @@ const syncPlotTenurialDocument = (plot: ReturnType<typeof createPlot>) => {
     plot.proof_of_ownership_document = "";
   }
 };
+const onOwnershipTypeChange = (plot: ReturnType<typeof createPlot>, index: number) => {
+  syncPlotTenurialDocument(plot);
+  if (plot.ownership_type === 'Others') expandedPlotIndex.value = index;
+  else plot.ownership_type_other = '';
+};
+const onProofOfOwnershipChange = (plot: ReturnType<typeof createPlot>, index: number) => {
+  if (isOtherTenurialDocument(plot.proof_of_ownership_document)) expandedPlotIndex.value = index;
+  else plot.proof_of_ownership_other = '';
+};
+const onFarmTypeChange = (plot: ReturnType<typeof createPlot>) => {
+  if (plot.farm_type !== 'Other') plot.farm_type_other = '';
+};
 
 /* ── Auto-Generate Transaction Code ── */
 const generateTransactionCode = () => {
@@ -733,6 +780,12 @@ const applyFarmerRecord = (data: any) => {
   farmer.is_icc_ip = !!data.is_icc_ip;
   farmer.is_pwd = !!data.is_pwd;
   farmer.is_4ps_beneficiary = !!data.is_4ps_beneficiary;
+  const savedAssociations = Array.isArray(data.associations) ? data.associations : [
+    data.association_1 || '', data.association_2 || '', data.association_3 || '',
+  ];
+  associations.value = savedAssociations.length >= 3 ? savedAssociations : [
+    ...savedAssociations, ...Array(3 - savedAssociations.length).fill(''),
+  ];
   if (data.birthdate) {
     farmer.birthdate = String(data.birthdate).slice(0, 10);
     computeAge();
@@ -826,8 +879,8 @@ const validate = (): boolean => {
   if (!farmer.civil_status)          { errorMsg.value = "Civil Status is required."; return false; }
   if (!farmer.highest_education)     { errorMsg.value = "Highest Education is required."; return false; }
   if (!farmer.livelihood_type)       { errorMsg.value = "Livelihood type is required."; return false; }
-  if (farmer.livelihood_type === 'Other' && !farmer.livelihood_detail.trim()) {
-    errorMsg.value = "Please specify the main livelihood.";
+  if (farmer.other_livelihood_type === 'Other' && !farmer.other_livelihood_detail.trim()) {
+    errorMsg.value = "Please specify the other livelihood.";
     return false;
   }
   if (farmer.id_type === 'Others' && !farmer.id_type_other.trim()) {
@@ -849,7 +902,6 @@ const validate = (): boolean => {
     if (needsLandOwner(p)) {
       if (!p.land_owner_first_name.trim())     { errorMsg.value = `${n}: Landowner first name is required for tenants/lessees.`; return false; }
       if (!p.land_owner_surname.trim())        { errorMsg.value = `${n}: Landowner surname is required for tenants/lessees.`;    return false; }
-      if (!p.land_owner_rsbsa_no.trim())       { errorMsg.value = `${n}: Landowner RSBSA number is required for tenants/lessees.`; return false; }
     }
     if (!p.proof_of_ownership_document.trim()) { errorMsg.value = `${n}: Proof of Ownership is required.`;   return false; }
     if (isOtherTenurialDocument(p.proof_of_ownership_document) && !p.proof_of_ownership_other.trim()) {
@@ -891,7 +943,6 @@ const submitForm = async () => {
       land_owner_middle_name: p.land_owner_middle_name || null,
       land_owner_surname: p.land_owner_surname || null,
       land_owner_ext_name: p.land_owner_ext_name || null,
-      land_owner_rsbsa_no: p.land_owner_rsbsa_no || null,
       proof_of_ownership_document: p.proof_of_ownership_document,
       proof_of_ownership_other: isOtherTenurialDocument(p.proof_of_ownership_document)
         ? (p.proof_of_ownership_other || null)
@@ -905,13 +956,7 @@ const submitForm = async () => {
       farm_type_other: p.farm_type === 'Other' ? (p.farm_type_other || null) : null,
       is_organic: !!p.is_organic,
       cropping_schedule: p.cropping_schedule || null,
-      rotational_tiller_surname: p.rotational_tiller_surname || null,
-      rotational_tiller_first_name: p.rotational_tiller_first_name || null,
-      rotational_tiller_middle_name: p.rotational_tiller_middle_name || null,
-      rotational_tiller_full_name: [p.rotational_tiller_first_name, p.rotational_tiller_middle_name, p.rotational_tiller_surname]
-        .map((x) => String(x || '').trim())
-        .filter(Boolean)
-        .join(' ') || null,
+      rotational_tiller_full_name: p.rotational_tiller_full_name || null,
       remarks: p.remarks || null,
     }));
 
@@ -919,6 +964,7 @@ const submitForm = async () => {
 
     const payload = {
       ...farmerPayload,
+      associations: associations.value.map((value) => value.trim()).filter(Boolean),
       id_type_other: farmer.id_type === 'Others' ? (farmer.id_type_other || null) : null,
       rsbsa_no: isEdit.value ? (farmer.rsbsa_no || null) : null,
       plots,
@@ -1575,6 +1621,10 @@ const submitForm = async () => {
 .name-first   { flex: 3 1 180px; min-width: 140px; }
 .name-middle  { flex: 2.5 1 150px; min-width: 120px; }
 .name-ext     { flex: 0 0 100px; max-width: 100px; }
+.association-row { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.association-row:first-of-type { margin-top: 0; }
+.association-row ion-input { flex: 1 1 auto; }
+.add-association-btn { margin-top: 8px; --border-radius: 6px; }
 
 .demo-row {
   display: flex;
