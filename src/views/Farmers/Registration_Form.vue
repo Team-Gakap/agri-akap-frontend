@@ -102,6 +102,17 @@
                   </ion-select>
                 </div>
               </div>
+              <div class="field-wrap" v-if="farmer.civil_status === 'Married'">
+                <label class="flabel">SPOUSE'S NAME</label>
+                <div class="fgrid g2">
+                  <ion-input v-model="farmer.spouse_first_name" class="finput" placeholder="First Name" />
+                  <ion-input v-model="farmer.spouse_middle_name" class="finput" placeholder="Middle Name" />
+                </div>
+                <div class="fgrid g2 mt6">
+                  <ion-input v-model="farmer.spouse_surname" class="finput" placeholder="Surname" />
+                  <ion-input v-model="farmer.spouse_ext_name" class="finput" placeholder="Ext. Name" />
+                </div>
+              </div>
               <div class="subsection-title location-subtitle">PLACE OF BIRTH</div>
               <PsgcLocationPicker
                 mode="birthplace"
@@ -248,17 +259,6 @@
             <div class="subsection-title">EDUCATION</div>
             <div class="subsection-body">
               <div class="fgrid g2">
-                <div class="field-wrap" v-if="farmer.civil_status === 'Married'">
-                  <label class="flabel">SPOUSE'S NAME</label>
-                  <div class="fgrid g2">
-                    <ion-input v-model="farmer.spouse_first_name" class="finput" placeholder="First Name" />
-                    <ion-input v-model="farmer.spouse_middle_name" class="finput" placeholder="Middle Name" />
-                  </div>
-                  <div class="fgrid g2 mt6">
-                    <ion-input v-model="farmer.spouse_surname" class="finput" placeholder="Surname" />
-                    <ion-input v-model="farmer.spouse_ext_name" class="finput" placeholder="Ext. Name" />
-                  </div>
-                </div>
                 <div class="field-wrap education-field">
                   <label class="flabel req">HIGHEST EDUCATIONAL ATTAINMENT</label>
                   <ion-select v-model="farmer.highest_education" interface="popover" class="fselect" placeholder="Select Educational Attainment">
