@@ -95,13 +95,14 @@
                   <label class="flabel">RELIGION</label>
                   <ion-input v-model="farmer.religion" class="finput" placeholder="e.g. Roman Catholic" tabindex="7" />
                 </div>
-                <div class="field-wrap w-sm">
+                <div class="field-wrap w-sm civil-status-field">
                   <label class="flabel req">CIVIL STATUS</label>
                   <ion-select v-model="farmer.civil_status" interface="popover" class="fselect" placeholder="Select" tabindex="8">
                     <ion-select-option v-for="cs in civilStatusOptions" :key="cs" :value="cs">{{ cs }}</ion-select-option>
                   </ion-select>
                 </div>
               </div>
+              <div class="subsection-title location-subtitle">PLACE OF BIRTH</div>
               <PsgcLocationPicker
                 mode="birthplace"
                 class="mt6"
@@ -117,7 +118,6 @@
           <div class="subsection">
             <div class="subsection-title">
               PERMANENT ADDRESS
-              <span v-if="!permanentOutsideEchague" class="jurisdiction-badge">📍 Echague, Isabela (Region II)</span>
             </div>
             <div class="subsection-body">
               <div class="addr-row">
@@ -125,7 +125,7 @@
                   <label class="flabel">HOUSE NO.</label>
                   <ion-input v-model="farmer.permanent_house_no" class="finput" tabindex="8" />
                 </div>
-                <div class="field-wrap flex-fill">
+                <div class="field-wrap flex-fill street-field">
                   <label class="flabel">STREET / SITIO / PUROK</label>
                   <ion-input v-model="farmer.permanent_street" class="finput" tabindex="9" />
                 </div>
@@ -139,36 +139,38 @@
                   @update:barangay="onPermanentLocationChange"
                 />
               </div>
-              <div class="ncr-note">
-                <ion-checkbox v-model="sameAddress" @ionChange="onSameAddress" class="fcheck" />
-                <span class="chk-label">Answer only if full and permanent address is in NCR — <em>Ilagay lamang kung ang permanenteng tirahan ay sa NCR.</em></span>
-              </div>
             </div>
           </div>
 
           <!-- Provincial / Mailing Address -->
           <div class="subsection">
-            <div class="subsection-title">PROVINCIAL / MAILING ADDRESS</div>
+            <div class="subsection-title address-title">
+              <span>PROVINCIAL / MAILING ADDRESS</span>
+              <label class="section-check">
+                <ion-checkbox v-model="sameAddress" @ionChange="onSameAddress" class="fcheck" />
+                <span class="chk-label">Provincial / mailing address is the same as permanent address</span>
+              </label>
+            </div>
             <div class="subsection-body">
               <div class="addr-row">
                 <div class="field-wrap w-sm">
                   <label class="flabel">HOUSE NO.</label>
                   <ion-input v-model="farmer.provincial_house_no" class="finput" :disabled="sameAddress" />
                 </div>
-                <div class="field-wrap flex-fill">
+                <div class="field-wrap flex-fill street-field">
                   <label class="flabel">STREET / SITIO / PUROK</label>
                   <ion-input v-model="farmer.provincial_street" class="finput" :disabled="sameAddress" />
                 </div>
+                <PsgcLocationPicker
+                  class="psgc-compact"
+                  v-model:region="farmer.provincial_region"
+                  v-model:province="farmer.provincial_province"
+                  v-model:city="farmer.provincial_city"
+                  v-model:barangay="farmer.provincial_brgy"
+                  v-model:outside-echague="provincialOutsideEchague"
+                  :disabled="sameAddress"
+                />
               </div>
-              <PsgcLocationPicker
-                class="mt6 psgc-compact"
-                v-model:region="farmer.provincial_region"
-                v-model:province="farmer.provincial_province"
-                v-model:city="farmer.provincial_city"
-                v-model:barangay="farmer.provincial_brgy"
-                v-model:outside-echague="provincialOutsideEchague"
-                :disabled="sameAddress"
-              />
             </div>
           </div>
 
@@ -257,7 +259,7 @@
                     <ion-input v-model="farmer.spouse_ext_name" class="finput" placeholder="Ext. Name" />
                   </div>
                 </div>
-                <div class="field-wrap">
+                <div class="field-wrap education-field">
                   <label class="flabel req">HIGHEST EDUCATIONAL ATTAINMENT</label>
                   <ion-select v-model="farmer.highest_education" interface="popover" class="fselect" placeholder="Select Educational Attainment">
                     <ion-select-option v-for="edu in educationOptions" :key="edu" :value="edu">{{ edu }}</ion-select-option>
@@ -408,6 +410,10 @@
                   <tr v-if="expandedPlotIndex === idx" class="plot-detail-row">
                     <td colspan="8">
                       <div class="plot-detail-grid">
+                        <div class="plot-outside-toggle">
+                          <ion-checkbox v-model="plot.outside_echague" class="fcheck" />
+                          <span class="chk-label">Farm address is outside Echague</span>
+                        </div>
                         <PsgcLocationPicker
                           class="plot-location-picker"
                           v-model:region="plot.location_region_helper"
@@ -451,9 +457,13 @@
                           <label class="flabel req">PLEASE SPECIFY FARM TYPE</label>
                           <ion-input v-model="plot.farm_type_other" class="finput" placeholder="Please specify farm type" />
                         </div>
-                        <div class="field-wrap">
-                          <label class="flabel">ROTATIONAL TILLER FULL NAME</label>
-                          <ion-input v-model="plot.rotational_tiller_full_name" class="finput" placeholder="Full name" />
+                        <div class="field-wrap rotational-tiller-field">
+                          <label class="flabel">ROTATIONAL TILLER NAME</label>
+                          <div class="rotational-tiller-grid">
+                            <ion-input v-model="plot.rotational_tiller_first_name" class="finput" placeholder="First name" />
+                            <ion-input v-model="plot.rotational_tiller_middle_name" class="finput" placeholder="Middle name" />
+                            <ion-input v-model="plot.rotational_tiller_surname" class="finput" placeholder="Last name" />
+                          </div>
                         </div>
                         <div class="plot-detail-flags">
                           <ion-checkbox v-model="plot.is_ancestral_domain" class="fcheck" @ionChange="syncPlotTenurialDocument(plot)" />
@@ -507,7 +517,7 @@ import {
   toastController,
 } from "@ionic/vue";
 
-import { reactive, ref, onMounted, computed } from "vue";
+import { reactive, ref, onMounted, computed, nextTick, watch } from "vue";
 import axiosInstance from "@/utils/axios";
 import { useRouter, useRoute } from "vue-router";
 import PsgcLocationPicker from "@/components/PsgcLocationPicker.vue";
@@ -736,6 +746,27 @@ const onPermanentLocationChange = () => {
   if (sameAddress.value) onSameAddress();
 };
 
+const syncSameAddress = async () => {
+  if (!sameAddress.value) return;
+  onSameAddress();
+  await nextTick();
+  onSameAddress();
+};
+
+watch(
+  () => [
+    sameAddress.value,
+    farmer.permanent_house_no,
+    farmer.permanent_street,
+    farmer.permanent_brgy,
+    farmer.permanent_city,
+    farmer.permanent_province,
+    farmer.permanent_region,
+    permanentOutsideEchague.value,
+  ],
+  syncSameAddress,
+);
+
 const syncPlotTenurialDocument = (plot: ReturnType<typeof createPlot>) => {
   const options = tenurialDocumentOptions(plot);
   if (plot.proof_of_ownership_document && !options.includes(plot.proof_of_ownership_document)) {
@@ -930,6 +961,19 @@ const submitForm = async () => {
 
   try {
     const plots = farmPlots.map((p) => ({
+      ...(() => {
+        const rotationalTillerFullName = [
+          p.rotational_tiller_first_name,
+          p.rotational_tiller_middle_name,
+          p.rotational_tiller_surname,
+        ].map((part) => String(part || '').trim()).filter(Boolean).join(' ');
+        return {
+          rotational_tiller_full_name: rotationalTillerFullName || p.rotational_tiller_full_name || null,
+          rotational_tiller_first_name: p.rotational_tiller_first_name || null,
+          rotational_tiller_middle_name: p.rotational_tiller_middle_name || null,
+          rotational_tiller_surname: p.rotational_tiller_surname || null,
+        };
+      })(),
       ...(p.id ? { id: p.id } : {}),
       location_brgy: p.location_brgy,
       location_city: p.location_city,
@@ -956,7 +1000,6 @@ const submitForm = async () => {
       farm_type_other: p.farm_type === 'Other' ? (p.farm_type_other || null) : null,
       is_organic: !!p.is_organic,
       cropping_schedule: p.cropping_schedule || null,
-      rotational_tiller_full_name: p.rotational_tiller_full_name || null,
       remarks: p.remarks || null,
     }));
 
@@ -1499,16 +1542,6 @@ const submitForm = async () => {
   gap: 6px;
   margin-top: 5px;
 }
-.ncr-note {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  background: #fbfaf3;
-  border: 1px solid #e6d9a8;
-  border-radius: 6px;
-  padding: 8px 10px;
-  margin-top: 10px;
-}
 .chk-label {
   font-size: 11.5px;
   font-weight: 600;
@@ -1639,30 +1672,23 @@ const submitForm = async () => {
   gap: 10px 14px;
   align-items: flex-start;
 }
+.street-field { flex: 0 0 240px; max-width: 240px; }
+.civil-status-field { flex: 0 0 170px; max-width: 170px; }
+.education-field { flex: 0 0 250px; max-width: 250px; }
+.location-subtitle { padding-top: 12px; }
+.address-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.section-check { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 600; color: var(--c-text); text-transform: none; letter-spacing: 0; }
+.plot-outside-toggle { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; }
+.plot-location-picker :deep(.toggle-row) { display: none; }
+.plot-location-picker :deep(.ss) { max-width: 170px; flex: 0 0 170px; }
+.rotational-tiller-field { grid-column: span 2; }
+.rotational-tiller-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 
 .contact-row {
   display: flex;
   flex-wrap: wrap;
   gap: 10px 14px;
   align-items: flex-start;
-}
-
-/* ═══════ JURISDICTION BADGE ═══════ */
-.jurisdiction-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: var(--sub-head-bg);
-  border: 1px solid var(--sub-border);
-  border-radius: 4px;
-  padding: 2px 10px;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--sub-head-txt);
-  margin-left: 10px;
-  vertical-align: middle;
-  letter-spacing: 0;
-  text-transform: none;
 }
 
 /* ═══════ COMPACT PSGC OVERRIDE ═══════ */
@@ -1717,6 +1743,11 @@ const submitForm = async () => {
     flex: 1 1 auto;
   }
   .name-ext { max-width: none; flex: 1 1 auto; }
+  .street-field, .civil-status-field, .education-field { max-width: none; flex: 1 1 auto; }
+  .address-title { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .plot-location-picker :deep(.ss) { max-width: none; flex: 1 1 auto; }
+  .rotational-tiller-field { grid-column: auto; }
+  .rotational-tiller-grid { grid-template-columns: 1fr; }
   .flex-fill { min-width: 0; }
   .psgc-compact :deep(.ss) {
     max-width: none;
