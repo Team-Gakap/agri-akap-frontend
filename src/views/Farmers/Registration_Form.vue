@@ -65,7 +65,11 @@
                 </div>
                 <div class="field-wrap name-ext">
                   <label class="flabel">EXT.</label>
-                  <ion-input v-model="farmer.ext_name" class="finput" placeholder="Jr / III" tabindex="4" />
+                  <ion-input v-model="farmer.ext_name" class="finput" placeholder="Jr / III" :disabled="farmer.no_ext_name" tabindex="4" />
+                  <div class="inline-chk">
+                    <ion-checkbox v-model="farmer.no_ext_name" @ionChange="onNoExtName" class="fcheck" />
+                    <span class="chk-label">No Ext. Name</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -104,13 +108,31 @@
               </div>
               <div class="field-wrap" v-if="farmer.civil_status === 'Married'">
                 <label class="flabel">SPOUSE'S NAME</label>
-                <div class="fgrid g2">
-                  <ion-input v-model="farmer.spouse_first_name" class="finput" placeholder="First Name" />
-                  <ion-input v-model="farmer.spouse_middle_name" class="finput" placeholder="Middle Name" />
-                </div>
-                <div class="fgrid g2 mt6">
-                  <ion-input v-model="farmer.spouse_surname" class="finput" placeholder="Surname" />
-                  <ion-input v-model="farmer.spouse_ext_name" class="finput" placeholder="Ext. Name" />
+                <div class="name-row">
+                  <div class="field-wrap name-surname">
+                    <label class="flabel">SURNAME</label>
+                    <ion-input v-model="farmer.spouse_surname" class="finput" placeholder="Surname" />
+                  </div>
+                  <div class="field-wrap name-first">
+                    <label class="flabel">FIRST NAME</label>
+                    <ion-input v-model="farmer.spouse_first_name" class="finput" placeholder="First Name" />
+                  </div>
+                  <div class="field-wrap name-middle">
+                    <label class="flabel">MIDDLE NAME</label>
+                    <ion-input v-model="farmer.spouse_middle_name" class="finput" placeholder="Middle Name" :disabled="noSpouseMiddleName" />
+                    <div class="inline-chk">
+                      <ion-checkbox v-model="noSpouseMiddleName" @ionChange="onNoSpouseMiddleName" class="fcheck" />
+                      <span class="chk-label">No Middle Name</span>
+                    </div>
+                  </div>
+                  <div class="field-wrap name-ext">
+                    <label class="flabel">EXT.</label>
+                    <ion-input v-model="farmer.spouse_ext_name" class="finput" placeholder="Ext. Name" :disabled="noSpouseExtName" />
+                    <div class="inline-chk">
+                      <ion-checkbox v-model="noSpouseExtName" @ionChange="onNoSpouseExtName" class="fcheck" />
+                      <span class="chk-label">No Ext. Name</span>
+                    </div>
+                  </div>
                 </div>
               </div>
               <div class="subsection-title location-subtitle">PLACE OF BIRTH</div>
@@ -554,6 +576,8 @@ const isSubmitting  = ref(false);
 const errorMsg      = ref("");
 const sameAddress   = ref(false);
 const computedAge   = ref<number | "">("");
+const noSpouseMiddleName = ref(false);
+const noSpouseExtName = ref(false);
 
 const showToast = async (msg: string, color: 'success' | 'danger' | 'warning' = 'success') => {
   const toast = await toastController.create({
@@ -726,6 +750,8 @@ const computeAge = () => {
 
 const onNoMiddleName = () => { if (farmer.no_middle_name) farmer.middle_name = ""; };
 const onNoExtName    = () => { if (farmer.no_ext_name)    farmer.ext_name = ""; };
+const onNoSpouseMiddleName = () => { if (noSpouseMiddleName.value) farmer.spouse_middle_name = ""; };
+const onNoSpouseExtName = () => { if (noSpouseExtName.value) farmer.spouse_ext_name = ""; };
 const onSameAddress  = () => {
   if (sameAddress.value) {
     farmer.provincial_house_no = farmer.permanent_house_no;
@@ -1653,7 +1679,7 @@ const submitForm = async () => {
 .name-surname { flex: 3 1 180px; min-width: 140px; }
 .name-first   { flex: 3 1 180px; min-width: 140px; }
 .name-middle  { flex: 2.5 1 150px; min-width: 120px; }
-.name-ext     { flex: 0 0 100px; max-width: 100px; }
+.name-ext     { flex: 0 0 80px; max-width: 80px; }
 .association-row { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
 .association-row:first-of-type { margin-top: 0; }
 .association-row ion-input { flex: 1 1 auto; }
