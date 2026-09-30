@@ -240,7 +240,7 @@ const searching = ref(false);
 const claiming = ref(false);
 const overrideOpen = ref(false);
 const overrideError = ref('');
-let overrideResolver: ((value: { password: string; reason: string } | null) => void) | null = null;
+let overrideResolver: ((value: { password: string; reason: string; reason_code: string; notes: string } | null) => void) | null = null;
 const changingProgram = ref(false);
 const searchQuery = ref('');
 const searchResults = ref<any[]>([]);

@@ -604,7 +604,10 @@ async function downloadExcel() {
       if (key === 'no') return index + 1;
       if (key === 'crop') return formatCropLabel(row as any);
       if (key === 'rsbsa_no') return String(row.rsbsa_no || registryBadgeLabel(row as any) || 'UNREGISTERED');
-      if (key === 'num_hills_trees') return isHvccCrop(String(row.crop || '')) ? (row.num_hills_trees ?? '') : '';
+      if (key === 'num_hills_trees') {
+        if (!isHvccCrop(String(row.crop || '')) || row.num_hills_trees == null || row.num_hills_trees === '') return '';
+        return typeof row.num_hills_trees === 'number' ? row.num_hills_trees : String(row.num_hills_trees);
+      }
       if (key === 'date_planted' || key === 'date_harvested') {
         return fmtDate(String(row[key] ?? ''));
       }
