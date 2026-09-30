@@ -472,6 +472,8 @@ onMounted(async () => {
           birthdate: f.birthdate || '',
           address: f.permanent_brgy || '',
           barangay: f.permanent_brgy || '',
+          is_temporary: Boolean(f.is_temporary),
+          registration_type: f.registration_type || 'rsbsa',
           plots: (f.farm_plots || f.farmPlots || []).map((p: any) => ({
             id: p.id,
             location_brgy: p.location_brgy || '',

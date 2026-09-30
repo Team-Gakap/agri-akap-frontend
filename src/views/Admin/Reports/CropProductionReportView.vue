@@ -75,7 +75,22 @@
               <option value="">All Crops</option>
               <option value="Rice">Rice</option>
               <option value="Corn">Corn</option>
-              <option value="High-Value">High-Value</option>
+              <option value="HVCC">HVCC</option>
+            </select>
+          </div>
+          <div v-if="filters.cropType === 'HVCC'" class="filter-group">
+            <label class="filter-label">Sub-Crop</label>
+            <select class="filter-select" v-model="filters.hvccCommodity" @change="fetchRows">
+              <option value="">All HVCC</option>
+              <option v-for="name in allHvccCommodities()" :key="name" :value="name">HVCC - {{ name }}</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label class="filter-label">Registry Status</label>
+            <select class="filter-select" v-model="filters.registryStatus" @change="fetchRows">
+              <option value="">All Farmers</option>
+              <option value="rsbsa">RSBSA Registered Only</option>
+              <option value="walkin">Walk-in / Manual Entries</option>
             </select>
           </div>
           <div class="filter-group">
@@ -138,12 +153,15 @@
                 </tr>
                 <tr v-for="(row, i) in filteredRows" :key="row.id || i">
                   <td class="col-no">{{ i + 1 }}</td>
-                  <td class="mono">{{ row.rsbsa_no }}</td>
+                  <td class="mono">
+                    <span v-if="row.rsbsa_no">{{ row.rsbsa_no }}</span>
+                    <UnverifiedWalkInChip v-else show :label="registryBadgeLabel(row) || 'UNREGISTERED'" />
+                  </td>
                   <td>{{ row.surname || '—' }}</td>
                   <td>{{ row.first_name || '—' }}</td>
                   <td>{{ row.middle_name || '—' }}</td>
                   <td>{{ row.farm_location }}</td>
-                  <td>{{ row.crop }}</td>
+                  <td>{{ formatCropLabel(row) }}</td>
                   <td>{{ row.variety }}</td>
                   <td class="col-num">{{ fmtNum(row.area_planted) }}</td>
                   <td class="mono">{{ fmtDate(row.date_planted) }}</td>
@@ -191,12 +209,15 @@
                 </tr>
                 <tr v-for="(row, i) in filteredRows" :key="row.id || i">
                   <td class="col-no">{{ i + 1 }}</td>
-                  <td class="mono">{{ row.rsbsa_no }}</td>
+                  <td class="mono">
+                    <span v-if="row.rsbsa_no">{{ row.rsbsa_no }}</span>
+                    <UnverifiedWalkInChip v-else show :label="registryBadgeLabel(row) || 'UNREGISTERED'" />
+                  </td>
                   <td>{{ row.surname || '—' }}</td>
                   <td>{{ row.first_name || '—' }}</td>
                   <td>{{ row.middle_name || '—' }}</td>
                   <td>{{ row.farm_location }}</td>
-                  <td>{{ row.crop }}</td>
+                  <td>{{ formatCropLabel(row) }}</td>
                   <td>{{ row.variety }}</td>
                   <td class="col-num">{{ fmtNum(row.area_harvested) }}</td>
                   <td class="col-num">{{ fmtNum(row.total_yield) }}</td>
@@ -278,6 +299,8 @@ import {
 import { addCircleOutline } from 'ionicons/icons';
 import FormExportActions from '@/components/FormExportActions.vue';
 import { exportAdminGridExcel } from '@/utils/statutoryFormExcel';
+import { allHvccCommodities, formatCropLabel, isHvccCrop, registryBadgeLabel } from '@/constants/hvccCatalog';
+import UnverifiedWalkInChip from '@/components/UnverifiedWalkInChip.vue';
 import apiClient from '@/utils/axios';
 import ReportEncodeModal from '@/components/ReportEncodeModal.vue';
 import ReportRowActions from '@/components/ReportRowActions.vue';
@@ -355,6 +378,8 @@ const modeLabel = computed(() => {
 const filters = reactive({
   barangay: '',
   cropType: '',
+  hvccCommodity: '',
+  registryStatus: '',
   dateFrom: '',
   dateTo: '',
 });
@@ -484,6 +509,8 @@ async function fetchRows() {
         mode:      activeMode.value,
         barangay:  filters.barangay  || undefined,
         crop_type: filters.cropType  || undefined,
+        hvcc_commodity: filters.cropType === 'HVCC' ? (filters.hvccCommodity || undefined) : undefined,
+        registry_status: filters.registryStatus || undefined,
         date_from: filters.dateFrom  || undefined,
         date_to:   filters.dateTo    || undefined,
       },
@@ -513,6 +540,8 @@ watch(() => route.query.mode, (raw) => {
 function clearFilters() {
   filters.barangay = lockedBarangay.value || '';
   filters.cropType = '';
+  filters.hvccCommodity = '';
+  filters.registryStatus = '';
   filters.dateFrom = '';
   filters.dateTo   = '';
   searchQuery.value = '';
@@ -550,7 +579,8 @@ async function downloadExcel() {
           { key: 'farm_location', label: 'Farm Location' },
           { key: 'crop', label: 'Crop' },
           { key: 'variety', label: 'Variety' },
-          { key: 'area_planted', label: 'Area Planted (ha)' },
+          { key: 'area_planted', label: 'Hectares Planted' },
+          { key: 'num_hills_trees', label: 'Number of Hills/Trees' },
           { key: 'date_planted', label: 'Date Planted' },
           { key: 'status', label: 'Status' },
           { key: 'water_source', label: 'Water Source' },
@@ -564,13 +594,17 @@ async function downloadExcel() {
           { key: 'farm_location', label: 'Farm Location' },
           { key: 'crop', label: 'Crop' },
           { key: 'variety', label: 'Variety' },
-          { key: 'area_harvested', label: 'Area Harvested (ha)' },
-          { key: 'total_yield', label: 'Total Yield (MT)' },
+          { key: 'area_harvested', label: 'Hectares Planted' },
+          { key: 'total_yield', label: 'Yield (MT)' },
+          { key: 'num_hills_trees', label: 'Number of Hills/Trees' },
           { key: 'date_harvested', label: 'Date Harvested' },
         ],
     rows: filteredRows.value as Record<string, unknown>[],
     getCellValue(row, key, index) {
       if (key === 'no') return index + 1;
+      if (key === 'crop') return formatCropLabel(row as any);
+      if (key === 'rsbsa_no') return String(row.rsbsa_no || registryBadgeLabel(row as any) || 'UNREGISTERED');
+      if (key === 'num_hills_trees') return isHvccCrop(String(row.crop || '')) ? (row.num_hills_trees ?? '') : '';
       if (key === 'date_planted' || key === 'date_harvested') {
         return fmtDate(String(row[key] ?? ''));
       }

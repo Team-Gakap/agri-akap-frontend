@@ -48,6 +48,22 @@
               <option value="">All</option>
               <option value="Rice">Rice</option>
               <option value="Corn">Corn</option>
+              <option value="HVCC">HVCC</option>
+            </select>
+          </div>
+          <div v-if="filters.cropType === 'HVCC'" class="filter-group">
+            <label class="filter-label">Sub-Crop</label>
+            <select class="filter-select" v-model="filters.hvccCommodity" @change="fetchRows">
+              <option value="">All HVCC</option>
+              <option v-for="name in allHvccCommodities()" :key="name" :value="name">HVCC - {{ name }}</option>
+            </select>
+          </div>
+          <div class="filter-group">
+            <label class="filter-label">Registry Status</label>
+            <select class="filter-select" v-model="filters.registryStatus" @change="fetchRows">
+              <option value="">All Farmers</option>
+              <option value="rsbsa">RSBSA Registered Only</option>
+              <option value="walkin">Walk-in / Manual Entries</option>
             </select>
           </div>
           <div class="filter-group">
@@ -102,6 +118,7 @@
                   <th>Last Name</th>
                   <th>First Name</th>
                   <th>Middle Name</th>
+                  <th>RSBSA No.</th>
                   <th>Farm Location</th>
                   <th>Crop</th>
                   <th>Variety</th>
@@ -125,8 +142,12 @@
                   <td>{{ row.surname || '—' }}</td>
                   <td>{{ row.first_name || '—' }}</td>
                   <td>{{ row.middle_name || '—' }}</td>
+                  <td class="mono">
+                    <span v-if="row.rsbsa_no">{{ row.rsbsa_no }}</span>
+                    <UnverifiedWalkInChip v-else show :label="registryBadgeLabel(row) || 'UNREGISTERED'" />
+                  </td>
                   <td>{{ row.farm_location }}</td>
-                  <td>{{ row.crop }}</td>
+                  <td>{{ formatCropLabel(row) }}</td>
                   <td>{{ row.variety || '—' }}</td>
                   <td>{{ pestParts(row).pest || '—' }}</td>
                   <td>{{ pestParts(row).disease || '—' }}</td>
@@ -260,6 +281,8 @@ import { addCircleOutline } from 'ionicons/icons';
 import FormExportActions from '@/components/FormExportActions.vue';
 import { exportAdminGridExcel } from '@/utils/statutoryFormExcel';
 import apiClient from '@/utils/axios';
+import { allHvccCommodities, formatCropLabel, registryBadgeLabel } from '@/constants/hvccCatalog';
+import UnverifiedWalkInChip from '@/components/UnverifiedWalkInChip.vue';
 import { storageUrl } from '@/utils/storageUrl';
 import ReportEncodeModal from '@/components/ReportEncodeModal.vue';
 import ReportRowActions from '@/components/ReportRowActions.vue';
@@ -285,6 +308,12 @@ interface PestRow {
   farmer_name?: string;
   farm_location: string;
   crop: string;
+  crop_category?: string;
+  hvcc_commodity?: string;
+  rsbsa_no?: string;
+  is_temporary?: boolean;
+  registration_type?: string;
+  area_planted?: number;
   variety?: string;
   pest_disease: string;
   severity: string;
@@ -305,6 +334,8 @@ const viewingPhoto = ref<string | null>(null);
 const filters = reactive({
   barangay: '',
   cropType: '',
+  hvccCommodity: '',
+  registryStatus: '',
   status: 'All',
   dateFrom: '',
   dateTo: '',
@@ -434,6 +465,8 @@ async function fetchRows() {
     const params = {
       barangay:  filters.barangay  || undefined,
       crop_type: filters.cropType  || undefined,
+      hvcc_commodity: filters.cropType === 'HVCC' ? (filters.hvccCommodity || undefined) : undefined,
+      registry_status: filters.registryStatus || undefined,
       status:    filters.status    || 'All',
       date_from: filters.dateFrom  || undefined,
       date_to:   filters.dateTo    || undefined,
@@ -451,6 +484,8 @@ async function fetchRows() {
 function clearFilters() {
   filters.barangay = lockedBarangay.value || '';
   filters.cropType = '';
+  filters.hvccCommodity = '';
+  filters.registryStatus = '';
   filters.status   = 'All';
   filters.dateFrom = '';
   filters.dateTo   = '';
@@ -485,8 +520,10 @@ async function downloadExcel() {
       { key: 'surname', label: 'Last Name' },
       { key: 'first_name', label: 'First Name' },
       { key: 'middle_name', label: 'Middle Name' },
+      { key: 'rsbsa_no', label: 'RSBSA No.' },
       { key: 'farm_location', label: 'Farm Location' },
       { key: 'crop', label: 'Crop' },
+      { key: 'area_planted', label: 'Hectares Planted' },
       { key: 'variety', label: 'Variety' },
       { key: 'pest', label: 'Pest' },
       { key: 'disease', label: 'Disease' },
@@ -497,6 +534,8 @@ async function downloadExcel() {
     rows: filteredRows.value as Record<string, unknown>[],
     getCellValue(row, key, index) {
       if (key === 'no') return index + 1;
+      if (key === 'crop') return formatCropLabel(row as any);
+      if (key === 'rsbsa_no') return String(row.rsbsa_no || registryBadgeLabel(row as any) || 'UNREGISTERED');
       if (key === 'date_reported') return fmtDate(String(row.date_reported ?? ''));
       if (key === 'area_affected') return fmtNum(row.area_affected as number);
       if (key === 'pest') return pestParts(row as unknown as PestRow).pest;

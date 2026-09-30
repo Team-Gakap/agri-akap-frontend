@@ -53,6 +53,10 @@ export async function claimSubsidyRelease(ctx: ReleaseContext): Promise<SubsidyC
       beneficiary_id: ctx.beneficiary_id,
       geo_tag_lat: lat,
       geo_tag_long: long,
+      override_password: ctx.override_password,
+      override_reason: ctx.override_reason,
+      override_reason_code: ctx.override_reason_code,
+      override_justification: ctx.override_justification,
     });
     await syncStore.refreshCount();
     void syncAllPendingData().then(() => syncStore.refreshCount());
@@ -69,6 +73,10 @@ export async function claimSubsidyRelease(ctx: ReleaseContext): Promise<SubsidyC
         farmer_id: ctx.farmer_id,
         rsbsa_no: ctx.rsbsa_no,
         beneficiary_id: ctx.beneficiary_id,
+        override_password: ctx.override_password,
+        override_reason: ctx.override_reason,
+        override_reason_code: ctx.override_reason_code,
+        override_justification: ctx.override_justification,
       });
       return { offline: false, data: response.data?.data ?? {} };
     }
@@ -78,6 +86,10 @@ export async function claimSubsidyRelease(ctx: ReleaseContext): Promise<SubsidyC
       program_id: ctx.program_id,
       geo_tag_lat: lat,
       geo_tag_long: long,
+      override_password: ctx.override_password,
+      override_reason: ctx.override_reason,
+      override_reason_code: ctx.override_reason_code,
+      override_justification: ctx.override_justification,
     });
     return { offline: false, data: response.data?.data ?? {} };
   } catch (err: any) {

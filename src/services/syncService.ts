@@ -1,4 +1,5 @@
 import apiClient from '@/utils/axios';
+import { isHvccCommodity } from '@/constants/hvccCatalog';
 import {
   db,
   getDeviceId,
@@ -84,10 +85,11 @@ export function farmerHasCommodity(farmer: any, commodity: string): boolean {
   if (!key) return true;
   const plots = farmer?.farm_plots || farmer?.farmPlots || [];
   if (!Array.isArray(plots) || !plots.length) return false;
-  if (['high-value', 'high-value crops', 'hvc'].includes(key)) {
+  if (['high-value', 'high-value crops', 'hvc', 'hvcc'].includes(key) || isHvccCommodity(commodity)) {
     return plots.some((p: any) => {
       const c = String(p?.commodity || '').toLowerCase();
-      return c.includes('high-value') || c.includes('hvc');
+      if (c === key) return true;
+      return c.includes('high-value') || c.includes('hvc') || c === 'hvcc';
     });
   }
   return plots.some((p: any) => String(p?.commodity || '').toLowerCase() === key);
@@ -429,6 +431,10 @@ export async function queueDistribution(input: {
   geo_tag_lat?: number | null;
   geo_tag_long?: number | null;
   photo_proof_base64?: string;
+  override_password?: string;
+  override_reason?: string;
+  override_reason_code?: string;
+  override_justification?: string;
 }): Promise<PendingDistribution> {
   const record: PendingDistribution = {
     client_id: newUuid(),
@@ -442,6 +448,10 @@ export async function queueDistribution(input: {
     geo_tag_lat: input.geo_tag_lat ?? null,
     geo_tag_long: input.geo_tag_long ?? null,
     photo_proof_base64: input.photo_proof_base64,
+    override_password: input.override_password,
+    override_reason: input.override_reason,
+    override_reason_code: input.override_reason_code,
+    override_justification: input.override_justification,
     device_id: getDeviceId(),
     claimed_at: new Date().toISOString(),
     status: 'pending',
@@ -1062,6 +1072,10 @@ export async function syncAllPendingData(): Promise<SyncFlushResult> {
           geo_tag_lat: d.geo_tag_lat,
           geo_tag_long: d.geo_tag_long,
           photo_proof_base64: await shrinkSyncImage(d.photo_proof_base64),
+          override_password: d.override_password,
+          override_reason: d.override_reason,
+          override_reason_code: d.override_reason_code,
+          override_justification: d.override_justification,
         };
       })),
       assessments: await Promise.all(assessments.map(async (a) => ({

@@ -23,6 +23,10 @@ export interface PendingDistribution {
   geo_tag_lat?: number | null;
   geo_tag_long?: number | null;
   photo_proof_base64?: string;
+  override_password?: string;
+  override_reason?: string;
+  override_reason_code?: string;
+  override_justification?: string;
   status: QueueStatus;
   error?: string;
   created_at: string;

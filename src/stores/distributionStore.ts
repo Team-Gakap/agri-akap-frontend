@@ -28,6 +28,10 @@ export interface ReleaseContext {
   beneficiary_id?: string | null;
   rsbsa_no?: string | null;
   source?: 'subsidy' | 'program';
+  override_password?: string;
+  override_reason?: string;
+  override_reason_code?: string;
+  override_justification?: string;
   /** True when the context was stashed offline (verify was skipped). */
   offline: boolean;
 }

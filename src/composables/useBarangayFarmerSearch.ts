@@ -2,6 +2,7 @@ import { ref, computed } from 'vue';
 import apiClient from '@/utils/axios';
 import { db } from '@/database/db';
 import { cacheFarmer, farmerHasCommodity, farmerMatchesSearchTerm, isNetworkError, isOnline } from '@/services/syncService';
+import { plotMatchesCrop } from '@/constants/hvccCatalog';
 
 /** Filters previously-cached farmers by name/RSBSA/id/QR + optional barangay/commodity — used offline. */
 async function searchCachedFarmersLocal(term: string, barangay?: string, commodity?: string): Promise<any[]> {
@@ -28,7 +29,45 @@ export interface FarmerOption {
   birthdate: string;
   address: string;
   barangay: string;
+  is_temporary: boolean;
+  registration_type: string;
   plots: Array<{ id: string; location_brgy: string; commodity: string; size_ha: number }>;
+}
+
+export interface ManualWalkInPayload {
+  surname: string;
+  first_name: string;
+  middle_name?: string;
+  sex: 'Male' | 'Female';
+  birthdate: string;
+  mobile_number: string;
+  commodity: string;
+  hectares: number;
+  barangay_name?: string;
+  declared_sitio?: string;
+  enlistment_remarks?: string;
+}
+
+/** Split a typed search string into surname / given name for the walk-in form. */
+export function splitWalkInName(query: string): { surname: string; first_name: string; middle_name: string } {
+  const raw = query.trim().replace(/\s+/g, ' ');
+  if (!raw) return { surname: '', first_name: '', middle_name: '' };
+  if (raw.includes(',')) {
+    const [sur, rest] = raw.split(',');
+    const parts = rest.trim().split(' ').filter(Boolean);
+    return {
+      surname: sur.trim(),
+      first_name: parts[0] || '',
+      middle_name: parts.slice(1).join(' '),
+    };
+  }
+  const parts = raw.split(' ').filter(Boolean);
+  if (parts.length === 1) return { surname: parts[0], first_name: '', middle_name: '' };
+  return {
+    surname: parts[parts.length - 1],
+    first_name: parts[0],
+    middle_name: parts.slice(1, -1).join(' '),
+  };
 }
 
 export function useBarangayFarmerSearch(
@@ -47,6 +86,10 @@ export function useBarangayFarmerSearch(
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   const hasAssignment = computed(() => !!assignedBarangay());
+  const canEnlistWalkIn = computed(() => {
+    const term = query.value.trim();
+    return term.length > 0 && results.value.length === 0 && !searching.value && !selected.value;
+  });
 
   const mapFarmer = (f: any): FarmerOption => {
     const parts = [
@@ -66,6 +109,8 @@ export function useBarangayFarmerSearch(
       birthdate: f.birthdate || '',
       address: parts.join(', ') || f.permanent_brgy || '',
       barangay: f.permanent_brgy || '',
+      is_temporary: Boolean(f.is_temporary),
+      registration_type: f.registration_type || 'rsbsa',
       plots: (f.farm_plots || f.farmPlots || []).map((p: any) => ({
         id: p.id,
         location_brgy: p.location_brgy || '',
@@ -147,11 +192,11 @@ export function useBarangayFarmerSearch(
   };
 
   /** Plots for the selected farmer that match the active crop form. */
-  const plotsForCommodity = (commodity: string) => {
-    const crop = commodity.trim().toLowerCase();
+  const plotsForCommodity = (commodity: string, hvccCommodity?: string | null) => {
+    const crop = commodity.trim();
     if (!crop) return selected.value?.plots || [];
     return (selected.value?.plots || []).filter(
-      (p) => p.commodity.trim().toLowerCase() === crop,
+      (p) => plotMatchesCrop(p.commodity, crop, hvccCommodity),
     );
   };
 
@@ -161,17 +206,43 @@ export function useBarangayFarmerSearch(
     results.value = [];
   };
 
+  /** Creates a provisional farmer. Requires connectivity; selection is applied immediately. */
+  const enlistManualWalkIn = async (payload: ManualWalkInPayload): Promise<FarmerOption> => {
+    if (!isOnline()) {
+      throw new Error('Requires internet connection to enlist a new farmer.');
+    }
+    try {
+      const res = await apiClient.post('/farmers/manual-enlist', payload);
+      const farmer = mapFarmer(res.data?.data ?? {});
+      await cacheFarmer(res.data?.data);
+      selected.value = farmer;
+      query.value = `${farmer.surname}, ${farmer.first_name}`;
+      results.value = [];
+      return farmer;
+    } catch (err: any) {
+      const errors = err?.response?.data?.errors;
+      const first = errors ? Object.values(errors).flat()[0] : null;
+      const message = (typeof first === 'string' && first)
+        || err?.response?.data?.message
+        || err?.message
+        || 'Could not enlist this farmer.';
+      throw new Error(message);
+    }
+  };
+
   return {
     query,
     results,
     searching,
     selected,
     hasAssignment,
+    canEnlistWalkIn,
     onQueryInput,
     selectFarmer,
     clearSelection,
     search,
     plotsForCommodity,
+    enlistManualWalkIn,
   };
 }
 

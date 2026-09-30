@@ -43,6 +43,14 @@
                 <option value="">All Crops</option>
                 <option value="Rice">Rice</option>
                 <option value="Corn">Corn</option>
+                <option value="HVCC">HVCC</option>
+              </select>
+            </div>
+            <div v-if="cropFilter === 'HVCC'" class="filter-group">
+              <label class="filter-label">Commodity</label>
+              <select class="filter-select" v-model="hvccCommodityFilter">
+                <option value="">All HVCC</option>
+                <option v-for="name in allHvccCommodities()" :key="name" :value="name">{{ name }}</option>
               </select>
             </div>
             <div v-if="kind === 'planting'" class="filter-group">
@@ -269,6 +277,7 @@ import { computed, defineAsyncComponent, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { IonPage, IonContent, IonButton, IonSpinner } from '@ionic/vue';
 import FormExportActions from '@/components/FormExportActions.vue';
+import { allHvccCommodities } from '@/constants/hvccCatalog';
 import EncodingBarangaySelector from '@/components/EncodingBarangaySelector.vue';
 import { useEncodingBarangay } from '@/composables/useEncodingBarangay';
 import { formatBirthday } from '@/composables/useBarangayFarmerSearch';
@@ -350,6 +359,7 @@ const viewMode = computed<ViewMode>(() => (route.query.mode === 'entry' ? 'entry
 
 const searchQuery = ref('');
 const cropFilter = ref('');
+const hvccCommodityFilter = ref('');
 const plantingMode = ref<PlantingPrintMode>('already_planted');
 const page = ref(1);
 const loading = ref(false);
@@ -479,6 +489,7 @@ const filteredRows = computed(() => {
   const q = searchQuery.value.trim().toLowerCase();
   return rows.value.filter((row) => {
     if (cropFilter.value && cropOf(row) !== cropFilter.value) return false;
+    if (hvccCommodityFilter.value && (row as any).hvcc_commodity !== hvccCommodityFilter.value) return false;
     if (!matchesSearch(row, q)) return false;
     if (kind.value !== 'planting') return true;
     if (plantingMode.value === 'not_continued') return row.planting_status === 'Not Continued';

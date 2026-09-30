@@ -70,6 +70,15 @@
           </div>
         </div>
 
+        <ion-segment :value="workspaceMode" class="mode-toggle" @ionChange="onModeChange">
+          <ion-segment-button value="auto">
+            <ion-label>Auto-Generate Masterlist</ion-label>
+          </ion-segment-button>
+          <ion-segment-button value="manual">
+            <ion-label>Manual Selection Grid</ion-label>
+          </ion-segment-button>
+        </ion-segment>
+
         <!-- ── Filter + Action Bar ──────────────────────────────────────── -->
         <div class="tool-bar">
           <div class="filters">
@@ -77,9 +86,10 @@
               <option value="">All Barangays</option>
               <option v-for="b in barangayOptions" :key="b" :value="b">{{ b }}</option>
             </select>
-            <select v-model="filterStatus" class="tool-select">
+            <select v-if="workspaceMode === 'auto'" v-model="filterStatus" class="tool-select">
               <option value="">All Status</option>
               <option value="Pending">Pending</option>
+              <option value="Waitlisted">Waitlisted</option>
               <option value="Claimed">Claimed</option>
             </select>
             <input
@@ -101,9 +111,45 @@
               <ion-icon slot="start" :icon="playCircleOutline"></ion-icon>
               {{ activating ? 'Activating…' : 'Activate Program' }}
             </ion-button>
-            <ion-button size="small" fill="solid" class="act-btn primary" :disabled="generating || program.status === 'Completed'" @click="confirmGenerate">
+            <ion-button
+              v-if="workspaceMode === 'manual'"
+              size="small"
+              fill="outline"
+              class="act-btn"
+              @click="filterDrawerOpen = true"
+            >
+              <ion-icon slot="start" :icon="optionsOutline"></ion-icon>
+              Filters
+            </ion-button>
+            <ion-button
+              v-if="workspaceMode === 'auto'"
+              size="small"
+              fill="solid"
+              class="act-btn primary"
+              :disabled="generating || program.status === 'Completed'"
+              @click="confirmGenerate"
+            >
               <ion-icon slot="start" :icon="syncOutline"></ion-icon>
               Auto-Generate Masterlist
+            </ion-button>
+            <ion-button
+              v-else
+              size="small"
+              fill="solid"
+              class="act-btn primary"
+              :disabled="selecting || manualStockBlocked || !checkedRsbsa.length || program.status === 'Completed'"
+              @click="addSelectedToMasterlist"
+            >
+              <ion-icon slot="start" :icon="checkmarkCircleOutline"></ion-icon>
+              {{ selecting ? 'Saving…' : 'Add Selected to Masterlist' }}
+            </ion-button>
+            <ion-button size="small" fill="outline" class="act-btn" :disabled="!rows.length" @click="exportDraft">
+              <ion-icon slot="start" :icon="downloadOutline"></ion-icon>
+              Export Draft to Excel
+            </ion-button>
+            <ion-button size="small" fill="solid" class="act-btn primary" :disabled="publishing || isMockData || !pendingRows.length" @click="publishMasterlist">
+              <ion-icon slot="start" :icon="qrCodeOutline"></ion-icon>
+              {{ publishing ? 'Publishing…' : 'Publish Masterlist & Generate Pickup QR / SMS Alerts' }}
             </ion-button>
             <ion-button size="small" fill="outline" class="act-btn" @click="openSmsModal">
               <ion-icon slot="start" :icon="chatbubbleEllipsesOutline"></ion-icon>
@@ -127,7 +173,7 @@
             <ion-button size="small" @click="fetchMasterlist">Retry</ion-button>
           </div>
           <div v-else class="table-scroll">
-            <table class="excel-table">
+            <table v-if="workspaceMode === 'auto'" class="excel-table">
               <thead>
                 <tr>
                   <th class="col-num">#</th>
@@ -138,46 +184,124 @@
                   <th>Brgy</th>
                   <th class="col-num">Farm Area (ha)</th>
                   <th class="col-num">Allocation</th>
+                  <th>Tier</th>
                   <th>Status</th>
                   <th class="col-icon"></th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="(row, i) in filteredRows" :key="row.rsbsa_no + i">
-                  <td class="col-num">{{ i + 1 }}</td>
+                <template v-for="(row, i) in filteredRows" :key="row.rsbsa_no + i">
+                  <tr v-if="isCutoffRow(i)" class="cutoff-row">
+                    <td colspan="11">Stock cutoff — farmers below this line are waitlisted until inventory is replenished.</td>
+                  </tr>
+                  <tr>
+                    <td class="col-num">{{ i + 1 }}</td>
+                    <td class="mono">
+                      <span v-if="row.rsbsa_no">{{ row.rsbsa_no }}</span>
+                      <UnverifiedWalkInChip v-else show :label="row.registration_type === 'manual_walkin' ? 'MANUAL-ENTRY' : 'UNREGISTERED'" />
+                    </td>
+                    <td>{{ row.last_name || '—' }}</td>
+                    <td>{{ row.first_name || '—' }}</td>
+                    <td>{{ row.middle_name || '—' }}</td>
+                    <td>{{ row.barangay }}</td>
+                    <td class="col-num">{{ formatArea(row.farm_area) }}</td>
+                    <td class="col-num">{{ formatAllocation(row) }}</td>
+                    <td><span class="tier-pill" :class="tierClass(row.priority_tier)">{{ tierLabel(row.priority_tier) }}</span></td>
+                    <td>
+                      <span class="status-pill" :class="statusClass(row.status)">{{ row.status }}</span>
+                    </td>
+                    <td class="col-icon">
+                      <button
+                        v-if="row.status === 'Pending' && program.status === 'Active'"
+                        class="icon-btn claim-btn"
+                        title="Mark Claimed (deduct from stock)"
+                        :disabled="claimingId === row.beneficiary_id"
+                        @click="confirmClaim(row)"
+                      >
+                        <ion-icon :icon="checkmarkCircleOutline"></ion-icon>
+                      </button>
+                      <button class="icon-btn" title="View Profile" @click="viewProfile(row)">
+                        <ion-icon :icon="eyeOutline"></ion-icon>
+                      </button>
+                    </td>
+                  </tr>
+                </template>
+                <tr v-if="!filteredRows.length">
+                  <td colspan="11" class="empty-row">{{ emptyMessage }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <table v-else class="excel-table">
+              <thead>
+                <tr>
+                  <th class="col-icon">
+                    <input type="checkbox" :checked="allFilteredChecked" @change="toggleAllFiltered(($event.target as HTMLInputElement).checked)" />
+                  </th>
+                  <th>RSBSA No.</th>
+                  <th>Name</th>
+                  <th>Brgy</th>
+                  <th class="col-num">Farm Area (ha)</th>
+                  <th class="col-num">Allocation</th>
+                  <th>Tags</th>
+                  <th>On list</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="manualLoading">
+                  <td colspan="8" class="empty-row">Loading eligible farmers…</td>
+                </tr>
+                <template v-else>
+                <tr v-for="row in manualRows" :key="row.rsbsa_no">
+                  <td class="col-icon">
+                    <input
+                      type="checkbox"
+                      :checked="checkedRsbsa.includes(row.rsbsa_no)"
+                      :disabled="row.masterlist_status === 'Claimed'"
+                      @change="toggleChecked(row.rsbsa_no, ($event.target as HTMLInputElement).checked)"
+                    />
+                  </td>
                   <td class="mono">{{ row.rsbsa_no }}</td>
-                  <td>{{ row.last_name || '—' }}</td>
-                  <td>{{ row.first_name || '—' }}</td>
-                  <td>{{ row.middle_name || '—' }}</td>
+                  <td>{{ row.last_name }}, {{ row.first_name }}</td>
                   <td>{{ row.barangay }}</td>
                   <td class="col-num">{{ formatArea(row.farm_area) }}</td>
                   <td class="col-num">{{ formatAllocation(row) }}</td>
                   <td>
-                    <span class="status-pill" :class="row.status === 'Claimed' ? 'claimed' : 'pending'">
-                      {{ row.status }}
-                    </span>
+                    <span v-if="row.is_pwd || row.is_senior" class="tier-pill tier-1">Priority</span>
+                    <span v-if="row.damage_percentage != null" class="tier-pill tier-2">RDANA {{ row.damage_percentage }}%</span>
+                    <span v-if="row.is_outbreak" class="tier-pill tier-2">Outbreak</span>
                   </td>
-                  <td class="col-icon">
-                    <button
-                      v-if="row.status === 'Pending' && program.status === 'Active'"
-                      class="icon-btn claim-btn"
-                      title="Mark Claimed (deduct from stock)"
-                      :disabled="claimingId === row.beneficiary_id"
-                      @click="confirmClaim(row)"
-                    >
-                      <ion-icon :icon="checkmarkCircleOutline"></ion-icon>
-                    </button>
-                    <button class="icon-btn" title="View Profile" @click="viewProfile(row)">
-                      <ion-icon :icon="eyeOutline"></ion-icon>
-                    </button>
-                  </td>
+                  <td>{{ row.masterlist_status || '—' }}</td>
                 </tr>
-                <tr v-if="!filteredRows.length">
-                  <td colspan="10" class="empty-row">{{ emptyMessage }}</td>
+                <tr v-if="!manualRows.length">
+                  <td colspan="8" class="empty-row">No farmers match these filters.</td>
                 </tr>
+                </template>
               </tbody>
             </table>
           </div>
+        </div>
+
+        <SubsidyAllocationPreviewBar
+          :selected-count="previewSelectedCount"
+          :required-primary="previewRequiredPrimary"
+          :required-secondary="program.secondary_unit ? previewRequiredSecondary : null"
+          :available-primary="previewAvailablePrimary"
+          :available-secondary="program.secondary_unit ? previewAvailableSecondary : null"
+          :unit="program.unit_of_measurement || 'Bags'"
+          :secondary-unit="program.secondary_unit"
+        />
+      </div>
+
+      <div class="qr-roster-print">
+        <h1>{{ program.program_name }} — Pickup roster</h1>
+        <p>Present this QR at the MAO window. Scan verifies the registered farmer.</p>
+        <div class="qr-grid">
+          <article v-for="row in pendingRows" :key="row.rsbsa_no" class="qr-card">
+            <qrcode-vue v-if="row.farmer_id" :value="String(row.farmer_id)" :size="96" level="H" />
+            <p class="qr-name">{{ row.last_name }}, {{ row.first_name }}</p>
+            <p class="qr-meta">{{ row.rsbsa_no }} · {{ row.barangay }}</p>
+            <p class="qr-meta">{{ formatAllocation(row) }}</p>
+          </article>
         </div>
       </div>
 
@@ -214,6 +338,33 @@
             @click="sendSmsSchedule"
           >
             {{ sendingSms ? 'Sending…' : 'Send Broadcast' }}
+          </ion-button>
+        </ion-content>
+      </ion-modal>
+
+      <SubsidyFilterDrawer
+        :open="filterDrawerOpen"
+        :barangays="smsBarangayOptions.length ? smsBarangayOptions : barangayOptions"
+        :model-value="manualFilters"
+        @close="filterDrawerOpen = false"
+        @apply="applyManualFilters"
+      />
+
+      <ion-modal :is-open="publishOpen" @didDismiss="publishOpen = false">
+        <ion-header>
+          <ion-toolbar color="primary">
+            <ion-title>Pickup QR and SMS</ion-title>
+            <ion-buttons slot="end">
+              <ion-button @click="publishOpen = false">Close</ion-button>
+            </ion-buttons>
+          </ion-toolbar>
+        </ion-header>
+        <ion-content class="ion-padding">
+          <p class="modal-program">{{ pendingRows.length }} farmers are ready for pickup.</p>
+          <p class="modal-hint">Print a QR slip for each pending beneficiary, or text only the farmers on this masterlist.</p>
+          <ion-button expand="block" class="send-btn" @click="printPickupRoster">Print pickup QR slips</ion-button>
+          <ion-button expand="block" fill="outline" class="send-btn" :disabled="sendingSms || !smsFarmerIds.length" @click="sendMasterlistSms">
+            {{ sendingSms ? 'Sending…' : 'Send SMS to masterlist' }}
           </ion-button>
         </ion-content>
       </ion-modal>
@@ -265,39 +416,65 @@
         </ion-content>
       </ion-modal>
     </ion-content>
+    <AdminOverrideModal
+      :is-open="overrideOpen"
+      :error="overrideError"
+      @cancel="onOverrideCancel"
+      @confirm="onOverrideConfirm"
+    />
   </ion-page>
 </template>
 
 <script setup lang="ts">
 import AppHeader from '@/components/Navigation/AppHeader.vue';
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
-  IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonBackButton,
+  IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons,
   IonButton, IonIcon, IonSpinner, IonModal, IonItem, IonTextarea,
+  IonSegment, IonSegmentButton, IonLabel,
   toastController, alertController,
 } from '@ionic/vue';
 import {
-  refreshOutline, syncOutline, chatbubbleEllipsesOutline, printOutline, eyeOutline,
+  syncOutline, chatbubbleEllipsesOutline, printOutline, eyeOutline,
   alertCircleOutline, addCircleOutline, checkmarkCircleOutline, playCircleOutline,
+  optionsOutline, downloadOutline, qrCodeOutline,
 } from 'ionicons/icons';
+import QrcodeVue from 'qrcode.vue';
 import apiClient from '@/utils/axios';
+import AdminOverrideModal from '@/components/AdminOverrideModal.vue';
+import UnverifiedWalkInChip from '@/components/UnverifiedWalkInChip.vue';
 import { cropLabel } from '@/utils/cropLabel';
 import BarangayMultiPicker from '@/components/BarangayMultiPicker.vue';
+import SubsidyFilterDrawer from '@/components/Subsidy/SubsidyFilterDrawer.vue';
+import SubsidyAllocationPreviewBar from '@/components/Subsidy/SubsidyAllocationPreviewBar.vue';
 import { catalogSummary } from '@/constants/subsidyCatalog';
 import { promptAuditRemarks } from '@/composables/promptAuditRemarks';
+import { exportSubsidyMasterlistExcel } from '@/utils/exportSubsidyMasterlistExcel';
+import {
+  defaultSubsidyFilters, fetchEligibleFarmers, submitManualSelection, stockTone, worstStockTone,
+  type EligibleFarmerRow, type SubsidyFilterState,
+} from '@/services/subsidyManualFilter';
 
 interface MasterlistRow {
   beneficiary_id: string;
+  farmer_id?: string;
   rsbsa_no: string;
   last_name: string;
   first_name: string;
   middle_name?: string;
   barangay: string;
+  mobile_number?: string | null;
   farm_area: number;
   calculated_allocation: number;
   calculated_allocation_secondary?: number | null;
-  status: 'Pending' | 'Claimed';
+  priority_tier?: number | null;
+  is_pwd?: boolean;
+  is_senior?: boolean;
+  is_walkin?: boolean;
+  is_temporary?: boolean;
+  registration_type?: string;
+  status: 'Pending' | 'Claimed' | 'Waitlisted';
 }
 
 const route = useRoute();
@@ -344,6 +521,15 @@ const rows = ref<MasterlistRow[]>([]);
 const filterBarangay = ref('');
 const filterStatus = ref('');
 const searchTerm = ref('');
+const workspaceMode = ref<'auto' | 'manual'>('auto');
+const filterDrawerOpen = ref(false);
+const publishOpen = ref(false);
+const publishing = ref(false);
+const selecting = ref(false);
+const manualLoading = ref(false);
+const manualFilters = reactive<SubsidyFilterState>(defaultSubsidyFilters());
+const manualRows = ref<EligibleFarmerRow[]>([]);
+const checkedRsbsa = ref<string[]>([]);
 
 const smsForm = reactive({ message: '' });
 const smsSelectAll = ref(true);
@@ -413,6 +599,97 @@ const emptyMessage = computed(() => {
   return 'No beneficiaries match the current filters.';
 });
 
+const isCutoffRow = (index: number) => {
+  const current = filteredRows.value[index];
+  if (!current || current.status !== 'Waitlisted') return false;
+  if (index === 0) return true;
+  return filteredRows.value[index - 1].status !== 'Waitlisted';
+};
+
+const tierLabel = (tier?: number | null) => {
+  if (tier === 1) return 'Tier 1 · Priority';
+  if (tier === 2) return 'Tier 2 · Damage';
+  if (tier === 3) return 'Tier 3 · Smallholder';
+  return '—';
+};
+
+const tierClass = (tier?: number | null) => {
+  if (tier === 1) return 'tier-1';
+  if (tier === 2) return 'tier-2';
+  if (tier === 3) return 'tier-3';
+  return 'tier-none';
+};
+
+const statusClass = (status: string) => {
+  if (status === 'Claimed') return 'claimed';
+  if (status === 'Waitlisted') return 'waitlisted';
+  return 'pending';
+};
+
+const pendingRows = computed(() => rows.value.filter((row) => row.status === 'Pending'));
+
+const checkedFarmers = computed(() => {
+  const picked = new Set(checkedRsbsa.value);
+  return manualRows.value.filter((row) => picked.has(row.rsbsa_no));
+});
+
+const sumAllocation = (list: Array<{ calculated_allocation: number; calculated_allocation_secondary?: number | null }>, secondary = false) =>
+  list.reduce((total, row) => total + Number(secondary ? (row.calculated_allocation_secondary || 0) : (row.calculated_allocation || 0)), 0);
+
+const previewSelectedCount = computed(() =>
+  workspaceMode.value === 'manual' ? checkedFarmers.value.length : pendingRows.value.length
+);
+
+const previewRequiredPrimary = computed(() =>
+  workspaceMode.value === 'manual'
+    ? sumAllocation(checkedFarmers.value)
+    : sumAllocation(pendingRows.value)
+);
+
+const previewRequiredSecondary = computed(() =>
+  workspaceMode.value === 'manual'
+    ? sumAllocation(checkedFarmers.value, true)
+    : sumAllocation(pendingRows.value, true)
+);
+
+const reservedOutsideSelection = (secondary = false) => {
+  const picked = new Set(checkedRsbsa.value);
+  return rows.value
+    .filter((row) => row.status === 'Pending' && !picked.has(row.rsbsa_no))
+    .reduce((total, row) => total + Number(secondary ? (row.calculated_allocation_secondary || 0) : row.calculated_allocation), 0);
+};
+
+const previewAvailablePrimary = computed(() => {
+  const remaining = Number(program.remaining_quantity || 0);
+  if (workspaceMode.value === 'manual') return Math.max(0, remaining - reservedOutsideSelection(false));
+  return remaining;
+});
+
+const previewAvailableSecondary = computed(() => {
+  const remaining = Number(program.secondary_remaining_quantity || 0);
+  if (workspaceMode.value === 'manual') return Math.max(0, remaining - reservedOutsideSelection(true));
+  return remaining;
+});
+
+const manualStockBlocked = computed(() => {
+  const primary = stockTone(previewRequiredPrimary.value, previewAvailablePrimary.value);
+  const secondary = program.secondary_unit
+    ? stockTone(previewRequiredSecondary.value, previewAvailableSecondary.value)
+    : null;
+  return worstStockTone(primary, secondary) === 'red';
+});
+
+const selectableManualRows = computed(() => manualRows.value.filter((row) => row.masterlist_status !== 'Claimed'));
+
+const allFilteredChecked = computed(() =>
+  selectableManualRows.value.length > 0
+  && selectableManualRows.value.every((row) => checkedRsbsa.value.includes(row.rsbsa_no))
+);
+
+const smsFarmerIds = computed(() =>
+  pendingRows.value.map((row) => row.farmer_id).filter((id): id is string => !!id)
+);
+
 const totalBeneficiaries = computed(() => rows.value.length);
 const totalClaimed = computed(() => rows.value.filter((r) => r.status === 'Claimed').length);
 const claimedPct = computed(() =>
@@ -429,7 +706,7 @@ const secondaryStockPct = computed(() =>
 
 const fmt = (v: any) => Number(v ?? 0).toLocaleString('en-PH');
 const formatArea = (v: number) => Number(v ?? 0).toFixed(2);
-const formatAllocation = (row: MasterlistRow) => {
+const formatAllocation = (row: { calculated_allocation: number; calculated_allocation_secondary?: number | null }) => {
   const unit = program.unit_of_measurement || 'Bags';
   const primary = `${row.calculated_allocation ?? 0} ${unit}`;
   if (program.secondary_unit && row.calculated_allocation_secondary != null) {
@@ -458,14 +735,22 @@ const fetchMasterlist = async () => {
     Object.assign(program, payload.program ?? {});
     rows.value = (payload.masterlist ?? []).map((r: any) => ({
       beneficiary_id: r.beneficiary_id,
+      farmer_id: r.farmer_id,
       rsbsa_no: r.rsbsa_no,
       last_name: r.last_name,
       first_name: r.first_name,
       middle_name: r.middle_name,
       barangay: r.barangay || 'Unspecified',
+      mobile_number: r.mobile_number,
       farm_area: Number(r.farm_area || 0),
       calculated_allocation: Number(r.calculated_allocation || 0),
       calculated_allocation_secondary: r.calculated_allocation_secondary != null ? Number(r.calculated_allocation_secondary) : null,
+      priority_tier: r.priority_tier != null ? Number(r.priority_tier) : null,
+      is_pwd: !!r.is_pwd,
+      is_senior: !!r.is_senior,
+      is_walkin: !!r.is_walkin || !!r.is_temporary,
+      is_temporary: !!r.is_temporary,
+      registration_type: r.registration_type,
       status: r.status,
     }));
     isMockData.value = false;
@@ -539,12 +824,36 @@ const generateMasterlist = async () => {
   }
 };
 
+const overrideOpen = ref(false);
+const overrideError = ref('');
+let overrideResolver: ((payload: { password: string; reason: string; reason_code: string; notes: string } | null) => void) | null = null;
+
+const requestOverride = (message = '') => {
+  overrideError.value = message;
+  overrideOpen.value = true;
+  return new Promise<{ password: string; reason: string; reason_code: string; notes: string } | null>((resolve) => {
+    overrideResolver = resolve;
+  });
+};
+
+const onOverrideConfirm = (payload: { password: string; reason: string; reason_code: string; notes: string }) => {
+  overrideOpen.value = false;
+  overrideResolver?.(payload);
+  overrideResolver = null;
+};
+
+const onOverrideCancel = () => {
+  overrideOpen.value = false;
+  overrideResolver?.(null);
+  overrideResolver = null;
+};
+
 const confirmClaim = async (row: MasterlistRow) => {
   let message = `Release ${row.calculated_allocation} ${program.unit_of_measurement || 'Bags'}`;
   if (program.secondary_unit && row.calculated_allocation_secondary != null) {
     message += ` and ${row.calculated_allocation_secondary} ${program.secondary_unit}`;
   }
-  message += ` to ${row.last_name}, ${row.first_name} (${row.rsbsa_no})? This deducts from the program's warehouse stock.`;
+  message += ` to ${row.last_name}, ${row.first_name} (${row.rsbsa_no || 'unregistered'})? This deducts from the program's warehouse stock.`;
   const alert = await alertController.create({
     header: 'Mark as Claimed',
     message,
@@ -556,7 +865,7 @@ const confirmClaim = async (row: MasterlistRow) => {
   await alert.present();
 };
 
-const claimBeneficiary = async (row: MasterlistRow) => {
+const claimBeneficiary = async (row: MasterlistRow, presetOverride?: { password: string; reason_code: string; notes: string } | null) => {
   if (isMockData.value) {
     row.status = 'Claimed';
     program.remaining_quantity = Math.max(0, program.remaining_quantity - row.calculated_allocation);
@@ -566,13 +875,29 @@ const claimBeneficiary = async (row: MasterlistRow) => {
     await toast('Beneficiary marked as Claimed. (Preview data)', 'success');
     return;
   }
+  let override = presetOverride ?? null;
+  if ((row.is_walkin || row.is_temporary) && !override) {
+    const picked = await requestOverride();
+    if (!picked) return;
+    override = picked;
+  }
   claimingId.value = row.beneficiary_id;
   try {
-    const res = await apiClient.patch(`/subsidies/${programId.value}/beneficiaries/${row.beneficiary_id}/claim`);
+    const res = await apiClient.patch(`/subsidies/${programId.value}/beneficiaries/${row.beneficiary_id}/claim`, {
+      override_password: override?.password,
+      override_reason_code: override?.reason_code,
+      override_justification: override?.notes,
+    });
     Object.assign(program, res.data?.data?.program ?? {});
     row.status = 'Claimed';
     await toast(res.data?.message || 'Beneficiary marked as Claimed.', 'success');
   } catch (e: any) {
+    if (e?.response?.data?.code === 'ADMIN_OVERRIDE_REQUIRED') {
+      claimingId.value = null;
+      const again = await requestOverride(e?.response?.data?.message || 'Admin override is required.');
+      if (again) await claimBeneficiary(row, again);
+      return;
+    }
     await toast(e?.response?.data?.message || 'Failed to mark as claimed.', 'danger');
   } finally {
     claimingId.value = null;
@@ -662,11 +987,147 @@ const sendSmsSchedule = async () => {
 
 const printLiquidation = () => window.print();
 
+const onModeChange = (event: CustomEvent) => {
+  workspaceMode.value = event.detail.value === 'manual' ? 'manual' : 'auto';
+};
+
+const loadEligibleFarmers = async () => {
+  if (!programId.value || isMockData.value) {
+    manualRows.value = [];
+    return;
+  }
+  manualLoading.value = true;
+  try {
+    manualFilters.search = searchTerm.value;
+    manualRows.value = await fetchEligibleFarmers(programId.value, manualFilters);
+    const visible = new Set(manualRows.value.map((row) => row.rsbsa_no));
+    checkedRsbsa.value = checkedRsbsa.value.filter((rsbsa) => visible.has(rsbsa));
+  } catch (e: any) {
+    await toast(e?.response?.data?.message || 'Could not load eligible farmers.', 'danger');
+  } finally {
+    manualLoading.value = false;
+  }
+};
+
+const applyManualFilters = async (next: SubsidyFilterState) => {
+  Object.assign(manualFilters, next, { barangays: [...next.barangays] });
+  filterDrawerOpen.value = false;
+  await loadEligibleFarmers();
+};
+
+const toggleChecked = (rsbsa: string, checked: boolean) => {
+  if (checked) {
+    if (!checkedRsbsa.value.includes(rsbsa)) checkedRsbsa.value = [...checkedRsbsa.value, rsbsa];
+    return;
+  }
+  checkedRsbsa.value = checkedRsbsa.value.filter((value) => value !== rsbsa);
+};
+
+const toggleAllFiltered = (checked: boolean) => {
+  if (!checked) {
+    const visible = new Set(selectableManualRows.value.map((row) => row.rsbsa_no));
+    checkedRsbsa.value = checkedRsbsa.value.filter((rsbsa) => !visible.has(rsbsa));
+    return;
+  }
+  const merged = [...checkedRsbsa.value];
+  selectableManualRows.value.forEach((row) => {
+    if (!merged.includes(row.rsbsa_no)) merged.push(row.rsbsa_no);
+  });
+  checkedRsbsa.value = merged;
+};
+
+const addSelectedToMasterlist = async () => {
+  if (!programId.value || !checkedRsbsa.value.length || manualStockBlocked.value) return;
+  selecting.value = true;
+  try {
+    const res = await submitManualSelection(programId.value, checkedRsbsa.value);
+    await toast(res?.message || 'Farmers added to the masterlist.', 'success');
+    checkedRsbsa.value = [];
+    await fetchMasterlist();
+    await loadEligibleFarmers();
+  } catch (e: any) {
+    await toast(e?.response?.data?.message || 'Could not save the selection.', 'danger');
+  } finally {
+    selecting.value = false;
+  }
+};
+
+const exportDraft = async () => {
+  await exportSubsidyMasterlistExcel({
+    filename: `${(program.program_name || 'subsidy-masterlist').replace(/\s+/g, '-')}.xlsx`,
+    programName: program.program_name || 'Subsidy Program',
+    unit: program.unit_of_measurement || 'Bags',
+    secondaryUnit: program.secondary_unit,
+    rows: rows.value,
+  });
+};
+
+const publishMasterlist = async () => {
+  if (!programId.value || isMockData.value) return;
+  publishing.value = true;
+  try {
+    if (program.status === 'Draft') {
+      const res = await apiClient.patch(`/subsidies/${programId.value}/status`, { status: 'Active' });
+      program.status = res.data?.data?.status || 'Active';
+    }
+    publishOpen.value = true;
+  } catch (e: any) {
+    await toast(e?.response?.data?.message || 'Could not publish the masterlist.', 'danger');
+  } finally {
+    publishing.value = false;
+  }
+};
+
+const printPickupRoster = () => {
+  document.body.classList.add('print-subsidy-roster');
+  window.print();
+  window.setTimeout(() => document.body.classList.remove('print-subsidy-roster'), 500);
+};
+
+const sendMasterlistSms = async () => {
+  if (!smsFarmerIds.value.length) return;
+  sendingSms.value = true;
+  try {
+    await apiClient.post('/broadcasts/send', {
+      message_body: `Your ${cropLabel(program.target_crop)} subsidy under "${program.program_name || 'the program'}" is ready for pickup. Bring your RSBSA ID to the MAO office.`,
+      farmer_ids: smsFarmerIds.value,
+      target_commodity: program.target_crop === 'Both' ? 'Both' : (program.target_crop || 'All'),
+    });
+    await toast('SMS alerts sent to farmers on this masterlist.', 'success');
+    publishOpen.value = false;
+  } catch (e: any) {
+    await toast(e?.response?.data?.message || 'SMS alert failed.', 'danger');
+  } finally {
+    sendingSms.value = false;
+  }
+};
+
+watch(workspaceMode, (mode) => {
+  if (mode === 'manual') loadEligibleFarmers();
+});
+
+watch(searchTerm, () => {
+  if (workspaceMode.value === 'manual') loadEligibleFarmers();
+});
+
 const viewProfile = (row: MasterlistRow) => {
   router.push({ path: '/admin/farmers', query: { search: row.rsbsa_no } });
 };
 
-onMounted(() => fetchMasterlist());
+const loadBarangayOptions = async () => {
+  if (smsBarangayOptions.value.length) return;
+  try {
+    const res = await apiClient.get('/farmers/barangays');
+    smsBarangayOptions.value = res.data?.data ?? [];
+  } catch {
+    smsBarangayOptions.value = barangayOptions.value;
+  }
+};
+
+onMounted(() => {
+  fetchMasterlist();
+  loadBarangayOptions();
+});
 </script>
 
 <style scoped>
@@ -812,6 +1273,27 @@ onMounted(() => fetchMasterlist());
 }
 .status-pill.claimed { background: #dcfce7; color: #166534; }
 .status-pill.pending { background: #fef9c3; color: #854d0e; }
+.status-pill.waitlisted { background: #ffedd5; color: #9a3412; }
+.tier-pill {
+  display: inline-block;
+  margin-right: 4px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #f1f5f9;
+  color: #475569;
+}
+.tier-pill.tier-1 { background: #fef3c7; color: #92400e; }
+.tier-pill.tier-2 { background: #fee2e2; color: #991b1b; }
+.tier-pill.tier-3 { background: #e0f2fe; color: #075985; }
+.cutoff-row td {
+  background: #fff7ed;
+  color: #9a3412;
+  font-weight: 700;
+  text-align: center;
+}
+.mode-toggle { --background: #fff; }
 
 .icon-btn {
   border: none;
@@ -854,10 +1336,35 @@ onMounted(() => fetchMasterlist());
 }
 
 /* ── Print (Liquidation PDF export) ─────────────────────────────────── */
+.qr-roster-print { display: none; }
+.qr-grid { display: flex; flex-wrap: wrap; gap: 12px; }
+.qr-card {
+  width: 180px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px;
+  text-align: center;
+}
+.qr-name { margin: 6px 0 0; font-weight: 800; font-size: 12px; }
+.qr-meta { margin: 0; font-size: 11px; color: #475569; }
+
 @media print {
-  ion-header, .tool-bar, .icon-btn { display: none !important; }
+  ion-header, .tool-bar, .icon-btn, .mode-toggle { display: none !important; }
   .ms-shell { padding: 0; }
   .grid-shell { border: none; }
   .excel-table thead th { position: static; background: #1a4731 !important; color: #fff !important; }
+}
+</style>
+
+<style>
+@media print {
+  body.print-subsidy-roster ion-header,
+  body.print-subsidy-roster .ms-shell,
+  body.print-subsidy-roster ion-modal {
+    display: none !important;
+  }
+  body.print-subsidy-roster .qr-roster-print {
+    display: block !important;
+  }
 }
 </style>

@@ -153,7 +153,7 @@
         <div v-if="searching" class="hint">Searching…</div>
         <ul v-if="searchResults.length" class="suggest">
           <li v-for="f in searchResults" :key="f.id" @click="selectSearchedFarmer(f)">
-            <strong>{{ formatName(f) }}</strong>
+            <strong>{{ formatName(f) }} <UnverifiedWalkInChip :show="f.is_temporary" /></strong>
             <span>{{ f.rsbsa_no || 'No RSBSA' }} · {{ f.permanent_brgy || f.barangay || '—' }}</span>
           </li>
         </ul>
@@ -189,6 +189,12 @@
         Cancel
       </ion-button>
     </div>
+    <AdminOverrideModal
+      :is-open="overrideOpen"
+      :error="overrideError"
+      @cancel="onOverrideCancel"
+      @confirm="onOverrideConfirm"
+    />
   </component>
 </template>
 
@@ -207,6 +213,8 @@ import {
 import { getPrograms, lookupFarmer, searchFarmers, isOnline, isRetryableSyncError, getCachedSubsidyBeneficiary, programHasCachedBeneficiaries } from '@/services/syncService';
 import { scanFarmerQr, showScannerBackground, stopLiveQrScan } from '@/composables/useNativeHardware';
 import { claimSubsidyRelease, type SubsidyClaimData } from '@/composables/useSubsidyClaim';
+import AdminOverrideModal from '@/components/AdminOverrideModal.vue';
+import UnverifiedWalkInChip from '@/components/UnverifiedWalkInChip.vue';
 import { useDistributionStore, type ReleaseContext } from '@/stores/distributionStore';
 import { useAuthStore } from '@/stores/authStore';
 import apiClient from '@/utils/axios';
@@ -230,6 +238,9 @@ const isScanning = ref(false);
 const lookingUp = ref(false);
 const searching = ref(false);
 const claiming = ref(false);
+const overrideOpen = ref(false);
+const overrideError = ref('');
+let overrideResolver: ((value: { password: string; reason: string } | null) => void) | null = null;
 const changingProgram = ref(false);
 const searchQuery = ref('');
 const searchResults = ref<any[]>([]);
@@ -479,7 +490,30 @@ const applyStockFromClaim = (data?: SubsidyClaimData) => {
   }
 };
 
-const claimForCurrentFarmer = async () => {
+const requestOverride = (message = ''): Promise<{ password: string; reason: string; reason_code: string; notes: string } | null> => {
+  overrideError.value = message;
+  return new Promise((resolve) => {
+    overrideResolver = resolve;
+    overrideOpen.value = true;
+  });
+};
+
+const onOverrideConfirm = (payload: { password: string; reason: string; reason_code: string; notes: string }) => {
+  const resolve = overrideResolver;
+  overrideResolver = null;
+  overrideOpen.value = false;
+  resolve?.(payload);
+};
+
+const onOverrideCancel = () => {
+  overrideOpen.value = false;
+  if (!overrideResolver) return;
+  const resolve = overrideResolver;
+  overrideResolver = null;
+  resolve(null);
+};
+
+const claimForCurrentFarmer = async (presetOverride?: { password: string; reason: string; reason_code: string; notes: string } | null) => {
   if (!farmer.value || !selectedProgramId.value || claiming.value) return;
   if (isRffaBlocked.value) {
     await toast('This farmer is not eligible for RFFA.', 'danger');
@@ -489,6 +523,13 @@ const claimForCurrentFarmer = async () => {
   const program = selectedProgram.value;
   const source: 'subsidy' | 'program' = program?.source === 'subsidy' ? 'subsidy' : 'program';
   const farmerName = farmerDisplayName.value;
+
+  let override = presetOverride ?? null;
+  if (farmer.value?.is_temporary && !override) {
+    override = await requestOverride();
+    if (!override) return;
+  }
+
   claiming.value = true;
 
   try {
@@ -533,6 +574,13 @@ const claimForCurrentFarmer = async () => {
       }
     }
 
+    if (override) {
+      ctx.override_password = override.password;
+      ctx.override_reason = override.reason;
+      ctx.override_reason_code = override.reason_code;
+      ctx.override_justification = override.notes;
+    }
+
     distributionStore.setContext(ctx);
     const result = await claimSubsidyRelease(ctx);
     const farmerRow = farmer.value;
@@ -563,6 +611,14 @@ const claimForCurrentFarmer = async () => {
       await toast('Queued offline. Will sync when back online.', 'warning');
     }
   } catch (err: any) {
+    if (err?.response?.data?.code === 'ADMIN_OVERRIDE_REQUIRED') {
+      const again = await requestOverride(err?.response?.data?.message || 'Admin override is required.');
+      if (again) {
+        claiming.value = false;
+        await claimForCurrentFarmer(again);
+        return;
+      }
+    }
     await toast(err?.response?.data?.message || 'Release failed. Please try again.', 'danger');
   } finally {
     claiming.value = false;

@@ -27,17 +27,21 @@
               @ionInput="(e: any) => farmerSearch.onQueryInput(e.detail.value || '')"
             ></ion-input>
             <div v-if="farmerSearch.searching.value" class="hint">Searching…</div>
-            <ul v-if="farmerSearch.results.value.length" class="suggest">
+            <ul v-if="farmerSearch.results.value.length || farmerSearch.canEnlistWalkIn.value" class="suggest">
               <li v-for="f in farmerSearch.results.value" :key="f.id" @click="onSelectFarmer(f)">
-                <strong>{{ farmerDisplayName(f) }}</strong>
+                <strong>{{ farmerDisplayName(f) }} <UnverifiedWalkInChip :show="f.is_temporary" /></strong>
                 <span>{{ f.rsbsa_no || 'No RSBSA' }} · {{ f.barangay }}</span>
+              </li>
+              <li v-if="farmerSearch.canEnlistWalkIn.value" class="walkin-enlist" @click="openWalkIn">
+                <strong>+ Enlist “{{ farmerSearch.query.value.trim() }}” as Manual Walk-in</strong>
+                <span>Not in RSBSA — create a provisional profile</span>
               </li>
             </ul>
           </div>
 
           <div class="demo-grid" v-if="farmerSearch.selected.value">
             <div class="ro"><span class="lbl">RSBSA</span><span>{{ form.rsbsa_no }}</span></div>
-            <div class="ro"><span class="lbl">Last Name</span><span>{{ form.surname }}</span></div>
+            <div class="ro"><span class="lbl">Last Name</span><span>{{ form.surname }} <UnverifiedWalkInChip :show="farmerSearch.selected.value?.is_temporary" /></span></div>
             <div class="ro"><span class="lbl">First Name</span><span>{{ form.first_name }}</span></div>
             <div class="ro"><span class="lbl">Middle Name</span><span>{{ form.middle_name || '—' }}</span></div>
             <div class="ro"><span class="lbl">Ext</span><span>{{ form.ext_name || '—' }}</span></div>
@@ -65,19 +69,21 @@
                 {{ p.location_brgy || 'Plot' }} · {{ p.commodity }} · {{ p.size_ha }} ha
               </ion-select-option>
             </ion-select>
-            <ion-select
+            <HvccCropSelector
+              v-model:crop="form.crop_type"
+              v-model:category="form.crop_category"
+              v-model:commodity="form.hvcc_commodity"
+            />
+            <VarietyField v-if="form.crop_type !== 'HVCC'" v-model="form.variety" :crop="form.crop_type" label="Seed Variety" select-class="field" />
+            <ion-input
+              v-if="showHills"
               class="field"
-              label="Crop Type"
+              type="number"
+              label="Number of Hills/Trees"
               label-placement="stacked"
-              interface="popover"
-              :value="form.crop_type"
-              @ionChange="(e: any) => form.crop_type = e.detail.value"
-            >
-              <ion-select-option value="Rice">Rice</ion-select-option>
-              <ion-select-option value="Corn">Corn</ion-select-option>
-              <ion-select-option value="High-Value">High-Value</ion-select-option>
-            </ion-select>
-            <VarietyField v-model="form.variety" :crop="form.crop_type" label="Seed Variety" select-class="field" />
+              :value="form.num_hills_trees"
+              @ionInput="(e: any) => form.num_hills_trees = e.detail.value"
+            ></ion-input>
             <ion-input class="field" type="number" label="Area (Hectares)" label-placement="stacked" :value="form.area_ha" @ionInput="onAreaHaInput"></ion-input>
             <ion-select
               class="field"
@@ -111,7 +117,7 @@
           </div>
           <ul v-if="entries.length" class="entry-actions">
             <li v-for="(e, i) in entries" :key="e.id">
-              <span>{{ i + 1 }}. {{ e.surname }}, {{ e.first_name }} — {{ e.crop_type }}</span>
+              <span>{{ i + 1 }}. {{ e.surname }}, {{ e.first_name }} — {{ e.crop_type }} <UnverifiedWalkInChip :show="e.is_temporary" /></span>
               <ReportRowActions
                 :can-edit="false"
                 @remove="promptDelete({ endpoint: `/standing-crop-logs/${e.id}`, label: 'Standing crop entry', onSuccess: async () => { entries.splice(i, 1); } })"
@@ -130,6 +136,16 @@
       </div>
     </component>
 
+    <ManualWalkInModal
+      :is-open="walkInOpen"
+      :initial-query="farmerSearch.query.value"
+      :commodity="form.crop_type"
+      :barangay-name="effectiveBarangay || ''"
+      :saving="walkInSaving"
+      :error="walkInError"
+      @cancel="walkInOpen = false"
+      @submit="onWalkInSubmit"
+    />
     <ConfirmDeleteModal
       :is-open="deleteOpen"
       @confirm="confirmDelete"
@@ -155,7 +171,12 @@ import {
   formatBirthday,
   farmerDisplayName,
   type FarmerOption,
+  type ManualWalkInPayload,
 } from '@/composables/useBarangayFarmerSearch';
+import ManualWalkInModal from '@/components/ManualWalkInModal.vue';
+import UnverifiedWalkInChip from '@/components/UnverifiedWalkInChip.vue';
+import HvccCropSelector from '@/components/HvccCropSelector.vue';
+import { isTreeFruitCategory } from '@/constants/hvccCatalog';
 import { useActivePlanting, stageSelectValue, isHarvestReady } from '@/composables/useActivePlanting';
 import apiClient from '@/utils/axios';
 import { toast } from '@/utils/toast';
@@ -176,6 +197,7 @@ interface StandingCropEntry {
   id: string;
   rsbsa_no: string;
   surname: string;
+  is_temporary?: boolean;
   first_name: string;
   middle_name: string;
   ext_name: string;
@@ -194,10 +216,14 @@ const {
   loadingBarangays,
   effectiveBarangay,
   canEncode,
+  payloadBarangayName,
 } = useEncodingBarangay();
 const farmerSearch = useBarangayFarmerSearch(() => effectiveBarangay.value, {
   commodity: () => form.crop_type,
 });
+const walkInOpen = ref(false);
+const walkInSaving = ref(false);
+const walkInError = ref('');
 const { fetchActivePlanting } = useActivePlanting();
 const harvestReadyHint = ref('');
 
@@ -234,12 +260,16 @@ const form = reactive({
   plot_id: '',
   farm_location: '',
   crop_type: 'Rice',
+  crop_category: '',
+  hvcc_commodity: '',
+  num_hills_trees: '',
   variety: '',
   area_ha: '',
   growth_stage: 'Vegetative',
   est_harvest_date: '',
 });
 
+const showHills = computed(() => form.crop_type === 'HVCC' && isTreeFruitCategory(form.crop_category));
 const selectedPlotSize = computed(() =>
   plotSizeHa(farmerSearch.selected.value?.plots?.find((x) => x.id === form.plot_id))
 );
@@ -248,7 +278,7 @@ const onAreaHaInput = (e: any) => {
 };
 
 const canAdd = computed(() =>
-  canEncode.value && !!form.farmer_id && !!form.area_ha && !!form.variety && !!form.est_harvest_date && !saving.value
+  canEncode.value && !!form.farmer_id && !!form.area_ha && (form.crop_type === 'HVCC' ? !!form.hvcc_commodity : !!form.variety) && !!form.est_harvest_date && !saving.value
 );
 
 onMounted(() => {
@@ -277,6 +307,7 @@ const loadLedger = async () => {
         id: r.id,
         rsbsa_no: farmer.rsbsa_no || '',
         surname: farmer.surname || '',
+        is_temporary: Boolean(farmer.is_temporary),
         first_name: farmer.first_name || '',
         middle_name: farmer.middle_name || '',
         ext_name: farmer.ext_name || '',
@@ -296,6 +327,30 @@ const loadLedger = async () => {
 const onTargetBarangayChange = () => {
   resetForm();
   void loadLedger();
+};
+
+const openWalkIn = () => {
+  if (!canEncode.value) return;
+  walkInError.value = '';
+  walkInOpen.value = true;
+};
+
+const onWalkInSubmit = async (fields: Omit<ManualWalkInPayload, 'commodity' | 'barangay_name'>) => {
+  walkInSaving.value = true;
+  walkInError.value = '';
+  try {
+    const farmer = await farmerSearch.enlistManualWalkIn({
+      ...fields,
+      commodity: form.crop_type,
+      barangay_name: payloadBarangayName() || effectiveBarangay.value || undefined,
+    });
+    walkInOpen.value = false;
+    await onSelectFarmer(farmer);
+  } catch (err: any) {
+    walkInError.value = err?.message || 'Could not enlist this farmer.';
+  } finally {
+    walkInSaving.value = false;
+  }
 };
 
 const onSelectFarmer = async (f: FarmerOption) => {
@@ -392,7 +447,10 @@ const addEntry = async () => {
       farmer_id: form.farmer_id,
       farm_plot_id: form.plot_id || undefined,
       crop_type: form.crop_type,
-      variety: form.variety,
+      crop_category: form.crop_type === 'HVCC' ? form.crop_category : null,
+      hvcc_commodity: form.crop_type === 'HVCC' ? form.hvcc_commodity : null,
+      num_hills_trees: showHills.value && form.num_hills_trees ? Number(form.num_hills_trees) : null,
+      variety: form.crop_type === 'HVCC' ? (form.variety || form.hvcc_commodity) : form.variety,
       area_ha: Number(form.area_ha),
       growth_stage: form.growth_stage,
       est_harvest_date: form.est_harvest_date,
@@ -402,6 +460,7 @@ const addEntry = async () => {
       id,
       rsbsa_no: form.rsbsa_no,
       surname: form.surname,
+      is_temporary: farmerSearch.selected.value?.is_temporary,
       first_name: form.first_name,
       middle_name: form.middle_name,
       ext_name: form.ext_name,
@@ -510,6 +569,8 @@ const downloadExcel = async () => {
 .suggest li:hover { background: #e8f5e9; }
 .suggest li strong { white-space: normal; overflow: visible; font-size: 0.9rem; color: #0f172a; }
 .suggest li span { font-size: 0.78rem; color: #64748b; white-space: normal; overflow: visible; }
+.walkin-enlist { background: #fffbeb; }
+.walkin-enlist strong { color: #92400e; }
 
 .demo-grid { margin-bottom: 0.75rem; }
 .ro {
