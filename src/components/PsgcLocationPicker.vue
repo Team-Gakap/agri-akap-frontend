@@ -49,7 +49,7 @@
         />
         <SearchableSelect
           :model-value="province"
-          :label="isBirthplace ? 'Place of Birth (Province)' : 'Province'"
+          :label="isBirthplace ? 'Province' : 'Province'"
           placeholder="Select province…"
           :options="provinceNames"
           :required="required"
@@ -58,7 +58,7 @@
         />
         <SearchableSelect
           :model-value="city"
-          :label="isBirthplace ? 'Place of Birth (City/Municipality)' : 'Municipality / City'"
+          :label="isBirthplace ? 'Municipality / City' : 'Municipality / City'"
           placeholder="Select city…"
           :options="cityNames"
           :required="required"
