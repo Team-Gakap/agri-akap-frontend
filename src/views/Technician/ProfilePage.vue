@@ -58,6 +58,34 @@
           </ion-item>
         </ion-list>
 
+        <template v-if="isWeb">
+          <h3 class="section-head mt-4">Mobile App</h3>
+          <ion-list class="detail-list" inset>
+            <ion-item lines="none">
+              <ion-icon :icon="phonePortraitOutline" slot="start" color="primary"></ion-icon>
+              <ion-label>
+                <p class="detail-label">Technician app</p>
+                <h4 class="detail-value">{{ mobileAppVersion ? `Version ${mobileAppVersion}` : 'Checking availability…' }}</h4>
+              </ion-label>
+            </ion-item>
+          </ion-list>
+          <ion-button
+            expand="block"
+            class="download-apk-btn"
+            :disabled="isDownloadingApk || !apkAvailable"
+            @click="downloadApk"
+          >
+            <ion-icon :icon="downloadOutline" slot="start"></ion-icon>
+            {{ isDownloadingApk ? 'Preparing download…' : 'Download Technician App (.apk)' }}
+          </ion-button>
+          <ion-note v-if="mobileAppVersion && !apkAvailable" color="medium" class="apk-error">
+            The technician app has not been published yet.
+          </ion-note>
+          <ion-note v-if="apkDownloadError" color="danger" class="apk-error">
+            {{ apkDownloadError }}
+          </ion-note>
+        </template>
+
         <ion-button expand="block" fill="outline" class="change-pw-btn" @click="goChangePassword">
           <ion-icon :icon="lockClosedOutline" slot="start"></ion-icon>
           Change password
@@ -75,22 +103,64 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
+import { Capacitor } from '@capacitor/core';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent,
-  IonList, IonItem, IonLabel, IonIcon, IonChip, IonBadge, IonButton, alertController,
+  IonList, IonItem, IonLabel, IonIcon, IonChip, IonBadge, IonButton, IonNote, alertController,
 } from '@ionic/vue';
 import {
   personOutline, mailOutline, shieldCheckmarkOutline, logOutOutline,
   cloudDoneOutline, cloudOfflineOutline, cloudUploadOutline, lockClosedOutline,
+  downloadOutline, phonePortraitOutline,
 } from 'ionicons/icons';
 import { useAuthStore } from '@/stores/authStore';
 import { useSyncStore } from '@/stores/syncStore';
+import apiClient from '@/utils/axios';
 
 const router = useRouter();
 const authStore = useAuthStore();
 const syncStore = useSyncStore();
+const isWeb = !Capacitor.isNativePlatform();
+const mobileAppVersion = ref('');
+const apkAvailable = ref(false);
+const isDownloadingApk = ref(false);
+const apkDownloadError = ref('');
+
+onMounted(async () => {
+  if (!isWeb) return;
+
+  try {
+    const { data } = await apiClient.get('/mobile/version');
+    mobileAppVersion.value = data.latest_version;
+    apkAvailable.value = data.apk_available;
+  } catch {
+    apkDownloadError.value = 'Could not check mobile app availability.';
+  }
+});
+
+const downloadApk = async () => {
+  if (isDownloadingApk.value || !apkAvailable.value) return;
+
+  isDownloadingApk.value = true;
+  apkDownloadError.value = '';
+  try {
+    const { data } = await apiClient.get('/mobile/download-apk', { responseType: 'blob' });
+    const url = URL.createObjectURL(data);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'AGRI-AKAP-Technician.apk';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch {
+    apkDownloadError.value = 'The mobile app download failed. Please try again later.';
+  } finally {
+    isDownloadingApk.value = false;
+  }
+};
 
 const fullName = computed(() => authStore.userName ?? (authStore.user as any)?.name ?? 'Field Staff');
 const email = computed(() => (authStore.user as any)?.email ?? '—');
@@ -175,6 +245,8 @@ const confirmLogout = async () => {
 .detail-value { font-size: 0.95rem; font-weight: 700; color: #0f172a; margin: 0; }
 
 .logout-btn { margin-top: 0.75rem; --border-radius: 12px; font-weight: 800; }
+.download-apk-btn { margin: 0 1rem; --border-radius: 8px; --background: #1a4731; font-weight: 800; }
+.apk-error { display: block; margin: 0.5rem 1rem; }
 .change-pw-btn {
   margin-top: 1.75rem;
   --border-radius: 12px;
