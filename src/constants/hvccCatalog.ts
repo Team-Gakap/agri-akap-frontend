@@ -73,20 +73,68 @@ export function isHvccCrop(crop?: string | null): boolean {
   return key === 'hvcc' || key.startsWith('hvcc ');
 }
 
-/** Grid / export label: "HVCC (Banana)" or the plain Rice/Corn string. */
+function hvccCommodityFromRow(row: {
+  hvcc_commodity?: string | null;
+  crop_category?: string | null;
+  variety?: string | null;
+}): string {
+  const commodity = String(row.hvcc_commodity || '').trim();
+  if (commodity && commodity.toLowerCase() !== 'hvcc') return commodity;
+
+  const category = String(row.crop_category || '').trim();
+  if (category && !hvccCategories().some((name) => name.toLowerCase() === category.toLowerCase())) {
+    return category;
+  }
+
+  const variety = String(row.variety || '').trim();
+  if (variety && isHvccCommodity(variety)) return variety;
+
+  return '';
+}
+
+/** Grid / export label: "HVCC - Pineapple" or the plain Rice/Corn string. */
 export function formatCropLabel(row: {
   crop?: string | null;
   crop_type?: string | null;
   hvcc_commodity?: string | null;
   crop_category?: string | null;
+  variety?: string | null;
 }): string {
   const crop = String(row.crop_type || row.crop || '').trim();
   if (!isHvccCrop(crop) && crop.toLowerCase() !== 'high-value' && crop.toLowerCase() !== 'high-value crops') {
     return crop || '—';
   }
-  const detail = String(row.hvcc_commodity || row.crop_category || '').trim();
-  if (detail && detail.toLowerCase() !== 'hvcc') return `HVCC (${detail})`;
+  const detail = hvccCommodityFromRow(row);
+  if (detail) return `HVCC - ${detail}`;
   return 'HVCC';
+}
+
+/**
+ * Variety cell for grids/exports.
+ * HVCC rows that stored the commodity in `variety` show "—" instead of repeating the crop.
+ */
+export function formatVarietyLabel(row: {
+  crop?: string | null;
+  crop_type?: string | null;
+  hvcc_commodity?: string | null;
+  crop_category?: string | null;
+  variety?: string | null;
+}): string {
+  const variety = String(row.variety || '').trim();
+  const crop = String(row.crop_type || row.crop || '').trim();
+  const isHvcc = isHvccCrop(crop)
+    || crop.toLowerCase() === 'high-value'
+    || crop.toLowerCase() === 'high-value crops'
+    || !!String(row.hvcc_commodity || '').trim();
+
+  if (!isHvcc) return variety || '—';
+
+  if (!variety) return '—';
+
+  const commodity = hvccCommodityFromRow(row);
+  if (commodity && variety.toLowerCase() === commodity.toLowerCase()) return '—';
+
+  return variety;
 }
 
 export function registryBadgeLabel(row: {

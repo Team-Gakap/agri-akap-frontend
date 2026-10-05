@@ -162,7 +162,7 @@
                   <td>{{ row.middle_name || '—' }}</td>
                   <td>{{ row.farm_location }}</td>
                   <td>{{ formatCropLabel(row) }}</td>
-                  <td>{{ row.variety }}</td>
+                  <td>{{ formatVarietyLabel(row) }}</td>
                   <td class="col-num">{{ fmtNum(row.area_planted) }}</td>
                   <td class="mono">{{ fmtDate(row.date_planted) }}</td>
                   <td>{{ row.status || '—' }}</td>
@@ -218,7 +218,7 @@
                   <td>{{ row.middle_name || '—' }}</td>
                   <td>{{ row.farm_location }}</td>
                   <td>{{ formatCropLabel(row) }}</td>
-                  <td>{{ row.variety }}</td>
+                  <td>{{ formatVarietyLabel(row) }}</td>
                   <td class="col-num">{{ fmtNum(row.area_harvested) }}</td>
                   <td class="col-num">{{ fmtNum(row.total_yield) }}</td>
                   <td class="mono">{{ fmtDate(row.date_harvested) }}</td>
@@ -299,7 +299,7 @@ import {
 import { addCircleOutline } from 'ionicons/icons';
 import FormExportActions from '@/components/FormExportActions.vue';
 import { exportAdminGridExcel } from '@/utils/statutoryFormExcel';
-import { allHvccCommodities, formatCropLabel, isHvccCrop, registryBadgeLabel } from '@/constants/hvccCatalog';
+import { allHvccCommodities, formatCropLabel, formatVarietyLabel, isHvccCrop, registryBadgeLabel } from '@/constants/hvccCatalog';
 import UnverifiedWalkInChip from '@/components/UnverifiedWalkInChip.vue';
 import apiClient from '@/utils/axios';
 import ReportEncodeModal from '@/components/ReportEncodeModal.vue';
@@ -603,6 +603,7 @@ async function downloadExcel() {
     getCellValue(row, key, index) {
       if (key === 'no') return index + 1;
       if (key === 'crop') return formatCropLabel(row as any);
+      if (key === 'variety') return formatVarietyLabel(row as any);
       if (key === 'rsbsa_no') return String(row.rsbsa_no || registryBadgeLabel(row as any) || 'UNREGISTERED');
       if (key === 'num_hills_trees') {
         if (!isHvccCrop(String(row.crop || '')) || row.num_hills_trees == null || row.num_hills_trees === '') return '';

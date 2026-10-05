@@ -157,8 +157,8 @@
                     <td>{{ row.middle_name }}</td>
                     <td>{{ row.ext_name }}</td>
                     <td>{{ row.farm_location }}</td>
-                    <td>{{ row.crop_type }}</td>
-                    <td>{{ row.variety }}</td>
+                    <td>{{ formatCropLabel(row) }}</td>
+                    <td>{{ formatVarietyLabel(row) }}</td>
                     <td class="col-num">{{ Number(row.area_ha).toFixed(2) }}</td>
                     <td>{{ row.growth_stage }}</td>
                     <td class="mono">{{ row.est_harvest_date }}</td>
@@ -202,8 +202,8 @@
                     <td>{{ row.middle_name }}</td>
                     <td>{{ row.ext_name }}</td>
                     <td>{{ row.farm_location }}</td>
-                    <td>{{ row.crop_type }}</td>
-                    <td>{{ row.variety }}</td>
+                    <td>{{ formatCropLabel(row) }}</td>
+                    <td>{{ formatVarietyLabel(row) }}</td>
                     <td class="col-num">{{ Number(row.area_harvested).toFixed(2) }}</td>
                     <td>{{ row.yield_display }}</td>
                     <td class="mono">{{ row.date_of_harvest }}</td>
@@ -277,7 +277,7 @@ import { computed, defineAsyncComponent, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { IonPage, IonContent, IonButton, IonSpinner } from '@ionic/vue';
 import FormExportActions from '@/components/FormExportActions.vue';
-import { allHvccCommodities } from '@/constants/hvccCatalog';
+import { allHvccCommodities, formatCropLabel, formatVarietyLabel } from '@/constants/hvccCatalog';
 import EncodingBarangaySelector from '@/components/EncodingBarangaySelector.vue';
 import { useEncodingBarangay } from '@/composables/useEncodingBarangay';
 import { formatBirthday } from '@/composables/useBarangayFarmerSearch';
@@ -322,6 +322,8 @@ interface LedgerRow {
   farm_location: string;
   crop: string;
   crop_type: string;
+  hvcc_commodity: string;
+  crop_category: string;
   variety: string;
   area_planted: number;
   date_of_planting: string;
@@ -395,6 +397,8 @@ const emptyRow = (): LedgerRow => ({
   farm_location: '',
   crop: '',
   crop_type: '',
+  hvcc_commodity: '',
+  crop_category: '',
   variety: '',
   area_planted: 0,
   date_of_planting: '',
@@ -425,6 +429,8 @@ const mapPlanting = (r: any): LedgerRow => {
     farm_location: r.farm_location || r.farm_plot?.location_brgy || farmer.permanent_brgy || '',
     crop: r.crop_type || 'Rice',
     crop_type: r.crop_type || 'Rice',
+    hvcc_commodity: r.hvcc_commodity || '',
+    crop_category: r.crop_category || '',
     variety: r.variety || '',
     area_planted: Number(r.area_planted) || 0,
     date_of_planting: sliceDate(r.date_planted),
@@ -447,6 +453,8 @@ const mapStanding = (r: any): LedgerRow => {
     farm_location: r.farm_location || r.farm_plot?.location_brgy || farmer.permanent_brgy || '',
     crop: r.crop_type || 'Rice',
     crop_type: r.crop_type || 'Rice',
+    hvcc_commodity: r.hvcc_commodity || '',
+    crop_category: r.crop_category || '',
     variety: r.variety || '',
     area_ha: Number(r.area_ha) || 0,
     growth_stage: r.growth_stage || '',
@@ -469,6 +477,8 @@ const mapHarvest = (r: any): LedgerRow => {
     farm_location: r.farm_location || r.farm_plot?.location_brgy || farmer.permanent_brgy || '',
     crop: r.crop_type || 'Rice',
     crop_type: r.crop_type || 'Rice',
+    hvcc_commodity: r.hvcc_commodity || '',
+    crop_category: r.crop_category || '',
     variety: r.variety || '',
     area_harvested: Number(r.area_harvested) || 0,
     yield_amount: amount,

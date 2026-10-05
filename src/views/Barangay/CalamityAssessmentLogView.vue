@@ -213,7 +213,11 @@
               v-model:category="form.crop_category"
               v-model:commodity="form.hvcc_commodity"
             />
-            <VarietyField v-if="form.crop_type !== 'HVCC'" v-model="form.variety" :crop="form.crop_type" select-class="field" />
+            <VarietyField
+              v-model="form.variety"
+              :crop="form.crop_type === 'HVCC' ? (form.hvcc_commodity || 'HVCC') : form.crop_type"
+              select-class="field"
+            />
             <ion-input
               v-if="showHills"
               class="field"
@@ -498,13 +502,16 @@ const autoYieldHint = computed(() => {
 const canAdd = computed(() => {
   const typeOk = !!form.calamity_type;
   const otherOk = form.calamity_type !== CALAMITY_TYPE_OTHER || !!form.calamity_other_detail.trim();
+  const cropOk = form.crop_type === 'HVCC'
+    ? !!form.hvcc_commodity.trim()
+    : !!form.variety.trim();
   return canEncode.value
     && typeOk
     && otherOk
     && !!form.calamity_date
     && !!form.farmer_id
     && !!form.plot_id
-    && !!form.variety.trim()
+    && cropOk
     && !!form.area_planted
     && !!form.area_damaged
     && form.est_yield_loss_pct !== ''
@@ -737,7 +744,7 @@ const addEntry = async () => {
       crop_category: form.crop_type === 'HVCC' ? form.crop_category : null,
       hvcc_commodity: form.crop_type === 'HVCC' ? form.hvcc_commodity : null,
       num_hills_trees: showHills.value && form.num_hills_trees ? Number(form.num_hills_trees) : null,
-      variety: form.variety.trim() || (form.crop_type === 'HVCC' ? form.hvcc_commodity : ''),
+      variety: form.variety.trim() || null,
       area_destroyed_ha: Number(form.area_damaged),
       area_planted_ha: Number(form.area_planted),
       date_of_calamity: form.calamity_date,

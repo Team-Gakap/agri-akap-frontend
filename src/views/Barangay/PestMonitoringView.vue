@@ -178,7 +178,11 @@
               </ion-select-option>
             </ion-select>
             <ion-input class="field" type="number" label="Area Planted (ha)" label-placement="stacked" :value="form.area_planted" @ionInput="onAreaPlantedInput"></ion-input>
-            <VarietyField v-model="form.variety" :crop="crop" select-class="field" />
+            <VarietyField
+              v-model="form.variety"
+              :crop="crop === 'HVCC' ? (hvccCommodity || 'HVCC') : crop"
+              select-class="field"
+            />
             <ion-select
               class="field"
               label="Crop Stage"

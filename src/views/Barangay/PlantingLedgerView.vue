@@ -97,7 +97,11 @@
               </ion-select-option>
             </ion-select>
             <ion-input class="field" type="number" label="Area Planted (ha)" label-placement="stacked" :value="form.area_planted" @ionInput="onAreaPlantedInput"></ion-input>
-            <VarietyField v-if="crop !== 'HVCC'" v-model="form.variety" :crop="crop" select-class="field" />
+            <VarietyField
+              v-model="form.variety"
+              :crop="crop === 'HVCC' ? (hvccCommodity || 'HVCC') : crop"
+              select-class="field"
+            />
             <ion-input
               v-if="showHills"
               class="field"
@@ -461,7 +465,7 @@ const addEntry = async () => {
       crop_category: crop.value === 'HVCC' ? cropCategory.value : null,
       hvcc_commodity: crop.value === 'HVCC' ? hvccCommodity.value : null,
       num_hills_trees: showHills.value && form.num_hills_trees ? Number(form.num_hills_trees) : null,
-      variety: (crop.value === 'HVCC' ? (form.variety.trim() || hvccCommodity.value) : form.variety.trim()),
+      variety: form.variety.trim() || null,
       area_planted: Number(form.area_planted),
       date_planted: form.date_of_planting,
       status: form.planting_status,

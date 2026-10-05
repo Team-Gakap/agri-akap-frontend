@@ -74,7 +74,11 @@
               v-model:category="form.crop_category"
               v-model:commodity="form.hvcc_commodity"
             />
-            <VarietyField v-if="form.crop_type !== 'HVCC'" v-model="form.variety" :crop="form.crop_type" select-class="field" />
+            <VarietyField
+              v-model="form.variety"
+              :crop="form.crop_type === 'HVCC' ? (form.hvcc_commodity || 'HVCC') : form.crop_type"
+              select-class="field"
+            />
             <ion-input
               v-if="showHills"
               class="field"
@@ -444,7 +448,7 @@ const addEntry = async () => {
       crop_category: form.crop_type === 'HVCC' ? form.crop_category : null,
       hvcc_commodity: form.crop_type === 'HVCC' ? form.hvcc_commodity : null,
       num_hills_trees: showHills.value && form.num_hills_trees ? Number(form.num_hills_trees) : null,
-      variety: form.crop_type === 'HVCC' ? (form.variety || form.hvcc_commodity) : form.variety,
+      variety: form.variety.trim() || null,
       area_harvested: Number(form.area_harvested),
       total_yield: Number(form.yield_amount),
       yield_unit: 'Metric Tons',

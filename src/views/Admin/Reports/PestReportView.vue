@@ -148,7 +148,7 @@
                   </td>
                   <td>{{ row.farm_location }}</td>
                   <td>{{ formatCropLabel(row) }}</td>
-                  <td>{{ row.variety || '—' }}</td>
+                  <td>{{ formatVarietyLabel(row) }}</td>
                   <td>{{ pestParts(row).pest || '—' }}</td>
                   <td>{{ pestParts(row).disease || '—' }}</td>
                   <td>
@@ -281,7 +281,7 @@ import { addCircleOutline } from 'ionicons/icons';
 import FormExportActions from '@/components/FormExportActions.vue';
 import { exportAdminGridExcel } from '@/utils/statutoryFormExcel';
 import apiClient from '@/utils/axios';
-import { allHvccCommodities, formatCropLabel, registryBadgeLabel } from '@/constants/hvccCatalog';
+import { allHvccCommodities, formatCropLabel, formatVarietyLabel, registryBadgeLabel } from '@/constants/hvccCatalog';
 import UnverifiedWalkInChip from '@/components/UnverifiedWalkInChip.vue';
 import { storageUrl } from '@/utils/storageUrl';
 import ReportEncodeModal from '@/components/ReportEncodeModal.vue';
@@ -535,6 +535,7 @@ async function downloadExcel() {
     getCellValue(row, key, index) {
       if (key === 'no') return index + 1;
       if (key === 'crop') return formatCropLabel(row as any);
+      if (key === 'variety') return formatVarietyLabel(row as any);
       if (key === 'rsbsa_no') return String(row.rsbsa_no || registryBadgeLabel(row as any) || 'UNREGISTERED');
       if (key === 'date_reported') return fmtDate(String(row.date_reported ?? ''));
       if (key === 'area_affected') return fmtNum(row.area_affected as number);

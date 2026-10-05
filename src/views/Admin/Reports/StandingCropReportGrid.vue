@@ -100,8 +100,8 @@
               <td>{{ row.first_name || '—' }}</td>
               <td>{{ row.middle_name || '—' }}</td>
               <td>{{ row.farm_location }}</td>
-              <td>{{ row.crop }}</td>
-              <td>{{ row.variety }}</td>
+              <td>{{ formatCropLabel(row) }}</td>
+              <td>{{ formatVarietyLabel(row) }}</td>
               <td class="col-num">{{ fmtNum(row.area_ha) }}</td>
               <td>{{ row.growth_stage }}</td>
               <td class="mono">{{ fmtDate(row.est_harvest_date) }}</td>
@@ -170,6 +170,7 @@ import '@/assets/reportTableStyles.css';
 import { useReportScope, type ReportPeriod } from '@/composables/useReportScope';
 import { rowMatchesNameSearch } from '@/utils/farmerNameColumns';
 import { GROWTH_STAGE_OPTIONS } from '@/constants/reportEditOptions';
+import { formatCropLabel, formatVarietyLabel } from '@/constants/hvccCatalog';
 
 const StandingForm = defineAsyncComponent(() => import('@/views/Barangay/StandingCropLogView.vue'));
 
@@ -182,6 +183,9 @@ interface StandingRow {
   name?: string;
   farm_location: string;
   crop: string;
+  crop_type?: string;
+  hvcc_commodity?: string;
+  crop_category?: string;
   variety: string;
   area_ha: number;
   growth_stage: string;
@@ -290,6 +294,9 @@ async function fetchRows() {
         name: trim(`${farmer.first_name || ''} ${farmer.surname || ''}`),
         farm_location: r.farm_location || r.farm_plot?.location_brgy || farmer.permanent_brgy || '',
         crop: r.crop_type || '',
+        crop_type: r.crop_type || '',
+        hvcc_commodity: r.hvcc_commodity || '',
+        crop_category: r.crop_category || '',
         variety: r.variety || '',
         area_ha: Number(r.area_ha) || 0,
         growth_stage: r.growth_stage || '',
@@ -345,6 +352,8 @@ async function downloadExcel() {
     rows: filteredRows.value as Record<string, unknown>[],
     getCellValue(row, key, index) {
       if (key === 'no') return index + 1;
+      if (key === 'crop') return formatCropLabel(row as any);
+      if (key === 'variety') return formatVarietyLabel(row as any);
       if (key === 'est_harvest_date') return fmtDate(String(row[key] ?? ''));
       if (key === 'area_ha') return fmtNum(row[key] as number);
       return String(row[key] ?? '');
