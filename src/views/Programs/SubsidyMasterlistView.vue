@@ -70,15 +70,6 @@
           </div>
         </div>
 
-        <ion-segment :value="workspaceMode" class="mode-toggle" @ionChange="onModeChange">
-          <ion-segment-button value="auto">
-            <ion-label>Auto-Generate Masterlist</ion-label>
-          </ion-segment-button>
-          <ion-segment-button value="manual">
-            <ion-label>Manual Selection Grid</ion-label>
-          </ion-segment-button>
-        </ion-segment>
-
         <!-- ── Filter + Action Bar ──────────────────────────────────────── -->
         <div class="tool-bar">
           <div class="filters">
@@ -86,7 +77,7 @@
               <option value="">All Barangays</option>
               <option v-for="b in barangayOptions" :key="b" :value="b">{{ b }}</option>
             </select>
-            <select v-if="workspaceMode === 'auto'" v-model="filterStatus" class="tool-select">
+            <select v-model="filterStatus" class="tool-select">
               <option value="">All Status</option>
               <option value="Pending">Pending</option>
               <option value="Waitlisted">Waitlisted</option>
@@ -110,38 +101,6 @@
             >
               <ion-icon slot="start" :icon="playCircleOutline"></ion-icon>
               {{ activating ? 'Activating…' : 'Activate Program' }}
-            </ion-button>
-            <ion-button
-              v-if="workspaceMode === 'manual'"
-              size="small"
-              fill="outline"
-              class="act-btn"
-              @click="filterDrawerOpen = true"
-            >
-              <ion-icon slot="start" :icon="optionsOutline"></ion-icon>
-              Filters
-            </ion-button>
-            <ion-button
-              v-if="workspaceMode === 'auto'"
-              size="small"
-              fill="solid"
-              class="act-btn primary"
-              :disabled="generating || program.status === 'Completed'"
-              @click="confirmGenerate"
-            >
-              <ion-icon slot="start" :icon="syncOutline"></ion-icon>
-              Auto-Generate Masterlist
-            </ion-button>
-            <ion-button
-              v-else
-              size="small"
-              fill="solid"
-              class="act-btn primary"
-              :disabled="selecting || manualStockBlocked || !checkedRsbsa.length || program.status === 'Completed'"
-              @click="addSelectedToMasterlist"
-            >
-              <ion-icon slot="start" :icon="checkmarkCircleOutline"></ion-icon>
-              {{ selecting ? 'Saving…' : 'Add Selected to Masterlist' }}
             </ion-button>
             <ion-button size="small" fill="outline" class="act-btn" :disabled="!rows.length" @click="exportDraft">
               <ion-icon slot="start" :icon="downloadOutline"></ion-icon>
@@ -594,7 +553,7 @@ const filteredRows = computed(() => {
 
 const emptyMessage = computed(() => {
   if (!rows.value.length) {
-    return 'Masterlist is empty. Click Auto-Generate Masterlist to scan RSBSA farmers with matching Rice/Corn plots or active planting logs.';
+    return 'Masterlist is empty. Beneficiaries appear here after a regional workbook is committed for this program.';
   }
   return 'No beneficiaries match the current filters.';
 });

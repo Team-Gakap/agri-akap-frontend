@@ -98,6 +98,7 @@ const routes: Array<RouteRecordRaw> = [
       { path: "farmers/legacy", redirect: "/admin/farmers" },
       { path: "id-issuance", name: "IdIssuance", component: () => import("@/views/Farmers/IdIssuancePage.vue"), meta: { title: "ID Card Production" } },
       { path: "subsidies", name: "SubsidyPrograms", component: () => import("@/views/Programs/SubsidyProgramsView.vue"), meta: { title: "Subsidy Programs" } },
+      { path: "subsidies/import", name: "SubsidyIntake", component: () => import("@/views/Programs/SubsidyIntakeView.vue"), meta: { title: "Regional Workbook Intake" } },
       { path: "subsidies/:id/masterlist", name: "SubsidyMasterlist", component: () => import("@/views/Programs/SubsidyMasterlistView.vue"), meta: { title: "Subsidy Masterlist" } },
       { path: "broadcasts", name: "Broadcasts", component: () => import("@/views/Communication/BroadcastCenterPage.vue"), meta: { title: "Outreach & SMS" } },
       { path: "intelligence", redirect: "/admin/dashboard" },

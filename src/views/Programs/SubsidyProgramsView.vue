@@ -16,8 +16,11 @@
 
         <div v-else-if="!programs.length" class="empty-panel">
           <h2>No subsidy programs yet</h2>
-          <p>Create a Rice, Corn, or Rice and Corn program to start building an auto-generated beneficiary masterlist.</p>
-          <ion-button class="create-btn" @click="openCreate">+ New Program</ion-button>
+          <p>Upload the DA-RFO monthly workbook to create this month's subsidy programs.</p>
+          <ion-button class="create-btn" @click="openIntake">
+            <ion-icon slot="start" :icon="cloudUploadOutline"></ion-icon>
+            Upload Regional Monthly Workbook
+          </ion-button>
         </div>
 
         <div v-else class="table-wrap">
@@ -37,9 +40,9 @@
                 <span class="tab-count">{{ tab.count }}</span>
               </button>
             </div>
-            <ion-button class="create-btn" @click="openCreate">
-              <ion-icon slot="start" :icon="addOutline"></ion-icon>
-              New Program
+            <ion-button class="create-btn" @click="openIntake">
+              <ion-icon slot="start" :icon="cloudUploadOutline"></ion-icon>
+              Upload Regional Monthly Workbook
             </ion-button>
           </div>
 
@@ -169,17 +172,6 @@
                               {{ statusUpdatingId === p.id ? 'Activating…' : 'Activate Program' }}
                             </ion-label>
                           </ion-item>
-                          <ion-item
-                            button
-                            :detail="false"
-                            :disabled="p.status === 'Completed' || generatingId === p.id"
-                            @click="confirmGenerate(p)"
-                          >
-                            <ion-icon :icon="sparklesOutline" slot="start"></ion-icon>
-                            <ion-label>
-                              {{ generatingId === p.id ? 'Generating…' : 'Auto-Generate Masterlist' }}
-                            </ion-label>
-                          </ion-item>
                           <ion-item button :detail="false" @click="openRestock(p)">
                             <ion-icon :icon="cubeOutline" slot="start"></ion-icon>
                             <ion-label>Log Delivery Batch</ion-label>
@@ -214,240 +206,6 @@
           </div>
         </div>
       </div>
-
-      <ion-modal :is-open="createOpen" @didDismiss="createOpen = false">
-        <ion-header>
-          <ion-toolbar color="primary">
-            <ion-title>New Subsidy Program</ion-title>
-            <ion-buttons slot="end">
-              <ion-button @click="createOpen = false">Close</ion-button>
-            </ion-buttons>
-          </ion-toolbar>
-        </ion-header>
-        <ion-content class="ion-padding">
-          <ion-list>
-            <ion-item>
-              <ion-input
-                label="Program Name *"
-                label-placement="stacked"
-                :value="form.program_name"
-                @ionInput="(e: any) => form.program_name = e.detail.value"
-                placeholder="e.g. 2026 Wet Season Rice Seeds"
-              ></ion-input>
-            </ion-item>
-            <ion-item>
-              <ion-select
-                label="Target Crop *"
-                label-placement="stacked"
-                interface="popover"
-                :value="form.target_crop"
-                @ionChange="(e: any) => form.target_crop = e.detail.value"
-              >
-                <ion-select-option value="Rice">Rice</ion-select-option>
-                <ion-select-option value="Corn">Corn</ion-select-option>
-                <ion-select-option value="Both">Rice and Corn</ion-select-option>
-              </ion-select>
-            </ion-item>
-            <ion-item>
-              <ion-select
-                label="Seed Class *"
-                label-placement="stacked"
-                interface="popover"
-                placeholder="Choose Hybrid or Inbred"
-                :value="form.seed_class"
-                @ionChange="(e: any) => onSeedClassChange(e.detail.value)"
-              >
-                <ion-select-option v-for="sc in SEED_CLASSES" :key="sc" :value="sc">{{ sc }}</ion-select-option>
-              </ion-select>
-            </ion-item>
-            <ion-item>
-              <ion-select
-                label="Item Type *"
-                label-placement="stacked"
-                interface="popover"
-                placeholder="Choose an item"
-                :disabled="!form.seed_class"
-                :value="form.item_type"
-                @ionChange="(e: any) => onItemTypeChange(e.detail.value)"
-              >
-                <ion-select-option v-for="it in availableItemTypes" :key="it" :value="it">{{ itemTypeLabel(it) }}</ion-select-option>
-              </ion-select>
-            </ion-item>
-            <p v-if="catalogEntry" class="catalog-hint">
-              Units: <strong>{{ catalogEntry.unit }}</strong>
-              <span v-if="catalogEntry.secondaryUnit"> and <strong>{{ catalogEntry.secondaryUnit }}</strong></span>
-              — set by the MAO catalog and cannot be changed.
-            </p>
-            <ion-item>
-              <ion-input
-                type="number"
-                label="Min Hectares (0 = no floor)"
-                label-placement="stacked"
-                :value="form.min_hectares_limit"
-                @ionInput="(e: any) => form.min_hectares_limit = Number(e.detail.value)"
-                min="0"
-                step="0.01"
-              ></ion-input>
-            </ion-item>
-            <ion-item>
-              <ion-input
-                type="number"
-                label="Max Hectares Limit *"
-                label-placement="stacked"
-                :value="form.max_hectares_limit"
-                @ionInput="(e: any) => form.max_hectares_limit = Number(e.detail.value)"
-                min="0.01"
-                step="0.01"
-              ></ion-input>
-            </ion-item>
-            <ion-item>
-              <ion-input
-                type="number"
-                :label="`${primaryUnitLabel} per Hectare *`"
-                label-placement="stacked"
-                :value="form.items_per_hectare"
-                @ionInput="(e: any) => form.items_per_hectare = Number(e.detail.value)"
-                min="0.01"
-                max="100000"
-                step="0.01"
-              ></ion-input>
-            </ion-item>
-            <ion-item v-if="isDualUnit">
-              <ion-input
-                type="number"
-                :label="`${secondaryUnitLabel} per Hectare *`"
-                label-placement="stacked"
-                :value="form.secondary_items_per_hectare"
-                @ionInput="(e: any) => form.secondary_items_per_hectare = Number(e.detail.value)"
-                min="0.01"
-                step="0.01"
-              ></ion-input>
-            </ion-item>
-
-            <h3 class="section-label">Beneficiary scope</h3>
-            <div class="brgy-picker-wrap">
-              <BarangayMultiPicker
-                v-model="targetBarangays"
-                v-model:select-all="targetBarangaysSelectAll"
-                :barangays="barangayOptions"
-              />
-            </div>
-
-            <ion-item>
-              <ion-select
-                label="Initial Status"
-                label-placement="stacked"
-                interface="popover"
-                :value="form.status"
-                @ionChange="(e: any) => form.status = e.detail.value"
-              >
-                <ion-select-option value="Draft">Draft</ion-select-option>
-                <ion-select-option value="Active">Active</ion-select-option>
-              </ion-select>
-            </ion-item>
-
-            <h3 class="section-label">Warehouse Stock</h3>
-
-            <template v-if="form.seed_class && form.item_type">
-              <ion-item>
-                <ion-input
-                  type="number"
-                  :label="`Initial Stock on Hand (${primaryUnitLabel})`"
-                  label-placement="stacked"
-                  :value="form.total_quantity"
-                  @ionInput="(e: any) => form.total_quantity = Number(e.detail.value)"
-                  min="0"
-                  step="1"
-                  placeholder="0"
-                ></ion-input>
-              </ion-item>
-              <ion-item>
-                <ion-input
-                  type="number"
-                  :label="`Reorder Level (${primaryUnitLabel}, optional)`"
-                  label-placement="stacked"
-                  :value="form.reorder_level"
-                  @ionInput="(e: any) => form.reorder_level = e.detail.value === '' ? null : Number(e.detail.value)"
-                  min="0"
-                  step="1"
-                  placeholder="Alert when stock falls below this"
-                ></ion-input>
-              </ion-item>
-              <template v-if="isDualUnit">
-                <ion-item>
-                  <ion-input
-                    type="number"
-                    :label="`Initial Stock on Hand (${secondaryUnitLabel})`"
-                    label-placement="stacked"
-                    :value="form.secondary_total_quantity"
-                    @ionInput="(e: any) => form.secondary_total_quantity = Number(e.detail.value)"
-                    min="0"
-                    step="1"
-                    placeholder="0"
-                  ></ion-input>
-                </ion-item>
-                <ion-item>
-                  <ion-input
-                    type="number"
-                    :label="`Reorder Level (${secondaryUnitLabel}, optional)`"
-                    label-placement="stacked"
-                    :value="form.secondary_reorder_level"
-                    @ionInput="(e: any) => form.secondary_reorder_level = e.detail.value === '' ? null : Number(e.detail.value)"
-                    min="0"
-                    step="1"
-                    placeholder="Alert when stock falls below this"
-                  ></ion-input>
-                </ion-item>
-              </template>
-            </template>
-            <template v-else>
-              <ion-item>
-                <ion-select
-                  label="Unit of Measurement"
-                  label-placement="stacked"
-                  interface="popover"
-                  :value="form.unit_of_measurement"
-                  @ionChange="(e: any) => form.unit_of_measurement = e.detail.value"
-                >
-                  <ion-select-option value="Sacks">Sacks</ion-select-option>
-                  <ion-select-option value="Kg">Kg</ion-select-option>
-                  <ion-select-option value="Cash (PHP)">Cash (PHP)</ion-select-option>
-                </ion-select>
-              </ion-item>
-              <ion-item>
-                <ion-input
-                  type="number"
-                  label="Initial Stock on Hand"
-                  label-placement="stacked"
-                  :value="form.total_quantity"
-                  @ionInput="(e: any) => form.total_quantity = Number(e.detail.value)"
-                  min="0"
-                  step="1"
-                  placeholder="0"
-                ></ion-input>
-              </ion-item>
-              <ion-item>
-                <ion-input
-                  type="number"
-                  label="Reorder Level (optional)"
-                  label-placement="stacked"
-                  :value="form.reorder_level"
-                  @ionInput="(e: any) => form.reorder_level = e.detail.value === '' ? null : Number(e.detail.value)"
-                  min="0"
-                  step="1"
-                  placeholder="Alert when stock falls below this"
-                ></ion-input>
-              </ion-item>
-            </template>
-          </ion-list>
-
-          <p v-if="formError" class="form-error">{{ formError }}</p>
-
-          <ion-button expand="block" class="save-btn" :disabled="saving" @click="createProgram">
-            {{ saving ? 'Saving…' : 'Create Program' }}
-          </ion-button>
-        </ion-content>
-      </ion-modal>
 
       <!-- LOG DELIVERY MODAL -->
       <ion-modal :is-open="restockOpen" @didDismiss="restockOpen = false">
@@ -569,7 +327,7 @@
 
 <script setup lang="ts">
 import AppHeader from '@/components/Navigation/AppHeader.vue';
-import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import {
   IonPage, IonHeader, IonToolbar, IonTitle, IonContent, IonButtons, IonMenuButton,
@@ -577,18 +335,15 @@ import {
   IonSelectOption, IonPopover, IonLabel, toastController, alertController,
 } from '@ionic/vue';
 import {
-  refreshOutline, addOutline, addCircleOutline, settingsOutline, saveOutline,
-  searchOutline, ellipsisVertical, sparklesOutline, cubeOutline, checkmarkDoneOutline,
+  refreshOutline, cloudUploadOutline, addCircleOutline, settingsOutline, saveOutline,
+  searchOutline, ellipsisVertical, cubeOutline, checkmarkDoneOutline,
   playCircleOutline,
 } from 'ionicons/icons';
 import apiClient from '@/utils/axios';
 import { cropLabel } from '@/utils/cropLabel';
-import BarangayMultiPicker from '@/components/BarangayMultiPicker.vue';
-import { useOfficialBarangays } from '@/composables/useOfficialBarangays';
 import { promptAuditRemarks } from '@/composables/promptAuditRemarks';
 import {
-  SEED_CLASSES, itemTypesFor, getCatalogEntry, isDualUnit as catalogIsDualUnit,
-  isCashItemType, itemTypeLabel, catalogSummary, type SeedClass, type ItemType,
+  SEED_CLASSES, itemTypeLabel, catalogSummary, type SeedClass, type ItemType,
 } from '@/constants/subsidyCatalog';
 
 const ALL_ITEM_TYPES: ItemType[] = ['seed', 'abono', 'liquid_fertilizer', 'wettable', 'cash'];
@@ -620,11 +375,8 @@ interface SubsidyProgramRow {
 }
 
 const router = useRouter();
-const { barangays: barangayOptions } = useOfficialBarangays();
 const programs = ref<SubsidyProgramRow[]>([]);
 const loading = ref(true);
-const saving = ref(false);
-const generatingId = ref<string | null>(null);
 const statusUpdatingId = ref<string | null>(null);
 const searchName = ref('');
 const cropFilter = ref('');
@@ -632,10 +384,6 @@ const seedClassFilter = ref('');
 const itemTypeFilter = ref('');
 const statusFilter = ref('');
 const error = ref('');
-const formError = ref('');
-const createOpen = ref(false);
-const targetBarangaysSelectAll = ref(true);
-const targetBarangays = ref<string[]>([]);
 
 const activeProgram = ref<SubsidyProgramRow | null>(null);
 const restockOpen = ref(false);
@@ -649,41 +397,6 @@ const settingsUnit = ref('');
 const settingsReorder = ref<number | null>(null);
 const settingsReorderSecondary = ref<number | null>(null);
 const savingSettings = ref(false);
-
-const form = reactive({
-  program_name: '',
-  target_crop: 'Rice',
-  seed_class: '' as SeedClass | '',
-  item_type: '' as ItemType | '',
-  max_hectares_limit: 2,
-  min_hectares_limit: 0,
-  items_per_hectare: 2,
-  secondary_items_per_hectare: null as number | null,
-  status: 'Draft',
-  unit_of_measurement: 'Bags',
-  total_quantity: 0,
-  reorder_level: null as number | null,
-  secondary_total_quantity: 0,
-  secondary_reorder_level: null as number | null,
-});
-
-const catalogEntry = computed(() => getCatalogEntry(form.seed_class, form.item_type));
-const availableItemTypes = computed(() => itemTypesFor(form.seed_class));
-const isDualUnit = computed(() => catalogIsDualUnit(form.seed_class, form.item_type));
-const isCashItem = computed(() => isCashItemType(form.item_type));
-const primaryUnitLabel = computed(() => catalogEntry.value?.unit || form.unit_of_measurement || 'Item');
-const secondaryUnitLabel = computed(() => catalogEntry.value?.secondaryUnit || '');
-
-const onSeedClassChange = (value: SeedClass) => {
-  form.seed_class = value;
-  form.item_type = '';
-};
-
-const onItemTypeChange = (value: ItemType) => {
-  form.item_type = value;
-  const entry = getCatalogEntry(form.seed_class, value);
-  form.unit_of_measurement = entry?.unit || 'Bags';
-};
 
 const toast = async (message: string, color: 'success' | 'warning' | 'danger' | 'primary' = 'success') => {
   const t = await toastController.create({ message, duration: 2800, color, position: 'top' });
@@ -770,107 +483,8 @@ const fetchPrograms = async () => {
   }
 };
 
-const openCreate = () => {
-  form.program_name = '';
-  form.target_crop = 'Rice';
-  form.seed_class = '';
-  form.item_type = '';
-  form.max_hectares_limit = 2;
-  form.min_hectares_limit = 0;
-  form.items_per_hectare = 2;
-  form.secondary_items_per_hectare = null;
-  form.status = 'Draft';
-  form.unit_of_measurement = 'Bags';
-  form.total_quantity = 0;
-  form.reorder_level = null;
-  form.secondary_total_quantity = 0;
-  form.secondary_reorder_level = null;
-  targetBarangaysSelectAll.value = true;
-  targetBarangays.value = [];
-  formError.value = '';
-  createOpen.value = true;
-};
-
-const createProgram = async () => {
-  formError.value = '';
-  if (!form.program_name.trim()) {
-    formError.value = 'Program name is required.';
-    return;
-  }
-  if (!form.seed_class) {
-    formError.value = 'Seed class is required.';
-    return;
-  }
-  if (!form.item_type) {
-    formError.value = 'Item type is required.';
-    return;
-  }
-  if (!form.max_hectares_limit || form.max_hectares_limit <= 0) {
-    formError.value = 'Max hectares must be greater than 0.';
-    return;
-  }
-  if (form.min_hectares_limit < 0) {
-    formError.value = 'Min hectares cannot be negative.';
-    return;
-  }
-  if (form.min_hectares_limit > form.max_hectares_limit) {
-    formError.value = 'Min hectares cannot exceed the max hectares cap.';
-    return;
-  }
-  if (!form.items_per_hectare || form.items_per_hectare <= 0) {
-    formError.value = `${primaryUnitLabel.value} per hectare must be greater than 0.`;
-    return;
-  }
-  if (isDualUnit.value && !(Number(form.secondary_items_per_hectare) > 0)) {
-    formError.value = `${secondaryUnitLabel.value} per hectare must be greater than 0.`;
-    return;
-  }
-  if (!targetBarangaysSelectAll.value && !targetBarangays.value.length) {
-    formError.value = 'Select at least one barangay, or use Select all barangays.';
-    return;
-  }
-
-  saving.value = true;
-  try {
-    const res = await apiClient.post('/subsidies', {
-      program_name: form.program_name.trim(),
-      target_crop: form.target_crop,
-      target_barangays: targetBarangaysSelectAll.value ? [] : targetBarangays.value,
-      seed_class: form.seed_class,
-      item_type: form.item_type,
-      max_hectares_limit: form.max_hectares_limit,
-      min_hectares_limit: form.min_hectares_limit || 0,
-      items_per_hectare: form.items_per_hectare,
-      secondary_items_per_hectare: isDualUnit.value ? form.secondary_items_per_hectare : undefined,
-      status: form.status,
-      total_quantity: form.total_quantity || 0,
-      reorder_level: form.reorder_level,
-      secondary_total_quantity: isDualUnit.value ? (form.secondary_total_quantity || 0) : undefined,
-      secondary_reorder_level: isDualUnit.value ? form.secondary_reorder_level : undefined,
-    });
-    createOpen.value = false;
-    const id = res.data?.data?.id;
-    if (id) {
-      try {
-        const gen = await apiClient.post(`/subsidies/${id}/generate-masterlist`);
-        await toast(gen.data?.message || 'Program created and masterlist generated.', 'success');
-      } catch {
-        await toast(res.data?.message || 'Program created.', 'success');
-      }
-      await fetchPrograms();
-      await router.push(`/admin/subsidies/${id}/masterlist`);
-    } else {
-      await toast(res.data?.message || 'Program created.', 'success');
-      await fetchPrograms();
-    }
-  } catch (e: any) {
-    const msg = e?.response?.data?.message
-      || Object.values(e?.response?.data?.errors ?? {}).flat().join(' ')
-      || 'Failed to create program.';
-    formError.value = String(msg);
-  } finally {
-    saving.value = false;
-  }
+const openIntake = () => {
+  router.push('/admin/subsidies/import');
 };
 
 const openMasterlist = (id: string) => {
@@ -911,31 +525,6 @@ const updateProgramStatus = async (p: SubsidyProgramRow, status: 'Active' | 'Com
     await toast(e?.response?.data?.message || 'Failed to update program status.', 'danger');
   } finally {
     statusUpdatingId.value = null;
-  }
-};
-
-const confirmGenerate = async (p: SubsidyProgramRow) => {
-  const alert = await alertController.create({
-    header: 'Auto-Generate Masterlist',
-    message: `Scan active ${cropLabel(p.target_crop)} planting logs and add newly eligible farmers to “${p.program_name}”?`,
-    buttons: [
-      { text: 'Cancel', role: 'cancel' },
-      { text: 'Generate', handler: () => generateMasterlist(p.id) },
-    ],
-  });
-  await alert.present();
-};
-
-const generateMasterlist = async (id: string) => {
-  generatingId.value = id;
-  try {
-    const res = await apiClient.post(`/subsidies/${id}/generate-masterlist`);
-    await toast(res.data?.message || 'Masterlist generated.', 'success');
-    await fetchPrograms();
-  } catch (e: any) {
-    await toast(e?.response?.data?.message || 'Failed to generate masterlist.', 'danger');
-  } finally {
-    generatingId.value = null;
   }
 };
 
