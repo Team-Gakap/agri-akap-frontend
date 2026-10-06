@@ -27,6 +27,8 @@ export interface PendingDistribution {
   override_reason?: string;
   override_reason_code?: string;
   override_justification?: string;
+  /** Seed variety chosen at release (subsidy programs with per-variety stock). */
+  variety_id?: string | null;
   status: QueueStatus;
   error?: string;
   created_at: string;

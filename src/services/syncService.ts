@@ -435,6 +435,7 @@ export async function queueDistribution(input: {
   override_reason?: string;
   override_reason_code?: string;
   override_justification?: string;
+  variety_id?: string | null;
 }): Promise<PendingDistribution> {
   const record: PendingDistribution = {
     client_id: newUuid(),
@@ -452,6 +453,7 @@ export async function queueDistribution(input: {
     override_reason: input.override_reason,
     override_reason_code: input.override_reason_code,
     override_justification: input.override_justification,
+    variety_id: input.variety_id ?? null,
     device_id: getDeviceId(),
     claimed_at: new Date().toISOString(),
     status: 'pending',
@@ -1076,6 +1078,7 @@ export async function syncAllPendingData(): Promise<SyncFlushResult> {
           override_reason: d.override_reason,
           override_reason_code: d.override_reason_code,
           override_justification: d.override_justification,
+          variety_id: d.variety_id ?? null,
         };
       })),
       assessments: await Promise.all(assessments.map(async (a) => ({
