@@ -82,6 +82,7 @@
               <option value="Pending">Pending</option>
               <option value="Waitlisted">Waitlisted</option>
               <option value="Claimed">Claimed</option>
+              <option value="Excluded">Excluded</option>
             </select>
             <input
               v-model="searchTerm"
@@ -144,6 +145,7 @@
                   <th class="col-num">Farm Area (ha)</th>
                   <th class="col-num">Allocation</th>
                   <th>Tier</th>
+                  <th>Variety</th>
                   <th>Status</th>
                   <th class="col-icon"></th>
                 </tr>
@@ -166,8 +168,17 @@
                     <td class="col-num">{{ formatArea(row.farm_area) }}</td>
                     <td class="col-num">{{ formatAllocation(row) }}</td>
                     <td><span class="tier-pill" :class="tierClass(row.priority_tier)">{{ tierLabel(row.priority_tier) }}</span></td>
+                    <td class="variety-cell">
+                      <span v-if="row.variety_name" class="variety-badge">{{ row.variety_name }}</span>
+                      <span v-else class="variety-none">—</span>
+                    </td>
                     <td>
-                      <span class="status-pill" :class="statusClass(row.status)">{{ row.status }}</span>
+                      <span
+                        class="status-pill"
+                        :class="statusClass(row.status)"
+                        :title="row.status === 'Excluded' && row.exclusion_reason ? `Excluded: ${row.exclusion_reason}` : undefined"
+                      >{{ row.status }}</span>
+                      <span v-if="row.status === 'Excluded' && row.exclusion_reason" class="exclusion-reason"> {{ row.exclusion_reason }}</span>
                     </td>
                     <td class="col-icon">
                       <button
@@ -433,7 +444,9 @@ interface MasterlistRow {
   is_walkin?: boolean;
   is_temporary?: boolean;
   registration_type?: string;
-  status: 'Pending' | 'Claimed' | 'Waitlisted';
+  status: 'Pending' | 'Claimed' | 'Waitlisted' | 'Excluded';
+  variety_name?: string | null;
+  exclusion_reason?: string | null;
 }
 
 const route = useRoute();
@@ -473,6 +486,7 @@ const program = reactive<any>({
   secondary_remaining_quantity: 0,
   secondary_reorder_level: null,
   is_low_stock: false,
+  varieties: [] as any[],
 });
 
 const rows = ref<MasterlistRow[]>([]);
@@ -582,6 +596,7 @@ const tierClass = (tier?: number | null) => {
 const statusClass = (status: string) => {
   if (status === 'Claimed') return 'claimed';
   if (status === 'Waitlisted') return 'waitlisted';
+  if (status === 'Excluded') return 'excluded';
   return 'pending';
 };
 
@@ -711,6 +726,8 @@ const fetchMasterlist = async () => {
       is_temporary: !!r.is_temporary,
       registration_type: r.registration_type,
       status: r.status,
+      variety_name: r.variety_name ?? null,
+      exclusion_reason: r.exclusion_reason ?? null,
     }));
     isMockData.value = false;
   } catch (e: any) {
@@ -824,7 +841,11 @@ const confirmClaim = async (row: MasterlistRow) => {
   await alert.present();
 };
 
-const claimBeneficiary = async (row: MasterlistRow, presetOverride?: { password: string; reason_code: string; notes: string } | null) => {
+const claimBeneficiary = async (
+  row: MasterlistRow,
+  presetOverride?: { password: string; reason_code: string; notes: string } | null,
+  presetVarietyId?: string | null,
+) => {
   if (isMockData.value) {
     row.status = 'Claimed';
     program.remaining_quantity = Math.max(0, program.remaining_quantity - row.calculated_allocation);
@@ -840,21 +861,51 @@ const claimBeneficiary = async (row: MasterlistRow, presetOverride?: { password:
     if (!picked) return;
     override = picked;
   }
+
+  // Variety picker: if the program has varieties and none was pre-selected, ask.
+  let varietyId = presetVarietyId ?? null;
+  if (!varietyId && program.varieties && (program.varieties as any[]).length > 0) {
+    const inputs = (program.varieties as any[]).map((v: any) => ({
+      type: 'radio' as const,
+      label: `${v.variety_name} (${v.remaining_quantity} left)`,
+      value: v.id,
+    }));
+    const alert = await alertController.create({
+      header: 'Select seed variety',
+      inputs,
+      buttons: [
+        { text: 'Cancel', role: 'cancel' },
+        { text: 'Confirm', handler: (data) => data },
+      ],
+    });
+    await alert.present();
+    const { data, role } = await alert.onDidDismiss();
+    if (role === 'cancel' || !data) return;
+    varietyId = data;
+  }
+
   claimingId.value = row.beneficiary_id;
   try {
     const res = await apiClient.patch(`/subsidies/${programId.value}/beneficiaries/${row.beneficiary_id}/claim`, {
       override_password: override?.password,
       override_reason_code: override?.reason_code,
       override_justification: override?.notes,
+      variety_id: varietyId ?? undefined,
     });
-    Object.assign(program, res.data?.data?.program ?? {});
+    const updatedProgram = res.data?.data?.program;
+    if (updatedProgram) Object.assign(program, updatedProgram);
     row.status = 'Claimed';
+    // Find claimed variety name from program.varieties for immediate display.
+    if (varietyId && program.varieties) {
+      const v = (program.varieties as any[]).find((vr: any) => vr.id === varietyId);
+      if (v) row.variety_name = v.variety_name;
+    }
     await toast(res.data?.message || 'Beneficiary marked as Claimed.', 'success');
   } catch (e: any) {
     if (e?.response?.data?.code === 'ADMIN_OVERRIDE_REQUIRED') {
       claimingId.value = null;
       const again = await requestOverride(e?.response?.data?.message || 'Admin override is required.');
-      if (again) await claimBeneficiary(row, again);
+      if (again) await claimBeneficiary(row, again, varietyId);
       return;
     }
     await toast(e?.response?.data?.message || 'Failed to mark as claimed.', 'danger');
@@ -1233,6 +1284,11 @@ onMounted(() => {
 .status-pill.claimed { background: #dcfce7; color: #166534; }
 .status-pill.pending { background: #fef9c3; color: #854d0e; }
 .status-pill.waitlisted { background: #ffedd5; color: #9a3412; }
+.status-pill.excluded { background: #fee2e2; color: #991b1b; }
+.exclusion-reason { font-size: 0.73rem; color: #991b1b; font-weight: 600; margin-left: 4px; }
+.variety-cell { white-space: nowrap; }
+.variety-badge { background: #eff6ff; color: #1d4ed8; border-radius: 999px; padding: 2px 8px; font-size: 0.77rem; font-weight: 700; }
+.variety-none { color: #cbd5e1; font-size: 0.82rem; }
 .tier-pill {
   display: inline-block;
   margin-right: 4px;

@@ -57,6 +57,7 @@ export async function claimSubsidyRelease(ctx: ReleaseContext): Promise<SubsidyC
       override_reason: ctx.override_reason,
       override_reason_code: ctx.override_reason_code,
       override_justification: ctx.override_justification,
+      variety_id: ctx.variety_id ?? undefined,
     });
     await syncStore.refreshCount();
     void syncAllPendingData().then(() => syncStore.refreshCount());
@@ -77,6 +78,7 @@ export async function claimSubsidyRelease(ctx: ReleaseContext): Promise<SubsidyC
         override_reason: ctx.override_reason,
         override_reason_code: ctx.override_reason_code,
         override_justification: ctx.override_justification,
+        variety_id: ctx.variety_id ?? undefined,
       });
       return { offline: false, data: response.data?.data ?? {} };
     }

@@ -16,6 +16,7 @@
               <span v-if="filters.dateFrom || filters.dateTo"> &nbsp;|&nbsp; Period: {{ filters.dateFrom || '—' }} to {{ filters.dateTo || '—' }}</span>
               <span v-if="selectedProgramName"> &nbsp;|&nbsp; Program: {{ selectedProgramName }}</span>
               <span v-if="filters.barangay"> &nbsp;|&nbsp; Barangay: {{ filters.barangay }}</span>
+              <span v-if="filters.varietyId"> &nbsp;|&nbsp; Variety: {{ programVarieties.find(v => v.id === filters.varietyId)?.variety_name }}</span>
               <span v-if="filters.cropType"> &nbsp;|&nbsp; Crop: {{ cropLabel(filters.cropType) }}</span>
               <span v-if="filters.seedClass"> &nbsp;|&nbsp; Seed Class: {{ filters.seedClass }}</span>
               <span v-if="filters.itemType"> &nbsp;|&nbsp; Item: {{ itemTypeLabel(filters.itemType) }}</span>
@@ -30,7 +31,7 @@
         <div class="filter-bar no-print">
           <div class="filter-group">
             <label class="filter-label">Program</label>
-            <select class="filter-select" v-model="filters.programId" @change="fetchRows">
+            <select class="filter-select" v-model="filters.programId" @change="() => { filters.varietyId = ''; fetchRows(); }">
               <option value="">All Programs</option>
               <option v-for="prog in programs" :key="prog.id" :value="prog.id">{{ prog.program_name }}</option>
             </select>
@@ -86,6 +87,13 @@
               <option v-for="it in ITEM_TYPES" :key="it" :value="it">{{ itemTypeLabel(it) }}</option>
             </select>
           </div>
+          <div v-if="programVarieties.length" class="filter-group">
+            <label class="filter-label">Variety</label>
+            <select class="filter-select" v-model="filters.varietyId" @change="fetchRows">
+              <option value="">All Varieties</option>
+              <option v-for="v in programVarieties" :key="v.id" :value="v.id">{{ v.variety_name }}</option>
+            </select>
+          </div>
           <button class="clear-btn" @click="clearFilters">Clear</button>
         </div>
 
@@ -122,6 +130,7 @@
                   <th>Middle Name</th>
                   <th>Barangay</th>
                   <th>Subsidy Program</th>
+                  <th>Variety</th>
                   <th>Crop</th>
                   <th>Item / Amount Received</th>
                   <th>Date Claimed</th>
@@ -130,7 +139,7 @@
               </thead>
               <tbody>
                 <tr v-if="!filteredRows.length">
-                  <td :colspan="hideEncode ? 10 : 11" class="empty-row">{{ emptyMessage }}</td>
+                  <td :colspan="hideEncode ? 11 : 12" class="empty-row">{{ emptyMessage }}</td>
                 </tr>
                 <tr v-for="(row, i) in filteredRows" :key="row.id || i">
                   <td class="col-no">{{ i + 1 }}</td>
@@ -140,6 +149,7 @@
                   <td>{{ row.middle_name || '—' }}</td>
                   <td>{{ row.barangay }}</td>
                   <td>{{ row.program_name }}</td>
+                  <td class="variety-cell">{{ row.variety_name || '—' }}</td>
                   <td>{{ cropLabel(row.target_crop) }}</td>
                   <td>{{ row.item_received }}</td>
                   <td class="mono">{{ fmtDate(row.date_claimed) }}</td>
@@ -164,7 +174,7 @@
                   </td>
                 </tr>
                 <tr v-if="filteredRows.length" class="totals-row">
-                  <td colspan="8" class="totals-label">TOTALS</td>
+                  <td colspan="9" class="totals-label">TOTALS</td>
                   <td :colspan="hideEncode ? 2 : 3">{{ subsidyTotalsLabel }}</td>
                 </tr>
               </tbody>
@@ -247,12 +257,19 @@ interface SubsidyRow {
   unit?: string;
   quantity_secondary?: number | null;
   unit_secondary?: string | null;
+  variety_name?: string | null;
   date_claimed: string;
+}
+
+interface ProgramVariety {
+  id: string;
+  variety_name: string;
 }
 
 interface Program {
   id: number | string;
   program_name: string;
+  varieties?: ProgramVariety[];
 }
 
 const loading   = ref(false);
@@ -263,6 +280,7 @@ const barangays = ref<string[]>([]);
 
 const filters = reactive({
   programId: '' as string | number,
+  varietyId: '',
   dateFrom: '',
   dateTo: '',
   barangay: '',
@@ -270,6 +288,9 @@ const filters = reactive({
   seedClass: '',
   itemType: '',
 });
+
+const selectedProgram = computed(() => programs.value.find(p => String(p.id) === String(filters.programId)) ?? null);
+const programVarieties = computed(() => selectedProgram.value?.varieties ?? []);
 const searchQuery = ref('');
 
 const filteredRows = computed(() => {
@@ -284,7 +305,7 @@ const emptyMessage = computed(() => {
   if (filters.dateFrom || filters.dateTo) {
     return 'No claimed subsidy records in this period. Clear dates to see all claims.';
   }
-  if (filters.programId || filters.barangay || filters.cropType || filters.seedClass || filters.itemType || searchQuery.value.trim()) {
+  if (filters.programId || filters.varietyId || filters.barangay || filters.cropType || filters.seedClass || filters.itemType || searchQuery.value.trim()) {
     return 'No claimed subsidy records match the selected filters.';
   }
   return 'No claimed subsidy records yet.';
@@ -352,6 +373,7 @@ async function fetchRows() {
     const res = await apiClient.get('/reports/subsidies', {
       params: {
         program_id: filters.programId || undefined,
+        variety_id: filters.varietyId || undefined,
         date_from:  filters.dateFrom  || undefined,
         date_to:    filters.dateTo    || undefined,
         barangay:   filters.barangay  || undefined,
@@ -388,6 +410,7 @@ async function fetchBarangays() {
 
 function clearFilters() {
   filters.programId = '';
+  filters.varietyId = '';
   filters.dateFrom  = '';
   filters.dateTo    = '';
   filters.barangay  = lockedBarangay.value || '';
@@ -410,6 +433,10 @@ function reportMetaLine() {
     line += ` | Period: ${filters.dateFrom || '—'} to ${filters.dateTo || '—'}`;
   }
   if (selectedProgramName.value) line += ` | Program: ${selectedProgramName.value}`;
+  if (filters.varietyId) {
+    const vName = programVarieties.value.find(v => v.id === filters.varietyId)?.variety_name;
+    if (vName) line += ` | Variety: ${vName}`;
+  }
   if (filters.barangay) line += ` | Barangay: ${filters.barangay}`;
   if (filters.cropType) line += ` | Crop: ${cropLabel(filters.cropType)}`;
   if (filters.seedClass) line += ` | Seed Class: ${filters.seedClass}`;
@@ -430,6 +457,7 @@ async function downloadExcel() {
       { key: 'middle_name', label: 'Middle Name' },
       { key: 'barangay', label: 'Barangay' },
       { key: 'program_name', label: 'Subsidy Program' },
+      { key: 'variety_name', label: 'Variety' },
       { key: 'target_crop', label: 'Crop' },
       { key: 'item_received', label: 'Item / Amount Received' },
       { key: 'date_claimed', label: 'Date Claimed' },
@@ -439,6 +467,7 @@ async function downloadExcel() {
       if (key === 'no') return index + 1;
       if (key === 'date_claimed') return fmtDate(String(row.date_claimed ?? ''));
       if (key === 'target_crop') return cropLabel(String(row.target_crop ?? ''));
+      if (key === 'variety_name') return String(row.variety_name ?? '');
       return String(row[key] ?? '');
     },
   });
@@ -611,6 +640,7 @@ onMounted(async () => {
 .totals-label { text-align: right; letter-spacing: 0.05em; }
 .col-no { text-align: right; width: 40px; }
 .mono { font-family: 'Courier New', monospace; }
+.variety-cell { color: #1a4731; font-weight: 600; font-size: 0.82rem; white-space: nowrap; }
 .empty-row { text-align: center; color: #94a3b8; padding: 2rem 0; font-style: italic; }
 
 /* Signature block */

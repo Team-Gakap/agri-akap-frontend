@@ -32,6 +32,14 @@ export interface ReleaseContext {
   override_reason?: string;
   override_reason_code?: string;
   override_justification?: string;
+  /** The specific seed variety the technician selected at release time. */
+  variety_id?: string | null;
+  /**
+   * Available varieties returned by verify-farmer. Non-empty only when the
+   * program has a per-variety stock breakdown; populated for UX picker only,
+   * not sent to the API.
+   */
+  varieties?: Array<{ id: string; variety_name: string; unit: string; remaining_quantity: number }>;
   /** True when the context was stashed offline (verify was skipped). */
   offline: boolean;
 }

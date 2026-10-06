@@ -9,8 +9,10 @@ export interface MasterlistExportRow {
   farm_area: number;
   calculated_allocation: number;
   calculated_allocation_secondary?: number | null;
+  variety_name?: string | null;
   priority_tier?: number | null;
   status: string;
+  exclusion_reason?: string | null;
 }
 
 export async function exportSubsidyMasterlistExcel(options: {
@@ -38,7 +40,7 @@ export async function exportSubsidyMasterlistExcel(options: {
     `Allocation (${options.unit})`,
   ];
   if (hasSecondary) headers.push(`Allocation (${options.secondaryUnit})`);
-  headers.push('Priority Tier', 'Status');
+  headers.push('Variety', 'Priority Tier', 'Status', 'Exclusion Reason');
   sheet.addRow(headers);
 
   options.rows.forEach((row) => {
@@ -52,8 +54,10 @@ export async function exportSubsidyMasterlistExcel(options: {
       Number(row.calculated_allocation || 0),
     ];
     if (hasSecondary) values.push(Number(row.calculated_allocation_secondary || 0));
+    values.push(row.variety_name || '');
     values.push(row.priority_tier ?? '');
     values.push(row.status);
+    values.push(row.exclusion_reason || '');
     sheet.addRow(values);
   });
 

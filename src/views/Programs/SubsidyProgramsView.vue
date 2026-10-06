@@ -19,7 +19,7 @@
           <p>Upload the DA-RFO monthly workbook to create this month's subsidy programs.</p>
           <ion-button class="create-btn" @click="openIntake">
             <ion-icon slot="start" :icon="cloudUploadOutline"></ion-icon>
-            Upload Regional Monthly Workbook
+            Upload Masterlist
           </ion-button>
         </div>
 
@@ -176,6 +176,10 @@
                             <ion-icon :icon="cubeOutline" slot="start"></ion-icon>
                             <ion-label>Log Delivery Batch</ion-label>
                           </ion-item>
+                          <ion-item button :detail="false" @click="openVarieties(p)">
+                            <ion-icon :icon="listOutline" slot="start"></ion-icon>
+                            <ion-label>Manage Seed Varieties</ion-label>
+                          </ion-item>
                           <ion-item button :detail="false" @click="openSettings(p)">
                             <ion-icon :icon="settingsOutline" slot="start"></ion-icon>
                             <ion-label>Configure Stock Rules</ion-label>
@@ -259,6 +263,53 @@
         </ion-content>
       </ion-modal>
 
+      <!-- VARIETY MANAGEMENT MODAL -->
+      <ion-modal :is-open="varietiesOpen" @didDismiss="varietiesOpen = false">
+        <ion-header>
+          <ion-toolbar color="primary">
+            <ion-title>Seed Varieties</ion-title>
+            <ion-buttons slot="end">
+              <ion-button @click="varietiesOpen = false">Close</ion-button>
+            </ion-buttons>
+          </ion-toolbar>
+        </ion-header>
+        <ion-content class="ion-padding">
+          <div v-if="activeProgram">
+            <p class="modal-program">{{ activeProgram.program_name }}</p>
+            <p class="modal-hint">
+              Enter each seed variety and its bag allocation. The sum becomes the program's opening stock.
+              Saving replaces the existing breakdown (unless claims already exist, in which case only new varieties are added).
+            </p>
+            <div v-for="(v, vi) in varietyRows" :key="vi" class="variety-edit-row">
+              <ion-input
+                class="variety-edit-name"
+                :value="v.variety_name"
+                placeholder="Variety name (e.g. JACKPOT)"
+                @ionInput="(e: any) => v.variety_name = e.detail.value"
+              ></ion-input>
+              <ion-input
+                type="number"
+                class="variety-edit-qty"
+                :value="v.quantity"
+                placeholder="Qty"
+                min="0"
+                @ionInput="(e: any) => v.quantity = e.detail.value === '' ? null : Number(e.detail.value)"
+              ></ion-input>
+              <button class="variety-remove-btn" @click="varietyRows.splice(vi, 1)">✕</button>
+            </div>
+            <ion-button expand="block" fill="outline" class="variety-add-btn" @click="varietyRows.push({ variety_name: '', quantity: null })">
+              + Add variety
+            </ion-button>
+            <p class="modal-hint" style="margin-top:0.5rem">
+              Total: {{ varietyRows.reduce((s, v) => s + (Number(v.quantity) || 0), 0).toLocaleString() }} {{ activeProgram.unit_of_measurement }}
+            </p>
+            <ion-button expand="block" class="save-btn" :disabled="savingVarieties" @click="submitVarieties">
+              {{ savingVarieties ? 'Saving…' : 'Save Varieties' }}
+            </ion-button>
+          </div>
+        </ion-content>
+      </ion-modal>
+
       <!-- STOCK SETTINGS MODAL -->
       <ion-modal :is-open="settingsOpen" @didDismiss="settingsOpen = false">
         <ion-header>
@@ -337,7 +388,7 @@ import {
 import {
   refreshOutline, cloudUploadOutline, addCircleOutline, settingsOutline, saveOutline,
   searchOutline, ellipsisVertical, cubeOutline, checkmarkDoneOutline,
-  playCircleOutline,
+  playCircleOutline, listOutline,
 } from 'ionicons/icons';
 import apiClient from '@/utils/axios';
 import { cropLabel } from '@/utils/cropLabel';
@@ -372,6 +423,7 @@ interface SubsidyProgramRow {
   beneficiaries_count: number;
   claimed_count: number;
   created_at?: string;
+  varieties?: Array<{ id: string; variety_name: string; total_quantity: number; remaining_quantity: number; unit?: string | null }>;
 }
 
 const router = useRouter();
@@ -397,6 +449,10 @@ const settingsUnit = ref('');
 const settingsReorder = ref<number | null>(null);
 const settingsReorderSecondary = ref<number | null>(null);
 const savingSettings = ref(false);
+
+const varietiesOpen = ref(false);
+const varietyRows = ref<Array<{ variety_name: string; quantity: number | null }>>([]);
+const savingVarieties = ref(false);
 
 const toast = async (message: string, color: 'success' | 'warning' | 'danger' | 'primary' = 'success') => {
   const t = await toastController.create({ message, duration: 2800, color, position: 'top' });
@@ -589,6 +645,44 @@ const submitSettings = async () => {
     await toast(e?.response?.data?.message || 'Failed to update settings.', 'danger');
   } finally {
     savingSettings.value = false;
+  }
+};
+
+const openVarieties = (p: SubsidyProgramRow) => {
+  activeProgram.value = p;
+  // Pre-populate from existing varieties if program data has them (from API).
+  const existing: any[] = (p as any).varieties ?? [];
+  varietyRows.value = existing.length
+    ? existing.map((v: any) => ({ variety_name: v.variety_name, quantity: Number(v.total_quantity) }))
+    : [{ variety_name: '', quantity: null }];
+  varietiesOpen.value = true;
+};
+
+const submitVarieties = async () => {
+  if (!activeProgram.value) return;
+  const filled = varietyRows.value.filter(v => v.variety_name.trim() && (v.quantity ?? 0) >= 0);
+  if (!filled.length) {
+    await toast('Add at least one variety with a name and quantity.', 'warning');
+    return;
+  }
+  const remarks = await promptAuditRemarks({
+    header: 'Justify variety breakdown',
+    message: 'Explain why this variety breakdown is being applied.',
+  });
+  if (!remarks) return;
+  savingVarieties.value = true;
+  try {
+    const res = await apiClient.put(`/subsidies/${activeProgram.value.id}/varieties`, {
+      varieties: filled.map(v => ({ variety_name: v.variety_name.trim(), quantity: Number(v.quantity) || 0 })),
+      audit_remarks: remarks,
+    });
+    await toast(res.data?.message || 'Varieties saved.', 'success');
+    varietiesOpen.value = false;
+    await fetchPrograms();
+  } catch (e: any) {
+    await toast(e?.response?.data?.message || 'Failed to save varieties.', 'danger');
+  } finally {
+    savingVarieties.value = false;
   }
 };
 
@@ -924,4 +1018,9 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchPrograms))
 .prog-more-pop .ctx ion-icon { color: #1a4731; font-size: 1.05rem; }
 .prog-more-pop .ctx .warn ion-icon,
 .prog-more-pop .ctx .warn ion-label { color: #b45309; }
+.variety-edit-row { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.5rem; }
+.variety-edit-name { flex: 1; }
+.variety-edit-qty { width: 100px; }
+.variety-remove-btn { background: #fee2e2; color: #991b1b; border: none; border-radius: 6px; padding: 0.35rem 0.6rem; cursor: pointer; font-size: 0.85rem; }
+.variety-add-btn { text-transform: none; margin-bottom: 0.5rem; }
 </style>

@@ -5,8 +5,8 @@
       <div class="shell">
         <div class="page-head">
           <div>
-            <h1>Upload Regional Monthly Workbook</h1>
-            <p>DA-RFO sends one workbook per month. Each tab becomes a subsidy program after you map it.</p>
+            <h1>Upload Masterlist</h1>
+            <p>Upload the beneficiary masterlist from DA-RFO. Each tab becomes a subsidy program. Rice and Corn come as separate files — upload each one on its own.</p>
           </div>
           <ion-button fill="outline" class="back-btn" @click="router.push('/admin/subsidies')">Back to programs</ion-button>
         </div>
@@ -36,7 +36,7 @@
               @change="onFileSelected"
             />
             <p class="drop-title">{{ selectedFile ? selectedFile.name : 'Drop the regional .xlsx here' }}</p>
-            <p class="drop-hint">or choose a file. Headers such as SYSTEM_GENERATED_RSBSA_NO, LAST_NAME, and FARM_AREA are checked before anything is saved.</p>
+            <p class="drop-hint">or choose a file. Required headers: SYSTEM_GENERATED_RSBSA_NO, LAST_NAME, FIRST_NAME, FARM_AREA. Optional: REMARKS — rows with DECEASED, OFW, NO FARM, INACTIVE will be excluded.</p>
             <ion-button class="pick-btn" @click="fileInput?.click()">Choose workbook</ion-button>
           </div>
 
@@ -126,10 +126,14 @@
                 <span>{{ entryFor(sheet)?.secondaryUnit }} per hectare</span>
                 <input v-model.number="sheet.secondary_items_per_hectare" type="number" min="0.01" step="0.01" />
               </label>
-              <label class="field">
+              <label v-if="!sheet.varieties.length" class="field">
                 <span>Opening stock ({{ primaryUnit(sheet) }})</span>
-                <input v-model.number="sheet.total_quantity" type="number" min="0" step="1" />
+                <input v-model.number="sheet.total_quantity" type="number" min="0" step="1" placeholder="auto-computed from varieties below" />
               </label>
+              <div v-else class="field">
+                <span>Opening stock ({{ primaryUnit(sheet) }})</span>
+                <p class="hint" style="margin:0">Auto-computed from variety breakdown: {{ varietyTotal(sheet).toLocaleString() }}</p>
+              </div>
               <label v-if="isDual(sheet)" class="field">
                 <span>Opening stock ({{ entryFor(sheet)?.secondaryUnit }})</span>
                 <input v-model.number="sheet.secondary_total_quantity" type="number" min="0" step="1" />
@@ -142,6 +146,19 @@
                 <span>Reorder level ({{ entryFor(sheet)?.secondaryUnit }})</span>
                 <input v-model.number="sheet.secondary_reorder_level" type="number" min="0" step="1" />
               </label>
+            </div>
+
+            <!-- Variety breakdown (optional) -->
+            <div v-if="sheet.mode !== 'skip'" class="variety-section">
+              <div class="variety-header">
+                <span class="variety-label">Seed variety breakdown <em>(optional — e.g. LP 937, JACKPOT)</em></span>
+                <button type="button" class="variety-add-btn" @click="addVariety(sheet)">+ Add variety</button>
+              </div>
+              <div v-for="(v, vi) in sheet.varieties" :key="vi" class="variety-row">
+                <input v-model="v.variety_name" type="text" placeholder="Variety name (e.g. JACKPOT)" class="variety-name-input" maxlength="120" />
+                <input v-model.number="v.quantity" type="number" min="0" step="1" placeholder="Qty" class="variety-qty-input" />
+                <button type="button" class="variety-remove-btn" @click="removeVariety(sheet, vi)">✕</button>
+              </div>
             </div>
           </article>
 
@@ -163,6 +180,7 @@
                 <th>Created</th>
                 <th>Updated</th>
                 <th>Waitlisted</th>
+                <th style="color:#dc2626">Excluded</th>
                 <th>Skipped</th>
                 <th>Duplicates</th>
               </tr>
@@ -173,6 +191,7 @@
                 <td>{{ row.created }}</td>
                 <td>{{ row.updated }}</td>
                 <td>{{ row.waitlisted }}</td>
+                <td style="color:#dc2626;font-weight:700">{{ row.excluded ?? 0 }}</td>
                 <td>{{ row.skipped }}</td>
                 <td>{{ row.duplicates_in_file }}</td>
               </tr>
@@ -206,6 +225,11 @@ const REQUIRED_FIELDS = [
   { key: 'farm_area', label: 'Farm area' },
 ];
 
+interface VarietyRow {
+  variety_name: string;
+  quantity: number | null;
+}
+
 interface SheetForm {
   index: number;
   sheet_name: string;
@@ -225,6 +249,7 @@ interface SheetForm {
   secondary_total_quantity: number | null;
   reorder_level: number | null;
   secondary_reorder_level: number | null;
+  varieties: VarietyRow[];
 }
 
 interface ImportResult {
@@ -233,6 +258,7 @@ interface ImportResult {
   created: number;
   updated: number;
   waitlisted: number;
+  excluded: number;
   skipped: number;
   duplicates_in_file: number;
 }
@@ -260,6 +286,15 @@ const primaryUnit = (sheet: SheetForm) => {
   if (sheet.mode === 'catalog') return entryFor(sheet)?.unit || 'unit';
   return sheet.unit_of_measurement || 'unit';
 };
+
+const varietyTotal = (sheet: SheetForm) =>
+  sheet.varieties.reduce((sum, v) => sum + (Number(v.quantity) || 0), 0);
+
+const addVariety = (sheet: SheetForm) =>
+  sheet.varieties.push({ variety_name: '', quantity: null });
+
+const removeVariety = (sheet: SheetForm, index: number) =>
+  sheet.varieties.splice(index, 1);
 
 const onSeedClassChange = (sheet: SheetForm) => {
   sheet.item_type = '';
@@ -319,6 +354,7 @@ const preview = async () => {
         secondary_total_quantity: null,
         reorder_level: null,
         secondary_reorder_level: null,
+        varieties: [],
       } satisfies SheetForm;
     });
     step.value = 'map';
@@ -344,8 +380,9 @@ const commit = async () => {
       await toast.warning(`Enter a program name and unit for "${sheet.sheet_name}".`);
       return;
     }
-    if (!(Number(sheet.items_per_hectare) > 0) || !(Number(sheet.max_hectares_limit) > 0) || sheet.total_quantity === null) {
-      await toast.warning(`Enter a rate, max hectares, and opening stock for "${sheet.sheet_name}".`);
+    const hasVarieties = sheet.varieties.some(v => v.variety_name.trim() && (v.quantity ?? 0) >= 0);
+    if (!(Number(sheet.items_per_hectare) > 0) || !(Number(sheet.max_hectares_limit) > 0) || (!hasVarieties && sheet.total_quantity === null)) {
+      await toast.warning(`Enter a rate, max hectares, and opening stock (or variety breakdown) for "${sheet.sheet_name}".`);
       return;
     }
     if (isDual(sheet) && !(Number(sheet.secondary_items_per_hectare) > 0)) {
@@ -381,10 +418,15 @@ const commit = async () => {
         min_hectares_limit: sheet.min_hectares_limit || 0,
         items_per_hectare: sheet.items_per_hectare,
         secondary_items_per_hectare: isDual(sheet) ? sheet.secondary_items_per_hectare : null,
-        total_quantity: sheet.total_quantity ?? 0,
+        total_quantity: sheet.varieties.length
+          ? varietyTotal(sheet)
+          : (sheet.total_quantity ?? 0),
         secondary_total_quantity: isDual(sheet) ? (sheet.secondary_total_quantity ?? 0) : null,
         reorder_level: sheet.reorder_level,
         secondary_reorder_level: isDual(sheet) ? sheet.secondary_reorder_level : null,
+        varieties: sheet.varieties
+          .filter(v => v.variety_name.trim() && (v.quantity ?? 0) >= 0)
+          .map(v => ({ variety_name: v.variety_name.trim(), quantity: Number(v.quantity) || 0 })),
       })),
     });
     results.value = res.data?.data?.sheets ?? [];
@@ -424,4 +466,13 @@ const commit = async () => {
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.7rem; margin-top: 0.8rem; }
 .result-table { width: 100%; border-collapse: collapse; margin-top: 0.8rem; }
 .result-table th, .result-table td { text-align: left; padding: 0.45rem 0.4rem; border-bottom: 1px solid #e2e8f0; font-size: 0.88rem; }
+.variety-section { margin-top: 0.9rem; border-top: 1px solid #e2e8f0; padding-top: 0.8rem; }
+.variety-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+.variety-label { font-size: 0.82rem; font-weight: 700; color: #334155; }
+.variety-label em { font-style: normal; font-weight: 500; color: #64748b; }
+.variety-add-btn { border: 1px solid #1a4731; background: #fff; color: #1a4731; border-radius: 6px; padding: 0.3rem 0.65rem; font-weight: 700; cursor: pointer; font-size: 0.82rem; }
+.variety-row { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.4rem; }
+.variety-name-input { flex: 1; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0.4rem 0.55rem; font-size: 0.85rem; }
+.variety-qty-input { width: 90px; border: 1px solid #cbd5e1; border-radius: 6px; padding: 0.4rem 0.55rem; font-size: 0.85rem; }
+.variety-remove-btn { background: #fee2e2; color: #991b1b; border: none; border-radius: 6px; padding: 0.3rem 0.55rem; cursor: pointer; font-size: 0.82rem; }
 </style>

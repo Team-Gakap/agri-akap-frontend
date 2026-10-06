@@ -172,6 +172,33 @@
         </ion-card-content>
       </ion-card>
 
+      <!-- Variety picker card: shown when verify returned varieties and we await the tech's tap -->
+      <ion-card v-if="pendingCtx && pendingVarieties.length" class="variety-picker-card">
+        <ion-card-header>
+          <ion-card-subtitle>Select seed variety for {{ pendingCtx.farmer_name }}</ion-card-subtitle>
+          <ion-card-title>Which variety is being handed over?</ion-card-title>
+        </ion-card-header>
+        <ion-card-content>
+          <p class="variety-picker-hint">Tap the exact variety in the truck / drop-off point now.</p>
+          <div class="variety-chips">
+            <button
+              v-for="v in pendingVarieties"
+              :key="v.id"
+              class="variety-chip"
+              :disabled="v.remaining_quantity <= 0 || claiming"
+              :class="{ depleted: v.remaining_quantity <= 0 }"
+              @click="selectVariety(v)"
+            >
+              <span class="chip-name">{{ v.variety_name }}</span>
+              <span class="chip-stock">{{ v.remaining_quantity.toLocaleString() }} {{ v.unit }} left</span>
+            </button>
+          </div>
+          <ion-button expand="block" fill="outline" color="medium" class="cancel-variety-btn" @click="cancelVarietyPicker">
+            Cancel
+          </ion-button>
+        </ion-card-content>
+      </ion-card>
+
       <div v-if="isRffaBlocked" class="rffa-lock-banner">
         <ion-icon :icon="alertCircleOutline" class="lock-icon"></ion-icon>
         <div class="lock-text">
@@ -242,6 +269,9 @@ const overrideOpen = ref(false);
 const overrideError = ref('');
 let overrideResolver: ((value: { password: string; reason: string; reason_code: string; notes: string } | null) => void) | null = null;
 const changingProgram = ref(false);
+/** Holds the verified ReleaseContext while waiting for the technician to tap a variety chip. */
+const pendingCtx = ref<import('@/stores/distributionStore').ReleaseContext | null>(null);
+const pendingVarieties = ref<Array<{ id: string; variety_name: string; unit: string; remaining_quantity: number }>>([]);
 const searchQuery = ref('');
 const searchResults = ref<any[]>([]);
 const farmer = ref<any | null>(null);
@@ -453,6 +483,7 @@ const verifyOnline = async (program: any, source: 'subsidy' | 'program'): Promis
       rsbsa_no: farmer.value.rsbsa_no || farmer.value.rsbsaNo,
       source: 'subsidy',
       offline: false,
+      varieties: data.varieties ?? [],
     };
   }
 
@@ -581,6 +612,15 @@ const claimForCurrentFarmer = async (presetOverride?: { password: string; reason
       ctx.override_justification = override.notes;
     }
 
+    // Variety picker: if verifyFarmer returned varieties, pause here and let
+    // the technician tap the correct variety chip before firing the claim.
+    if (ctx.source === 'subsidy' && ctx.varieties && ctx.varieties.length > 0) {
+      pendingCtx.value = ctx;
+      pendingVarieties.value = ctx.varieties;
+      claiming.value = false;
+      return; // resume in selectVariety()
+    }
+
     distributionStore.setContext(ctx);
     const result = await claimSubsidyRelease(ctx);
     const farmerRow = farmer.value;
@@ -623,6 +663,69 @@ const claimForCurrentFarmer = async (presetOverride?: { password: string; reason
   } finally {
     claiming.value = false;
   }
+};
+
+/**
+ * Called when the technician taps a variety chip after verifyFarmer returned
+ * a variety picker list. Completes the interrupted claim with the chosen variety.
+ */
+const selectVariety = async (variety: { id: string; variety_name: string }) => {
+  const ctx = pendingCtx.value;
+  if (!ctx) return;
+
+  const program = selectedProgram.value;
+  const farmerRow = farmer.value;
+  const farmerName = farmerDisplayName.value;
+
+  pendingCtx.value = null;
+  pendingVarieties.value = [];
+  claiming.value = true;
+
+  const enrichedCtx = { ...ctx, variety_id: variety.id };
+
+  try {
+    distributionStore.setContext(enrichedCtx);
+    const result = await claimSubsidyRelease(enrichedCtx);
+    lastClaim.value = {
+      offline: result.offline,
+      farmerName: result.data?.farmer_name || farmerName,
+      rsbsa: ctx.rsbsa_no || farmerRow?.rsbsa_no || farmerRow?.rsbsaNo || null,
+      barangay: farmerRow?.permanent_brgy || farmerRow?.barangay || null,
+      campaign: program ? programOptionLabel(program) : (ctx.item_released || ''),
+      eligibleSize: ctx.eligible_size,
+      totalFarmSize: ctx.total_farm_size,
+      data: {
+        farmer_name: result.data?.farmer_name || farmerName,
+        quantity_dispensed: result.data?.quantity_dispensed ?? (ctx.quantity || undefined),
+        unit: result.data?.unit || ctx.unit,
+        inventory_remaining: result.data?.inventory_remaining ?? ctx.inventory_remaining,
+        quantity_dispensed_secondary: result.data?.quantity_dispensed_secondary ?? ctx.quantity_secondary,
+        unit_secondary: result.data?.unit_secondary ?? ctx.unit_secondary ?? null,
+        inventory_remaining_secondary:
+          result.data?.inventory_remaining_secondary ?? ctx.inventory_remaining_secondary ?? null,
+      },
+    };
+    applyStockFromClaim(result.data);
+    distributionStore.clear();
+    clearFarmer();
+    emit('saved');
+    if (result.offline) {
+      await toast(`${variety.variety_name} queued offline. Will sync when back online.`, 'warning');
+    }
+  } catch (err: any) {
+    await toast(err?.response?.data?.message || 'Release failed. Please try again.', 'danger');
+    // Restore picker so tech can retry or cancel.
+    pendingCtx.value = ctx;
+    pendingVarieties.value = ctx.varieties ?? [];
+  } finally {
+    claiming.value = false;
+  }
+};
+
+const cancelVarietyPicker = () => {
+  pendingCtx.value = null;
+  pendingVarieties.value = [];
+  clearFarmer();
 };
 
 const fetchFarmerByQr = async (raw: string) => {
@@ -1091,4 +1194,28 @@ onBeforeUnmount(() => {
   font-weight: 800;
   text-transform: none;
 }
+
+/* Variety picker card */
+.variety-picker-card { margin: 0 0 1rem; }
+.variety-picker-hint { font-size: 0.85rem; color: #64748b; margin: 0 0 0.75rem; }
+.variety-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.85rem; }
+.variety-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.6rem 1rem;
+  border: 2px solid #1a4731;
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  min-width: 100px;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+.variety-chip:hover:not(:disabled) { background: #ecfdf3; }
+.variety-chip:active:not(:disabled) { background: #dcfce7; }
+.variety-chip.depleted { border-color: #cbd5e1; opacity: 0.45; cursor: not-allowed; }
+.chip-name { font-weight: 800; color: #1a4731; font-size: 0.95rem; }
+.chip-stock { font-size: 0.72rem; color: #64748b; margin-top: 2px; }
+.cancel-variety-btn { margin-top: 0; text-transform: none; }
 </style>
