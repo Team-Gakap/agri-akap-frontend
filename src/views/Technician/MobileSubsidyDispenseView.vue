@@ -627,9 +627,11 @@ const claimForCurrentFarmer = async (presetOverride?: { password: string; reason
             await toast('This farmer has already claimed their allocation for this program.', 'danger');
             return;
           }
+          const storedId = String(beneficiary.beneficiary_id || '');
+          const isStoredRow = /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(storedId);
           ctx = {
             ...buildOfflineContext(program, source),
-            beneficiary_id: beneficiary.beneficiary_id,
+            ...(isStoredRow ? { beneficiary_id: storedId } : {}),
           };
         } else {
           ctx = buildOfflineContext(program, source);

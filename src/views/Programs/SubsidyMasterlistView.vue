@@ -75,14 +75,12 @@
           <div class="filters">
             <select v-model="filterBarangay" class="tool-select">
               <option value="">All Barangays</option>
-              <option v-for="b in barangayOptions" :key="b" :value="b">{{ b }}</option>
+              <option v-for="b in filterBarangayOptions" :key="b" :value="b">{{ b }}</option>
             </select>
             <select v-model="filterStatus" class="tool-select">
               <option value="">All Status</option>
-              <option value="Pending">Pending</option>
-              <option value="Waitlisted">Waitlisted</option>
+              <option value="Unclaimed">Unclaimed</option>
               <option value="Claimed">Claimed</option>
-              <option value="Excluded">Excluded</option>
             </select>
             <input
               v-model="searchTerm"
@@ -107,7 +105,7 @@
               <ion-icon slot="start" :icon="downloadOutline"></ion-icon>
               Export Draft to Excel
             </ion-button>
-            <ion-button size="small" fill="solid" class="act-btn primary" :disabled="publishing || isMockData || !pendingRows.length" @click="publishMasterlist">
+            <ion-button size="small" fill="solid" class="act-btn primary" :disabled="publishing || isMockData || !pickupReadyCount" @click="publishMasterlist">
               <ion-icon slot="start" :icon="qrCodeOutline"></ion-icon>
               {{ publishing ? 'Publishing…' : 'Publish Masterlist & Generate Pickup QR / SMS Alerts' }}
             </ion-button>
@@ -156,7 +154,7 @@
                     <td colspan="11">Stock cutoff — farmers below this line are waitlisted until inventory is replenished.</td>
                   </tr>
                   <tr>
-                    <td class="col-num">{{ i + 1 }}</td>
+                    <td class="col-num">{{ rowNumber(i) }}</td>
                     <td class="mono">
                       <span v-if="row.rsbsa_no">{{ row.rsbsa_no }}</span>
                       <UnverifiedWalkInChip v-else show :label="row.registration_type === 'manual_walkin' ? 'MANUAL-ENTRY' : 'UNREGISTERED'" />
@@ -185,7 +183,7 @@
                         v-if="row.status === 'Pending' && program.status === 'Active'"
                         class="icon-btn claim-btn"
                         title="Mark Claimed (deduct from stock)"
-                        :disabled="claimingId === row.beneficiary_id"
+                        :disabled="claimingId != null && claimingId === row.beneficiary_id"
                         @click="confirmClaim(row)"
                       >
                         <ion-icon :icon="checkmarkCircleOutline"></ion-icon>
@@ -249,6 +247,11 @@
               </tbody>
             </table>
           </div>
+          <div v-if="!isMockData && listLastPage > 1" class="pager">
+            <button type="button" class="pager-btn" :disabled="listPage <= 1 || loading" @click="goPage(listPage - 1)">Previous</button>
+            <span>Page {{ listPage }} of {{ listLastPage }}</span>
+            <button type="button" class="pager-btn" :disabled="listPage >= listLastPage || loading" @click="goPage(listPage + 1)">Next</button>
+          </div>
         </div>
 
         <SubsidyAllocationPreviewBar
@@ -266,7 +269,7 @@
         <h1>{{ program.program_name }} — Pickup roster</h1>
         <p>Present this QR at the MAO window. Scan verifies the registered farmer.</p>
         <div class="qr-grid">
-          <article v-for="row in pendingRows" :key="row.rsbsa_no" class="qr-card">
+          <article v-for="row in rosterRows" :key="row.rsbsa_no" class="qr-card">
             <qrcode-vue v-if="row.farmer_id" :value="String(row.farmer_id)" :size="96" level="H" />
             <p class="qr-name">{{ row.last_name }}, {{ row.first_name }}</p>
             <p class="qr-meta">{{ row.rsbsa_no }} · {{ row.barangay }}</p>
@@ -330,8 +333,8 @@
           </ion-toolbar>
         </ion-header>
         <ion-content class="ion-padding">
-          <p class="modal-program">{{ pendingRows.length }} farmers are ready for pickup.</p>
-          <p class="modal-hint">Print a QR slip for each pending beneficiary, or text only the farmers on this masterlist.</p>
+          <p class="modal-program">{{ rosterRows.length }} farmers are ready for pickup.</p>
+          <p class="modal-hint">Print a QR slip for each unclaimed farmer, or text the farmers on this target list.</p>
           <ion-button expand="block" class="send-btn" @click="printPickupRoster">Print pickup QR slips</ion-button>
           <ion-button expand="block" fill="outline" class="send-btn" :disabled="sendingSms || !smsFarmerIds.length" @click="sendMasterlistSms">
             {{ sendingSms ? 'Sending…' : 'Send SMS to masterlist' }}
@@ -406,7 +409,7 @@ import {
   toastController, alertController,
 } from '@ionic/vue';
 import {
-  syncOutline, chatbubbleEllipsesOutline, printOutline, eyeOutline,
+  chatbubbleEllipsesOutline, printOutline, eyeOutline,
   alertCircleOutline, addCircleOutline, checkmarkCircleOutline, playCircleOutline,
   optionsOutline, downloadOutline, qrCodeOutline,
 } from 'ionicons/icons';
@@ -427,7 +430,7 @@ import {
 } from '@/services/subsidyManualFilter';
 
 interface MasterlistRow {
-  beneficiary_id: string;
+  beneficiary_id?: string | null;
   farmer_id?: string;
   rsbsa_no: string;
   last_name: string;
@@ -444,7 +447,7 @@ interface MasterlistRow {
   is_walkin?: boolean;
   is_temporary?: boolean;
   registration_type?: string;
-  status: 'Pending' | 'Claimed' | 'Waitlisted' | 'Excluded';
+  status: 'Pending' | 'Claimed' | 'Waitlisted' | 'Excluded' | 'Unclaimed';
   variety_name?: string | null;
   exclusion_reason?: string | null;
 }
@@ -454,7 +457,6 @@ const router = useRouter();
 const programId = computed(() => String(route.params.id || ''));
 
 const loading = ref(true);
-const generating = ref(false);
 const activating = ref(false);
 const sendingSms = ref(false);
 const smsOpen = ref(false);
@@ -490,6 +492,12 @@ const program = reactive<any>({
 });
 
 const rows = ref<MasterlistRow[]>([]);
+const rosterRows = ref<MasterlistRow[]>([]);
+const listTotal = ref(0);
+const listClaimed = ref(0);
+const listUnclaimed = ref(0);
+const listPage = ref(1);
+const listLastPage = ref(1);
 
 const filterBarangay = ref('');
 const filterStatus = ref('');
@@ -552,6 +560,10 @@ const barangayOptions = computed(() =>
   [...new Set(rows.value.map((r) => r.barangay))].filter(Boolean).sort()
 );
 
+const filterBarangayOptions = computed(() =>
+  smsBarangayOptions.value.length ? smsBarangayOptions.value : barangayOptions.value
+);
+
 const filteredRows = computed(() => {
   const term = searchTerm.value.trim().toLowerCase();
   return rows.value.filter((r) => {
@@ -567,9 +579,9 @@ const filteredRows = computed(() => {
 
 const emptyMessage = computed(() => {
   if (!rows.value.length) {
-    return 'Masterlist is empty. Beneficiaries appear here after a regional workbook is committed for this program.';
+    return 'No eligible farmers match this campaign. The list is read from the farmer registry.';
   }
-  return 'No beneficiaries match the current filters.';
+  return 'No farmers match the current filters.';
 });
 
 const isCutoffRow = (index: number) => {
@@ -600,7 +612,8 @@ const statusClass = (status: string) => {
   return 'pending';
 };
 
-const pendingRows = computed(() => rows.value.filter((row) => row.status === 'Pending'));
+const pendingRows = computed(() => rows.value.filter((row) => row.status === 'Pending' || row.status === 'Unclaimed'));
+const pickupReadyCount = computed(() => (isMockData.value ? pendingRows.value.length : listUnclaimed.value));
 
 const checkedFarmers = computed(() => {
   const picked = new Set(checkedRsbsa.value);
@@ -661,11 +674,13 @@ const allFilteredChecked = computed(() =>
 );
 
 const smsFarmerIds = computed(() =>
-  pendingRows.value.map((row) => row.farmer_id).filter((id): id is string => !!id)
+  rosterRows.value.map((row) => row.farmer_id).filter((id): id is string => !!id)
 );
 
-const totalBeneficiaries = computed(() => rows.value.length);
-const totalClaimed = computed(() => rows.value.filter((r) => r.status === 'Claimed').length);
+const totalBeneficiaries = computed(() => (isMockData.value ? rows.value.length : listTotal.value));
+const totalClaimed = computed(() => (isMockData.value
+  ? rows.value.filter((r) => r.status === 'Claimed').length
+  : listClaimed.value));
 const claimedPct = computed(() =>
   totalBeneficiaries.value ? Math.round((totalClaimed.value / totalBeneficiaries.value) * 100) : 0
 );
@@ -694,6 +709,43 @@ const toast = async (message: string, color: 'success' | 'warning' | 'danger' | 
   await t.present();
 };
 
+const mapTargetRow = (r: any): MasterlistRow => ({
+  beneficiary_id: r.beneficiary_id ?? null,
+  farmer_id: r.farmer_id,
+  rsbsa_no: r.rsbsa_no,
+  last_name: r.last_name,
+  first_name: r.first_name,
+  middle_name: r.middle_name,
+  barangay: r.barangay || r.farm_brgy || 'Unspecified',
+  mobile_number: r.mobile_number,
+  farm_area: Number(r.farm_area || 0),
+  calculated_allocation: Number(r.calculated_allocation ?? r.allocated_bags ?? 0),
+  calculated_allocation_secondary: r.calculated_allocation_secondary != null ? Number(r.calculated_allocation_secondary) : null,
+  priority_tier: r.priority_tier != null ? Number(r.priority_tier) : null,
+  is_pwd: !!r.is_pwd,
+  is_senior: !!r.is_senior,
+  is_walkin: !!r.is_walkin || !!r.is_temporary,
+  is_temporary: !!r.is_temporary,
+  registration_type: r.registration_type,
+  status: r.status,
+  variety_name: r.variety_name ?? null,
+  exclusion_reason: r.exclusion_reason ?? null,
+});
+
+const targetListParams = (all = false) => {
+  const params: Record<string, string | number> = {};
+  if (all) params.all = 1;
+  else {
+    params.page = listPage.value;
+    params.per_page = 50;
+  }
+  const search = searchTerm.value.trim();
+  if (search) params.search = search;
+  if (filterBarangay.value) params.barangay = filterBarangay.value;
+  if (filterStatus.value === 'Claimed' || filterStatus.value === 'Unclaimed') params.status = filterStatus.value;
+  return params;
+};
+
 const fetchMasterlist = async () => {
   if (!programId.value) {
     loading.value = false;
@@ -704,38 +756,39 @@ const fetchMasterlist = async () => {
   loading.value = true;
   error.value = '';
   try {
-    const res = await apiClient.get(`/subsidies/${programId.value}/masterlist`);
+    const res = await apiClient.get(`/subsidies/${programId.value}/target-beneficiaries`, {
+      params: targetListParams(false),
+    });
     const payload = res.data?.data ?? {};
+    const meta = payload.meta ?? {};
     Object.assign(program, payload.program ?? {});
-    rows.value = (payload.masterlist ?? []).map((r: any) => ({
-      beneficiary_id: r.beneficiary_id,
-      farmer_id: r.farmer_id,
-      rsbsa_no: r.rsbsa_no,
-      last_name: r.last_name,
-      first_name: r.first_name,
-      middle_name: r.middle_name,
-      barangay: r.barangay || 'Unspecified',
-      mobile_number: r.mobile_number,
-      farm_area: Number(r.farm_area || 0),
-      calculated_allocation: Number(r.calculated_allocation || 0),
-      calculated_allocation_secondary: r.calculated_allocation_secondary != null ? Number(r.calculated_allocation_secondary) : null,
-      priority_tier: r.priority_tier != null ? Number(r.priority_tier) : null,
-      is_pwd: !!r.is_pwd,
-      is_senior: !!r.is_senior,
-      is_walkin: !!r.is_walkin || !!r.is_temporary,
-      is_temporary: !!r.is_temporary,
-      registration_type: r.registration_type,
-      status: r.status,
-      variety_name: r.variety_name ?? null,
-      exclusion_reason: r.exclusion_reason ?? null,
-    }));
+    rows.value = (payload.beneficiaries ?? []).map(mapTargetRow);
+    listTotal.value = Number(meta.total ?? rows.value.length);
+    listClaimed.value = Number(meta.claimed ?? 0);
+    listUnclaimed.value = Number(meta.unclaimed ?? 0);
+    listPage.value = Number(meta.page ?? listPage.value);
+    listLastPage.value = Number(meta.last_page ?? 1);
     isMockData.value = false;
   } catch (e: any) {
-    error.value = e?.response?.data?.message || 'Could not load the masterlist. Showing preview data.';
+    error.value = e?.response?.data?.message || 'Could not load the target list. Showing preview data.';
     loadMock();
   } finally {
     loading.value = false;
   }
+};
+
+const fetchAllTargetRows = async (status?: 'Claimed' | 'Unclaimed') => {
+  const params = targetListParams(true);
+  if (status) params.status = status;
+  const res = await apiClient.get(`/subsidies/${programId.value}/target-beneficiaries`, { params });
+  return ((res.data?.data?.beneficiaries ?? []) as any[]).map(mapTargetRow);
+};
+
+const rowNumber = (index: number) => (isMockData.value ? index + 1 : (listPage.value - 1) * 50 + index + 1);
+
+const goPage = (page: number) => {
+  listPage.value = page;
+  fetchMasterlist();
 };
 
 const confirmActivate = async () => {
@@ -761,42 +814,6 @@ const activateProgram = async () => {
     await toast(e?.response?.data?.message || 'Failed to activate program.', 'danger');
   } finally {
     activating.value = false;
-  }
-};
-
-const confirmGenerate = async () => {
-  const alert = await alertController.create({
-    header: 'Auto-Generate Masterlist',
-    message: 'Scan active planting logs for matching farmers and add newly eligible beneficiaries?',
-    buttons: [
-      { text: 'Cancel', role: 'cancel' },
-      {
-        text: 'Generate',
-        handler: () => generateMasterlist(),
-      },
-    ],
-  });
-  await alert.present();
-};
-
-const generateMasterlist = async () => {
-  if (!programId.value) {
-    await toast('Select a program first.', 'warning');
-    return;
-  }
-  generating.value = true;
-  try {
-    const res = await apiClient.post(`/subsidies/${programId.value}/generate-masterlist`);
-    const generated = Number(res.data?.data?.generated_count ?? 0);
-    await toast(
-      res.data?.message || 'Masterlist generated.',
-      generated > 0 ? 'success' : 'warning',
-    );
-    await fetchMasterlist();
-  } catch (e: any) {
-    await toast(e?.response?.data?.message || 'Failed to generate masterlist.', 'danger');
-  } finally {
-    generating.value = false;
   }
 };
 
@@ -884,7 +901,7 @@ const claimBeneficiary = async (
     varietyId = data;
   }
 
-  claimingId.value = row.beneficiary_id;
+  claimingId.value = row.beneficiary_id ?? null;
   try {
     const res = await apiClient.patch(`/subsidies/${programId.value}/beneficiaries/${row.beneficiary_id}/claim`, {
       override_password: override?.password,
@@ -1063,12 +1080,13 @@ const addSelectedToMasterlist = async () => {
 };
 
 const exportDraft = async () => {
+  const exportRows = isMockData.value || !programId.value ? rows.value : await fetchAllTargetRows();
   await exportSubsidyMasterlistExcel({
     filename: `${(program.program_name || 'subsidy-masterlist').replace(/\s+/g, '-')}.xlsx`,
     programName: program.program_name || 'Subsidy Program',
     unit: program.unit_of_measurement || 'Bags',
     secondaryUnit: program.secondary_unit,
-    rows: rows.value,
+    rows: exportRows,
   });
 };
 
@@ -1080,6 +1098,9 @@ const publishMasterlist = async () => {
       const res = await apiClient.patch(`/subsidies/${programId.value}/status`, { status: 'Active' });
       program.status = res.data?.data?.status || 'Active';
     }
+    rosterRows.value = isMockData.value
+      ? pendingRows.value
+      : await fetchAllTargetRows('Unclaimed');
     publishOpen.value = true;
   } catch (e: any) {
     await toast(e?.response?.data?.message || 'Could not publish the masterlist.', 'danger');
@@ -1118,6 +1139,21 @@ watch(workspaceMode, (mode) => {
 
 watch(searchTerm, () => {
   if (workspaceMode.value === 'manual') loadEligibleFarmers();
+});
+
+let listSearchTimer: ReturnType<typeof setTimeout> | undefined;
+watch([filterBarangay, filterStatus], () => {
+  if (isMockData.value) return;
+  listPage.value = 1;
+  fetchMasterlist();
+});
+watch(searchTerm, () => {
+  if (isMockData.value || workspaceMode.value !== 'auto') return;
+  clearTimeout(listSearchTimer);
+  listSearchTimer = setTimeout(() => {
+    listPage.value = 1;
+    fetchMasterlist();
+  }, 300);
 });
 
 const viewProfile = (row: MasterlistRow) => {
@@ -1240,6 +1276,26 @@ onMounted(() => {
   padding: 2rem;
 }
 .grid-state.error { color: #b91c1c; }
+.pager {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0.2rem 0.1rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #475569;
+}
+.pager-btn {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 6px;
+  padding: 0.3rem 0.7rem;
+  font-weight: 700;
+  color: #1a4731;
+  cursor: pointer;
+}
+.pager-btn:disabled { opacity: 0.45; cursor: default; }
 .table-scroll { flex: 1; overflow: auto; }
 
 .excel-table {
