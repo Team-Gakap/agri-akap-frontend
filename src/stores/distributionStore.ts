@@ -33,7 +33,7 @@ export interface ReleaseContext {
   is_pwd?: boolean;
   is_senior?: boolean;
   priority_label?: string | null;
-  source?: 'subsidy' | 'program' | 'seed_variety';
+  source?: 'subsidy' | 'program';
   override_password?: string;
   override_reason?: string;
   override_reason_code?: string;
