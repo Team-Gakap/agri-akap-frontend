@@ -130,17 +130,8 @@
                   </td>
                   <td class="inv-cell">
                     <div class="inv-line">
-                      <span class="inv-qty">
-                        {{ fmt(p.remaining_quantity) }} / {{ fmt(p.total_quantity) }}
-                        {{ p.unit_of_measurement }}
-                      </span>
+                      <span class="inv-qty">{{ stockLine(p) }}</span>
                       <span v-if="p.is_low_stock" class="stock-badge">Low Stock</span>
-                    </div>
-                    <div v-if="p.secondary_unit" class="inv-line">
-                      <span class="inv-qty inv-qty-secondary">
-                        {{ fmt(p.secondary_remaining_quantity) }} / {{ fmt(p.secondary_total_quantity) }}
-                        {{ p.secondary_unit }}
-                      </span>
                     </div>
                     <div
                       class="progress-track"
@@ -152,7 +143,7 @@
                     >
                       <div class="progress-fill" :style="{ width: claimedPct(p) + '%' }"></div>
                     </div>
-                    <div class="inv-sub">{{ claimedPct(p) }}% Claimed</div>
+                    <div class="inv-sub">{{ claimedLine(p) }}</div>
                   </td>
                   <td class="row-actions">
                     <ion-button size="small" fill="solid" class="open-btn" @click="openMasterlist(p.id)">
@@ -374,7 +365,36 @@
             </ion-item>
           </div>
 
-          <div class="date-row">
+          <template v-if="createForm.item_type === 'seed'">
+            <div class="date-row">
+              <ion-item class="modal-input">
+                <ion-input
+                  type="number"
+                  label="Kg per bag *"
+                  label-placement="floating"
+                  min="0.01"
+                  :value="createForm.bag_size_kg"
+                  @ionInput="(e: any) => createForm.bag_size_kg = e.detail.value === '' ? 15 : Number(e.detail.value)"
+                ></ion-input>
+              </ion-item>
+              <ion-item class="modal-input">
+                <ion-input
+                  type="number"
+                  label="Bags per hectare *"
+                  label-placement="floating"
+                  min="0.01"
+                  :value="createForm.bags_per_hectare"
+                  @ionInput="(e: any) => createForm.bags_per_hectare = e.detail.value === '' ? 1 : Number(e.detail.value)"
+                ></ion-input>
+              </ion-item>
+            </div>
+            <p class="modal-hint">
+              Rate: {{ createSeedKgPerHa.toLocaleString('en-PH') }} kg/ha
+              ({{ createForm.bags_per_hectare }} bag{{ Number(createForm.bags_per_hectare) === 1 ? '' : 's' }}
+              × {{ createForm.bag_size_kg }} kg).
+            </p>
+          </template>
+          <div v-else class="date-row">
             <ion-item class="modal-input">
               <ion-input
                 type="number"
@@ -428,13 +448,14 @@
           />
 
           <p class="modal-hint section-gap">
-            Variety stock. Example: LP 937 — 550, JACKPOT — 1,090. A barangay assignment is only a recommendation.
+            Variety stock in bags. Example: LP 937 — 550, JACKPOT — 1,090. A barangay assignment is only a recommendation.
           </p>
           <VarietyBreakdownEditor
             v-model="createForm.varieties"
             :barangays="officialBarangays"
             :fcas="activeFcaNames"
-            :unit-label="createPrimaryUnit"
+            :unit-label="createForm.item_type === 'seed' ? 'bags' : createPrimaryUnit"
+            :bag-size-kg="createForm.item_type === 'seed' ? createForm.bag_size_kg : null"
           />
 
           <ion-button expand="block" class="save-btn" :disabled="savingCreate" @click="submitCreateCampaign">
@@ -538,35 +559,50 @@
           <div v-if="activeProgram">
             <p class="modal-program">{{ activeProgram.program_name }}</p>
             <p class="modal-hint">
-              Current stock:
-              <strong>{{ fmt(activeProgram.remaining_quantity) }} {{ activeProgram.unit_of_measurement }}</strong>
-              <span v-if="activeProgram.secondary_unit">
-                &middot; <strong>{{ fmt(activeProgram.secondary_remaining_quantity) }} {{ activeProgram.secondary_unit }}</strong>
-              </span>
+              Current stock: <strong>{{ stockLine(activeProgram) }}</strong>
             </p>
 
-            <ion-item class="modal-input">
-              <ion-input
-                type="number"
-                :value="restockQty"
-                @ionInput="(e: any) => restockQty = e.detail.value === '' ? null : Number(e.detail.value)"
-                :label="`${activeProgram.unit_of_measurement} Delivered *`"
-                label-placement="floating"
-                placeholder="e.g., 500"
-                min="0.01"
-              ></ion-input>
-            </ion-item>
-            <ion-item v-if="activeProgram.secondary_unit" class="modal-input">
-              <ion-input
-                type="number"
-                :value="restockQtySecondary"
-                @ionInput="(e: any) => restockQtySecondary = e.detail.value === '' ? null : Number(e.detail.value)"
-                :label="`${activeProgram.secondary_unit} Delivered`"
-                label-placement="floating"
-                placeholder="e.g., 25"
-                min="0.01"
-              ></ion-input>
-            </ion-item>
+            <template v-if="isSeedWithBags(activeProgram)">
+              <ion-item class="modal-input">
+                <ion-input
+                  type="number"
+                  :value="restockQty"
+                  @ionInput="(e: any) => restockQty = e.detail.value === '' ? null : Number(e.detail.value)"
+                  label="Bags Delivered *"
+                  label-placement="floating"
+                  placeholder="e.g., 550"
+                  min="0.01"
+                ></ion-input>
+              </ion-item>
+              <p v-if="Number(restockQty) > 0" class="modal-hint">
+                = {{ (Number(restockQty) * Number(activeProgram.bag_size_kg)).toLocaleString('en-PH') }} kg
+                at {{ activeProgram.bag_size_kg }} kg/bag
+              </p>
+            </template>
+            <template v-else>
+              <ion-item class="modal-input">
+                <ion-input
+                  type="number"
+                  :value="restockQty"
+                  @ionInput="(e: any) => restockQty = e.detail.value === '' ? null : Number(e.detail.value)"
+                  :label="`${activeProgram.unit_of_measurement} Delivered *`"
+                  label-placement="floating"
+                  placeholder="e.g., 500"
+                  min="0.01"
+                ></ion-input>
+              </ion-item>
+              <ion-item v-if="activeProgram.secondary_unit" class="modal-input">
+                <ion-input
+                  type="number"
+                  :value="restockQtySecondary"
+                  @ionInput="(e: any) => restockQtySecondary = e.detail.value === '' ? null : Number(e.detail.value)"
+                  :label="`${activeProgram.secondary_unit} Delivered`"
+                  label-placement="floating"
+                  placeholder="e.g., 25"
+                  min="0.01"
+                ></ion-input>
+              </ion-item>
+            </template>
 
             <ion-button expand="block" class="save-btn" :disabled="savingRestock || !(Number(restockQty) >= 0.01)" @click="submitRestock">
               <ion-icon slot="start" :icon="addCircleOutline"></ion-icon>
@@ -598,7 +634,8 @@
               v-model="varietyRows"
               :barangays="officialBarangays"
               :fcas="activeFcaNames"
-              :unit-label="activeProgram.unit_of_measurement"
+              :unit-label="activeProgram.item_type === 'seed' ? 'bags' : activeProgram.unit_of_measurement"
+              :bag-size-kg="activeProgram.item_type === 'seed' ? activeProgram.bag_size_kg : null"
             />
             <ion-button expand="block" class="save-btn" :disabled="savingVarieties" @click="submitVarieties">
               {{ savingVarieties ? 'Saving…' : 'Save Varieties' }}
@@ -711,6 +748,7 @@ interface SubsidyProgramRow {
   min_hectares_limit: number;
   items_per_hectare: number;
   secondary_items_per_hectare?: number | null;
+  bag_size_kg?: number | null;
   status: string;
   unit_of_measurement: string;
   secondary_unit?: string | null;
@@ -723,6 +761,7 @@ interface SubsidyProgramRow {
   is_low_stock: boolean;
   beneficiaries_count: number;
   claimed_count: number;
+  claimed_bags?: number | null;
   delivery_start_date?: string | null;
   delivery_end_date?: string | null;
   created_at?: string;
@@ -790,6 +829,8 @@ const createForm = ref({
   item_type: 'seed' as ItemType,
   items_per_hectare: 1,
   secondary_items_per_hectare: 1,
+  bag_size_kg: 15,
+  bags_per_hectare: 1,
   max_hectares_limit: 3,
   min_hectares_limit: 0,
   delivery_start_date: '',
@@ -855,18 +896,32 @@ const statusClass = (status: string) => {
 };
 
 const claimedPct = (p: SubsidyProgramRow) => {
+  if (isSeedWithBags(p)) {
+    const s = bagStockTotals(p);
+    if (!s.bagsTotal) return 0;
+    const claimedBags = Number(p.claimed_bags) || Math.max(0, s.bagsTotal - s.bagsLeft);
+    return Math.round((claimedBags / s.bagsTotal) * 100);
+  }
   const total = Number(p.beneficiaries_count) || 0;
   if (!total) return 0;
   return Math.round((Number(p.claimed_count) / total) * 100);
 };
 
 const allocationMeta = (p: SubsidyProgramRow) => {
-  const unit = p.unit_of_measurement || 'Sacks';
-  let rate = `${p.items_per_hectare} ${unit}/ha`;
-  if (p.secondary_unit && p.secondary_items_per_hectare != null) {
-    rate += ` + ${p.secondary_items_per_hectare} ${p.secondary_unit}/ha`;
-  }
   const catalogTag = p.seed_class && p.item_type ? catalogSummary(null, p.seed_class, p.item_type) : '';
+  let rate = '';
+  if (p.item_type === 'seed' && Number(p.bag_size_kg) > 0) {
+    const bagsHa = p.secondary_unit
+      ? Number(p.secondary_items_per_hectare ?? 1)
+      : Number(p.items_per_hectare ?? 1);
+    rate = `${p.bag_size_kg} kg/bag · ${bagsHa} bag${bagsHa === 1 ? '' : 's'}/ha`;
+  } else {
+    const unit = p.unit_of_measurement || 'Sacks';
+    rate = `${p.items_per_hectare} ${unit}/ha`;
+    if (p.secondary_unit && p.secondary_items_per_hectare != null) {
+      rate += ` + ${p.secondary_items_per_hectare} ${p.secondary_unit}/ha`;
+    }
+  }
   const cap = `Cap ${Number(p.max_hectares_limit).toFixed(2)} ha`;
   const min = Number(p.min_hectares_limit ?? 0);
   const parts = [catalogTag, rate, min > 0 ? `Min ${min.toFixed(2)} ha` : '', cap].filter(Boolean);
@@ -902,6 +957,68 @@ const createCatalog = computed(() => getCatalogEntry(createForm.value.seed_class
 const createIsDual = computed(() => isDualUnit(createForm.value.seed_class, createForm.value.item_type));
 const createPrimaryUnit = computed(() => createCatalog.value?.unit || 'Bags');
 const createSecondaryUnit = computed(() => createCatalog.value?.secondaryUnit || 'bags');
+const createSeedKgPerHa = computed(() =>
+  Number(createForm.value.bags_per_hectare || 0) * Number(createForm.value.bag_size_kg || 0)
+);
+
+const isSeedWithBags = (p: SubsidyProgramRow | null | undefined) =>
+  !!p && p.item_type === 'seed' && Number(p.bag_size_kg) > 0;
+
+const bagStockTotals = (p: SubsidyProgramRow) => {
+  const size = Number(p.bag_size_kg) || 0;
+  if (p.secondary_unit) {
+    const bagsTotal = Number(p.secondary_total_quantity) || 0;
+    const bagsLeft = Number(p.secondary_remaining_quantity) || 0;
+    // Older Hybrid rows may still show bags only on varieties / kg primary.
+    if (bagsTotal <= 0 && Number(p.total_quantity) > 0 && size > 0) {
+      const derivedTotal = Math.round(Number(p.total_quantity) / size);
+      const derivedLeft = Math.round(Number(p.remaining_quantity) / size);
+      return {
+        bagsLeft: derivedLeft,
+        bagsTotal: derivedTotal,
+        kgLeft: Number(p.remaining_quantity) || 0,
+        kgTotal: Number(p.total_quantity) || 0,
+      };
+    }
+    return {
+      bagsLeft,
+      bagsTotal,
+      kgLeft: Number(p.remaining_quantity) || bagsLeft * size,
+      kgTotal: Number(p.total_quantity) || bagsTotal * size,
+    };
+  }
+  const bagsTotal = Number(p.total_quantity) || 0;
+  const bagsLeft = Number(p.remaining_quantity) || 0;
+  return {
+    bagsLeft,
+    bagsTotal,
+    kgLeft: bagsLeft * size,
+    kgTotal: bagsTotal * size,
+  };
+};
+
+const stockLine = (p: SubsidyProgramRow) => {
+  if (isSeedWithBags(p)) {
+    const s = bagStockTotals(p);
+    return `${fmt(s.bagsLeft)} / ${fmt(s.bagsTotal)} bags (${fmt(s.kgLeft)} / ${fmt(s.kgTotal)} kg)`;
+  }
+  let line = `${fmt(p.remaining_quantity)} / ${fmt(p.total_quantity)} ${p.unit_of_measurement}`;
+  if (p.secondary_unit) {
+    line += ` · ${fmt(p.secondary_remaining_quantity)} / ${fmt(p.secondary_total_quantity)} ${p.secondary_unit}`;
+  }
+  return line;
+};
+
+const claimedLine = (p: SubsidyProgramRow) => {
+  if (isSeedWithBags(p)) {
+    const s = bagStockTotals(p);
+    const claimedBags = Number(p.claimed_bags) || Math.max(0, s.bagsTotal - s.bagsLeft);
+    const size = Number(p.bag_size_kg) || 0;
+    const claimedKg = claimedBags * size;
+    return `${fmt(claimedBags)} / ${fmt(s.bagsTotal)} bags (${fmt(claimedKg)} / ${fmt(s.kgTotal)} kg)`;
+  }
+  return `${claimedPct(p)}% Claimed`;
+};
 
 const onCreateSeedClass = (e: any) => {
   const next = e.detail.value as SeedClass;
@@ -909,6 +1026,11 @@ const onCreateSeedClass = (e: any) => {
   const types = itemTypesFor(next);
   if (!types.includes(createForm.value.item_type)) {
     createForm.value.item_type = types[0] || 'seed';
+  }
+  if (createForm.value.item_type === 'seed') {
+    const hybrid = next === 'Hybrid';
+    createForm.value.bag_size_kg = hybrid ? 15 : 20;
+    createForm.value.bags_per_hectare = hybrid ? 1 : 2;
   }
 };
 
@@ -924,6 +1046,8 @@ const varietyPayload = (rows: VarietyDraft[]) =>
 
 const openCreateCampaign = (line: 'hybrid' | 'rcef' = 'hybrid') => {
   const hybrid = line === 'hybrid';
+  const bagSize = hybrid ? 15 : 20;
+  const bagsPerHa = hybrid ? 1 : 2;
   createForm.value = {
     program_name: hybrid
       ? 'National Rice Program - 2026 Wet Season Hybrid Seeds'
@@ -932,8 +1056,10 @@ const openCreateCampaign = (line: 'hybrid' | 'rcef' = 'hybrid') => {
     hvcc_commodity: '',
     seed_class: hybrid ? 'Hybrid' : 'Inbred',
     item_type: 'seed',
-    items_per_hectare: hybrid ? 20 : 2,
-    secondary_items_per_hectare: 1,
+    items_per_hectare: bagsPerHa * bagSize,
+    secondary_items_per_hectare: hybrid ? bagsPerHa : 1,
+    bag_size_kg: bagSize,
+    bags_per_hectare: bagsPerHa,
     max_hectares_limit: 3,
     min_hectares_limit: 0,
     delivery_start_date: '',
@@ -988,10 +1114,30 @@ const submitCreateCampaign = async () => {
     await toast('Enter a campaign name.', 'warning');
     return;
   }
-  const bagsPerHa = Number(createForm.value.items_per_hectare);
   const maxHa = Number(createForm.value.max_hectares_limit);
   const minHa = Number(createForm.value.min_hectares_limit) || 0;
-  if (!(bagsPerHa > 0) || !(maxHa > 0)) {
+  const isSeed = createForm.value.item_type === 'seed';
+  const bagSize = Number(createForm.value.bag_size_kg);
+  const bagsPerHa = Number(createForm.value.bags_per_hectare);
+  let primaryRate = Number(createForm.value.items_per_hectare);
+  let secondaryRate = Number(createForm.value.secondary_items_per_hectare);
+
+  if (isSeed) {
+    if (!(bagSize > 0) || !(bagsPerHa > 0)) {
+      await toast('Kg per bag and bags per hectare must be greater than zero.', 'warning');
+      return;
+    }
+    // Hybrid stores kg/ha primary + bags/ha secondary. Inbred stores bags/ha primary.
+    if (createIsDual.value) {
+      primaryRate = bagsPerHa * bagSize;
+      secondaryRate = bagsPerHa;
+    } else {
+      primaryRate = bagsPerHa;
+      secondaryRate = 0;
+    }
+  }
+
+  if (!(primaryRate > 0) || !(maxHa > 0)) {
     await toast('Rate per hectare and max hectares must be greater than zero.', 'warning');
     return;
   }
@@ -1004,13 +1150,15 @@ const submitCreateCampaign = async () => {
     await toast('Delivery end must be on or after the start date.', 'warning');
     return;
   }
-  const secondaryRate = Number(createForm.value.secondary_items_per_hectare);
-  if (createIsDual.value && !(secondaryRate > 0)) {
+  if (!isSeed && createIsDual.value && !(secondaryRate > 0)) {
     await toast(`Enter a ${createSecondaryUnit.value} per hectare rate.`, 'warning');
     return;
   }
 
-  const varieties = varietyPayload(createForm.value.varieties);
+  const varieties = varietyPayload(createForm.value.varieties).map((row) => ({
+    ...row,
+    unit: isSeed ? 'bags' : undefined,
+  }));
   savingCreate.value = true;
   try {
     const res = await apiClient.post('/subsidies', {
@@ -1019,8 +1167,9 @@ const submitCreateCampaign = async () => {
       hvcc_commodity: createForm.value.target_crop === 'HVCC' ? (createForm.value.hvcc_commodity.trim() || null) : null,
       seed_class: createForm.value.seed_class,
       item_type: createForm.value.item_type,
-      items_per_hectare: bagsPerHa,
+      items_per_hectare: primaryRate,
       secondary_items_per_hectare: createIsDual.value ? secondaryRate : null,
+      bag_size_kg: isSeed ? bagSize : null,
       max_hectares_limit: maxHa,
       min_hectares_limit: minHa,
       delivery_start_date: createForm.value.delivery_start_date || null,
@@ -1153,9 +1302,13 @@ const submitRestock = async () => {
   if (!remarks) return;
   savingRestock.value = true;
   try {
+    const bagsMode = isSeedWithBags(activeProgram.value);
     const res = await apiClient.post(`/subsidies/${activeProgram.value.id}/restock`, {
       quantity_added: Number(restockQty.value),
-      secondary_quantity_added: Number(restockQtySecondary.value) > 0 ? Number(restockQtySecondary.value) : undefined,
+      bags_added: bagsMode ? Number(restockQty.value) : undefined,
+      secondary_quantity_added: bagsMode
+        ? undefined
+        : (Number(restockQtySecondary.value) > 0 ? Number(restockQtySecondary.value) : undefined),
       audit_remarks: remarks,
     });
     await toast(res.data?.message || 'Delivery logged.', 'success');
@@ -1229,8 +1382,12 @@ const submitVarieties = async () => {
   if (!remarks) return;
   savingVarieties.value = true;
   try {
+    const seedBags = activeProgram.value.item_type === 'seed';
     const res = await apiClient.put(`/subsidies/${activeProgram.value.id}/varieties`, {
-      varieties: filled,
+      varieties: filled.map((row) => ({
+        ...row,
+        unit: seedBags ? 'bags' : undefined,
+      })),
       audit_remarks: remarks,
     });
     await toast(res.data?.message || 'Varieties saved.', 'success');

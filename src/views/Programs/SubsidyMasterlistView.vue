@@ -41,26 +41,15 @@
             <div class="stat claimed-progress stock-stat">
               <div class="progress-head">
                 <span class="stat-value" :class="{ danger: program.is_low_stock }">
-                  {{ fmt(program.remaining_quantity) }}/{{ fmt(program.total_quantity) }}
+                  {{ stockRemainingLabel }}
                 </span>
                 <span class="stat-label">
-                  {{ program.unit_of_measurement || 'Bags' }} in Stock
+                  {{ stockUnitLabel }}
                   <ion-icon v-if="program.is_low_stock" :icon="alertCircleOutline" class="low-icon"></ion-icon>
                 </span>
               </div>
               <div class="progress-track">
                 <div class="progress-fill stock" :class="{ danger: program.is_low_stock }" :style="{ width: stockPct + '%' }"></div>
-              </div>
-            </div>
-            <div v-if="program.secondary_unit" class="stat claimed-progress stock-stat">
-              <div class="progress-head">
-                <span class="stat-value" :class="{ danger: program.is_low_stock }">
-                  {{ fmt(program.secondary_remaining_quantity) }}/{{ fmt(program.secondary_total_quantity) }}
-                </span>
-                <span class="stat-label">{{ program.secondary_unit }} in Stock</span>
-              </div>
-              <div class="progress-track">
-                <div class="progress-fill stock" :style="{ width: secondaryStockPct + '%' }"></div>
               </div>
             </div>
             <ion-button size="small" fill="outline" class="act-btn stock-btn" @click="openRestock">
@@ -353,35 +342,49 @@
         </ion-header>
         <ion-content class="ion-padding">
           <p class="modal-program">{{ program.program_name }}</p>
-          <p class="modal-hint">
-            Current stock:
-            <strong>{{ fmt(program.remaining_quantity) }} {{ program.unit_of_measurement }}</strong>
-            <span v-if="program.secondary_unit">
-              &middot; <strong>{{ fmt(program.secondary_remaining_quantity) }} {{ program.secondary_unit }}</strong>
-            </span>
-          </p>
-          <ion-item class="modal-input">
-            <ion-input
-              type="number"
-              :value="restockQty"
-              @ionInput="(e: any) => restockQty = e.detail.value === '' ? null : Number(e.detail.value)"
-              :label="`${program.unit_of_measurement} Delivered *`"
-              label-placement="floating"
-              placeholder="e.g., 500"
-              min="0.01"
-            ></ion-input>
-          </ion-item>
-          <ion-item v-if="program.secondary_unit" class="modal-input">
-            <ion-input
-              type="number"
-              :value="restockQtySecondary"
-              @ionInput="(e: any) => restockQtySecondary = e.detail.value === '' ? null : Number(e.detail.value)"
-              :label="`${program.secondary_unit} Delivered`"
-              label-placement="floating"
-              placeholder="e.g., 25"
-              min="0.01"
-            ></ion-input>
-          </ion-item>
+            <p class="modal-hint">
+              Current stock: <strong>{{ stockFullLabel }}</strong>
+            </p>
+            <template v-if="isSeedBags">
+              <ion-item class="modal-input">
+                <ion-input
+                  type="number"
+                  :value="restockQty"
+                  @ionInput="(e: any) => restockQty = e.detail.value === '' ? null : Number(e.detail.value)"
+                  label="Bags Delivered *"
+                  label-placement="floating"
+                  placeholder="e.g., 550"
+                  min="0.01"
+                ></ion-input>
+              </ion-item>
+              <p v-if="Number(restockQty) > 0" class="modal-hint">
+                = {{ (Number(restockQty) * Number(program.bag_size_kg)).toLocaleString('en-PH') }} kg
+              </p>
+            </template>
+            <template v-else>
+              <ion-item class="modal-input">
+                <ion-input
+                  type="number"
+                  :value="restockQty"
+                  @ionInput="(e: any) => restockQty = e.detail.value === '' ? null : Number(e.detail.value)"
+                  :label="`${program.unit_of_measurement} Delivered *`"
+                  label-placement="floating"
+                  placeholder="e.g., 500"
+                  min="0.01"
+                ></ion-input>
+              </ion-item>
+              <ion-item v-if="program.secondary_unit" class="modal-input">
+                <ion-input
+                  type="number"
+                  :value="restockQtySecondary"
+                  @ionInput="(e: any) => restockQtySecondary = e.detail.value === '' ? null : Number(e.detail.value)"
+                  :label="`${program.secondary_unit} Delivered`"
+                  label-placement="floating"
+                  placeholder="e.g., 25"
+                  min="0.01"
+                ></ion-input>
+              </ion-item>
+            </template>
           <ion-button expand="block" class="send-btn" :disabled="savingRestock || !(Number(restockQty) >= 0.01)" @click="submitRestock">
             <ion-icon slot="start" :icon="addCircleOutline"></ion-icon>
             {{ savingRestock ? 'Saving…' : 'Add to Stock' }}
@@ -478,6 +481,7 @@ const program = reactive<any>({
   max_hectares_limit: 0,
   items_per_hectare: 0,
   secondary_items_per_hectare: null,
+  bag_size_kg: null as number | null,
   status: '',
   unit_of_measurement: 'Bags',
   secondary_unit: null,
@@ -488,7 +492,62 @@ const program = reactive<any>({
   secondary_remaining_quantity: 0,
   secondary_reorder_level: null,
   is_low_stock: false,
+  claimed_bags: 0,
   varieties: [] as any[],
+});
+
+const isSeedBags = computed(() => program.item_type === 'seed' && Number(program.bag_size_kg) > 0);
+
+const bagStock = computed(() => {
+  const size = Number(program.bag_size_kg) || 0;
+  if (program.secondary_unit) {
+    let bagsTotal = Number(program.secondary_total_quantity) || 0;
+    let bagsLeft = Number(program.secondary_remaining_quantity) || 0;
+    if (bagsTotal <= 0 && Number(program.total_quantity) > 0 && size > 0) {
+      bagsTotal = Math.round(Number(program.total_quantity) / size);
+      bagsLeft = Math.round(Number(program.remaining_quantity) / size);
+    }
+    return {
+      bagsLeft,
+      bagsTotal,
+      kgLeft: Number(program.remaining_quantity) || bagsLeft * size,
+      kgTotal: Number(program.total_quantity) || bagsTotal * size,
+    };
+  }
+  const bagsTotal = Number(program.total_quantity) || 0;
+  const bagsLeft = Number(program.remaining_quantity) || 0;
+  return {
+    bagsLeft,
+    bagsTotal,
+    kgLeft: bagsLeft * size,
+    kgTotal: bagsTotal * size,
+  };
+});
+
+const stockRemainingLabel = computed(() => {
+  if (!isSeedBags.value) {
+    return `${fmt(program.remaining_quantity)}/${fmt(program.total_quantity)}`;
+  }
+  const s = bagStock.value;
+  return `${fmt(s.bagsLeft)}/${fmt(s.bagsTotal)}`;
+});
+
+const stockUnitLabel = computed(() => {
+  if (!isSeedBags.value) return `${program.unit_of_measurement || 'Bags'} in Stock`;
+  const s = bagStock.value;
+  return `bags (${fmt(s.kgLeft)}/${fmt(s.kgTotal)} kg)`;
+});
+
+const stockFullLabel = computed(() => {
+  if (!isSeedBags.value) {
+    let line = `${fmt(program.remaining_quantity)} ${program.unit_of_measurement}`;
+    if (program.secondary_unit) {
+      line += ` · ${fmt(program.secondary_remaining_quantity)} ${program.secondary_unit}`;
+    }
+    return line;
+  }
+  const s = bagStock.value;
+  return `${fmt(s.bagsLeft)} / ${fmt(s.bagsTotal)} bags (${fmt(s.kgLeft)} / ${fmt(s.kgTotal)} kg)`;
 });
 
 const rows = ref<MasterlistRow[]>([]);
@@ -684,18 +743,26 @@ const totalClaimed = computed(() => (isMockData.value
 const claimedPct = computed(() =>
   totalBeneficiaries.value ? Math.round((totalClaimed.value / totalBeneficiaries.value) * 100) : 0
 );
-const stockPct = computed(() =>
-  program.total_quantity ? Math.max(0, Math.min(100, Math.round((program.remaining_quantity / program.total_quantity) * 100))) : 0
-);
-const secondaryStockPct = computed(() =>
-  program.secondary_total_quantity
-    ? Math.max(0, Math.min(100, Math.round((program.secondary_remaining_quantity / program.secondary_total_quantity) * 100)))
-    : 0
-);
+const stockPct = computed(() => {
+  if (isSeedBags.value) {
+    const s = bagStock.value;
+    return s.bagsTotal ? Math.max(0, Math.min(100, Math.round((s.bagsLeft / s.bagsTotal) * 100))) : 0;
+  }
+  return program.total_quantity
+    ? Math.max(0, Math.min(100, Math.round((program.remaining_quantity / program.total_quantity) * 100)))
+    : 0;
+});
 
 const fmt = (v: any) => Number(v ?? 0).toLocaleString('en-PH');
 const formatArea = (v: number) => Number(v ?? 0).toFixed(2);
 const formatAllocation = (row: { calculated_allocation: number; calculated_allocation_secondary?: number | null }) => {
+  if (isSeedBags.value) {
+    const bags = Number(row.calculated_allocation ?? 0);
+    const kg = row.calculated_allocation_secondary != null
+      ? Number(row.calculated_allocation_secondary)
+      : bags * Number(program.bag_size_kg || 0);
+    return `${bags} bags (${kg} kg)`;
+  }
   const unit = program.unit_of_measurement || 'Bags';
   const primary = `${row.calculated_allocation ?? 0} ${unit}`;
   if (program.secondary_unit && row.calculated_allocation_secondary != null) {
@@ -940,11 +1007,20 @@ const openRestock = () => {
 const submitRestock = async () => {
   if (!(Number(restockQty.value) >= 0.01)) return;
   if (isMockData.value) {
-    program.total_quantity += Number(restockQty.value);
-    program.remaining_quantity += Number(restockQty.value);
-    if (program.secondary_unit && Number(restockQtySecondary.value) > 0) {
-      program.secondary_total_quantity += Number(restockQtySecondary.value);
-      program.secondary_remaining_quantity += Number(restockQtySecondary.value);
+    if (isSeedBags.value) {
+      const bags = Number(restockQty.value);
+      const kg = bags * Number(program.bag_size_kg || 0);
+      program.secondary_total_quantity = Number(program.secondary_total_quantity || 0) + bags;
+      program.secondary_remaining_quantity = Number(program.secondary_remaining_quantity || 0) + bags;
+      program.total_quantity += kg;
+      program.remaining_quantity += kg;
+    } else {
+      program.total_quantity += Number(restockQty.value);
+      program.remaining_quantity += Number(restockQty.value);
+      if (program.secondary_unit && Number(restockQtySecondary.value) > 0) {
+        program.secondary_total_quantity += Number(restockQtySecondary.value);
+        program.secondary_remaining_quantity += Number(restockQtySecondary.value);
+      }
     }
     restockOpen.value = false;
     await toast('Delivery logged. (Preview data)', 'success');
@@ -962,7 +1038,10 @@ const submitRestock = async () => {
     }
     const res = await apiClient.post(`/subsidies/${programId.value}/restock`, {
       quantity_added: Number(restockQty.value),
-      secondary_quantity_added: Number(restockQtySecondary.value) > 0 ? Number(restockQtySecondary.value) : undefined,
+      bags_added: isSeedBags.value ? Number(restockQty.value) : undefined,
+      secondary_quantity_added: isSeedBags.value
+        ? undefined
+        : (Number(restockQtySecondary.value) > 0 ? Number(restockQtySecondary.value) : undefined),
       audit_remarks: remarks,
     });
     Object.assign(program, res.data?.data ?? {});

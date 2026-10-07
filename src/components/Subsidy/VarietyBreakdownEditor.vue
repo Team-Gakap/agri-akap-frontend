@@ -11,14 +11,21 @@
           placeholder="Variety name (e.g. JACKPOT)"
           @ionInput="(e: any) => v.variety_name = String(e.detail.value ?? '')"
         ></ion-input>
-        <ion-input
-          type="number"
-          class="variety-edit-qty"
-          :value="v.quantity"
-          placeholder="Qty"
-          min="0"
-          @ionInput="(e: any) => v.quantity = e.detail.value === '' || e.detail.value == null ? null : Number(e.detail.value)"
-        ></ion-input>
+        <div class="qty-wrap">
+          <ion-input
+            type="number"
+            class="variety-edit-qty"
+            :value="v.quantity"
+            :placeholder="qtyPlaceholder"
+            :label="qtyLabel"
+            label-placement="stacked"
+            min="0"
+            @ionInput="(e: any) => v.quantity = e.detail.value === '' || e.detail.value == null ? null : Number(e.detail.value)"
+          ></ion-input>
+          <p v-if="showBagKg && Number(v.quantity) > 0" class="kg-hint">
+            = {{ kgFor(Number(v.quantity)).toLocaleString('en-PH') }} kg
+          </p>
+        </div>
         <button type="button" class="variety-remove-btn" @click="removeRow(vi)">✕</button>
       </div>
       <div class="variety-assign-row">
@@ -49,9 +56,7 @@
     <ion-button expand="block" fill="outline" class="variety-add-btn" @click="addRow">
       + Add variety
     </ion-button>
-    <p class="total-hint">
-      Total: {{ total.toLocaleString() }} {{ unitLabel || 'units' }}
-    </p>
+    <p class="total-hint">{{ totalLabel }}</p>
   </div>
 </template>
 
@@ -71,9 +76,14 @@ const props = defineProps<{
   barangays: string[];
   fcas?: string[];
   unitLabel?: string;
+  /** When set, quantities are bag counts and kilograms are bags × this size. */
+  bagSizeKg?: number | null;
 }>();
 
 const fcaOptions = computed(() => props.fcas ?? []);
+const showBagKg = computed(() => Number(props.bagSizeKg) > 0);
+const qtyLabel = computed(() => (showBagKg.value ? 'Qty (Bags)' : undefined));
+const qtyPlaceholder = computed(() => (showBagKg.value ? 'Qty (Bags)' : (props.unitLabel ? `Qty (${props.unitLabel})` : 'Qty')));
 
 const emit = defineEmits<{
   'update:modelValue': [VarietyDraft[]];
@@ -82,6 +92,16 @@ const emit = defineEmits<{
 const total = computed(() =>
   props.modelValue.reduce((sum, row) => sum + (Number(row.quantity) || 0), 0),
 );
+
+const kgFor = (bags: number) => bags * Number(props.bagSizeKg || 0);
+
+const totalLabel = computed(() => {
+  const bags = total.value;
+  if (showBagKg.value) {
+    return `Total: ${bags.toLocaleString('en-PH')} bags (${kgFor(bags).toLocaleString('en-PH')} kg)`;
+  }
+  return `Total: ${bags.toLocaleString('en-PH')} ${props.unitLabel || 'units'}`;
+});
 
 const blankRow = (): VarietyDraft => ({
   variety_name: '',
@@ -128,9 +148,17 @@ const barangaySummary = (row: VarietyDraft) => {
   margin-bottom: 0.65rem;
   background: #fff;
 }
-.variety-edit-row { display: flex; gap: 0.5rem; align-items: center; }
+.variety-edit-row { display: flex; gap: 0.5rem; align-items: flex-start; }
 .variety-edit-name { flex: 1; }
-.variety-edit-qty { width: 110px; }
+.qty-wrap { width: 130px; flex-shrink: 0; }
+.variety-edit-qty { width: 100%; }
+.kg-hint {
+  margin: 0.15rem 0 0;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  text-align: right;
+}
 .variety-remove-btn {
   background: #fee2e2;
   color: #991b1b;
@@ -139,6 +167,7 @@ const barangaySummary = (row: VarietyDraft) => {
   padding: 0.35rem 0.6rem;
   cursor: pointer;
   font-size: 0.85rem;
+  margin-top: 0.35rem;
 }
 .variety-assign-row {
   display: grid;
