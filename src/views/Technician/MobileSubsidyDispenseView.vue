@@ -202,7 +202,10 @@
               </template>
             </div>
           </div>
-          <p class="variety-picker-hint">Tap the exact variety in the truck / drop-off point now. All bags must be the same variety.</p>
+          <p class="variety-picker-hint">
+            Recommended matches this farm barangay. You can still issue any variety that has stock.
+            All bags in this release must be the same variety.
+          </p>
           <div class="variety-chips">
             <button
               v-for="v in pendingVarieties"
@@ -213,7 +216,7 @@
               @click="selectVariety(v)"
             >
               <span class="chip-name">{{ v.variety_name }}</span>
-              <span v-if="v.recommended" class="chip-rec">Recommended</span>
+              <span v-if="v.recommended" class="chip-rec" title="Suggested for this farm barangay. Any variety with stock can be issued.">Recommended</span>
               <span class="chip-stock">{{ v.remaining_quantity.toLocaleString() }} {{ v.unit }} left</span>
             </button>
           </div>

@@ -16,11 +16,24 @@
 
         <div v-else-if="!programs.length" class="empty-panel">
           <h2>No subsidy programs yet</h2>
-          <p>Upload the DA-RFO monthly workbook to create this month's subsidy programs.</p>
-          <ion-button class="create-btn" @click="openIntake">
-            <ion-icon slot="start" :icon="cloudUploadOutline"></ion-icon>
-            Upload Masterlist
-          </ion-button>
+          <p>Create a campaign, then upload the masterlist so eligible farmers can receive it.</p>
+          <div class="header-actions center-actions">
+            <ion-button class="create-btn" @click="openCreateCampaign('hybrid')">
+              <ion-icon slot="start" :icon="addCircleOutline"></ion-icon>
+              New Hybrid campaign
+            </ion-button>
+            <ion-button class="create-btn" @click="openCreateCampaign('rcef')">
+              <ion-icon slot="start" :icon="addCircleOutline"></ion-icon>
+              New RCEF campaign
+            </ion-button>
+            <ion-button class="create-btn outline-btn" fill="outline" @click="fcaOpen = true">
+              FCAs
+            </ion-button>
+            <ion-button class="create-btn outline-btn" fill="outline" @click="openIntake">
+              <ion-icon slot="start" :icon="cloudUploadOutline"></ion-icon>
+              Upload Masterlist
+            </ion-button>
+          </div>
         </div>
 
         <div v-else class="table-wrap">
@@ -40,10 +53,23 @@
                 <span class="tab-count">{{ tab.count }}</span>
               </button>
             </div>
-            <ion-button class="create-btn" @click="openIntake">
-              <ion-icon slot="start" :icon="cloudUploadOutline"></ion-icon>
-              Upload Regional Monthly Workbook
-            </ion-button>
+            <div class="header-actions">
+              <ion-button class="create-btn" @click="openCreateCampaign('hybrid')">
+                <ion-icon slot="start" :icon="addCircleOutline"></ion-icon>
+                New Hybrid campaign
+              </ion-button>
+              <ion-button class="create-btn" @click="openCreateCampaign('rcef')">
+                <ion-icon slot="start" :icon="addCircleOutline"></ion-icon>
+                New RCEF campaign
+              </ion-button>
+              <ion-button class="create-btn outline-btn" fill="outline" @click="fcaOpen = true">
+                FCAs
+              </ion-button>
+              <ion-button class="create-btn outline-btn" fill="outline" @click="openIntake">
+                <ion-icon slot="start" :icon="cloudUploadOutline"></ion-icon>
+                Upload Regional Monthly Workbook
+              </ion-button>
+            </div>
           </div>
 
           <div class="table-tools">
@@ -215,6 +241,208 @@
         </div>
       </div>
 
+      <!-- FCA LIST -->
+      <ion-modal :is-open="fcaOpen" @didDismiss="fcaOpen = false">
+        <ion-header>
+          <ion-toolbar color="primary">
+            <ion-title>Registered FCAs</ion-title>
+            <ion-buttons slot="end">
+              <ion-button @click="fcaOpen = false">Close</ion-button>
+            </ion-buttons>
+          </ion-toolbar>
+        </ion-header>
+        <ion-content class="ion-padding">
+          <p class="modal-hint">
+            Add each Irrigators Association or cooperative once. Variety rows pick from this list so DA endorsement reports stay consistent.
+          </p>
+          <div class="fca-add-row">
+            <ion-input
+              class="fca-add-input"
+              placeholder="FCA name"
+              :value="fcaDraft"
+              @ionInput="(e: any) => fcaDraft = String(e.detail.value ?? '')"
+            ></ion-input>
+            <ion-button class="create-btn" :disabled="savingFca" @click="addFca">
+              {{ savingFca ? 'Saving…' : 'Add' }}
+            </ion-button>
+          </div>
+          <ul class="fca-list">
+            <li v-for="fca in fcas" :key="fca.id">
+              <span :class="{ inactive: !fca.is_active }">{{ fca.name }}</span>
+              <button type="button" class="fca-toggle" @click="toggleFca(fca)">
+                {{ fca.is_active ? 'Deactivate' : 'Restore' }}
+              </button>
+            </li>
+            <li v-if="!fcas.length" class="fca-empty">No FCAs yet.</li>
+          </ul>
+        </ion-content>
+      </ion-modal>
+
+      <!-- CREATE CAMPAIGN MODAL -->
+      <ion-modal :is-open="createOpen" @didDismiss="createOpen = false">
+        <ion-header>
+          <ion-toolbar color="primary">
+            <ion-title>Create Campaign</ion-title>
+            <ion-buttons slot="end">
+              <ion-button @click="createOpen = false">Close</ion-button>
+            </ion-buttons>
+          </ion-toolbar>
+        </ion-header>
+        <ion-content class="ion-padding">
+          <p class="modal-hint">
+            DA Banner Hybrid (the 7,000-bag load) and PhilRice RCEF (the 738 ha inbred load) are separate campaigns with separate audits. Do not mix them.
+            Farmers with deceased, OFW, or no-farm remarks stay excluded. Allocation uses the farm address.
+          </p>
+
+          <ion-item class="modal-input">
+            <ion-input
+              label="Campaign name *"
+              label-placement="floating"
+              :value="createForm.program_name"
+              @ionInput="(e: any) => createForm.program_name = String(e.detail.value ?? '')"
+            ></ion-input>
+          </ion-item>
+
+          <div class="date-row">
+            <ion-item class="modal-input">
+              <ion-select
+                label="Crop *"
+                label-placement="floating"
+                interface="popover"
+                :value="createForm.target_crop"
+                @ionChange="(e: any) => createForm.target_crop = e.detail.value"
+              >
+                <ion-select-option value="Rice">Rice</ion-select-option>
+                <ion-select-option value="Corn">Corn</ion-select-option>
+                <ion-select-option value="Both">Rice and Corn</ion-select-option>
+                <ion-select-option value="HVCC">HVCC</ion-select-option>
+              </ion-select>
+            </ion-item>
+            <ion-item v-if="createForm.target_crop === 'HVCC'" class="modal-input">
+              <ion-input
+                label="HVCC commodity"
+                label-placement="floating"
+                :value="createForm.hvcc_commodity"
+                @ionInput="(e: any) => createForm.hvcc_commodity = String(e.detail.value ?? '')"
+              ></ion-input>
+            </ion-item>
+          </div>
+
+          <div class="date-row">
+            <ion-item class="modal-input">
+              <ion-select
+                label="Seed class *"
+                label-placement="floating"
+                interface="popover"
+                :value="createForm.seed_class"
+                @ionChange="onCreateSeedClass"
+              >
+                <ion-select-option v-for="sc in SEED_CLASSES" :key="sc" :value="sc">{{ sc }}</ion-select-option>
+              </ion-select>
+            </ion-item>
+            <ion-item class="modal-input">
+              <ion-select
+                label="Item type *"
+                label-placement="floating"
+                interface="popover"
+                :value="createForm.item_type"
+                @ionChange="(e: any) => createForm.item_type = e.detail.value"
+              >
+                <ion-select-option v-for="it in createItemTypes" :key="it" :value="it">{{ itemTypeLabel(it) }}</ion-select-option>
+              </ion-select>
+            </ion-item>
+          </div>
+
+          <div class="date-row">
+            <ion-item class="modal-input">
+              <ion-input
+                type="date"
+                label="Delivery start"
+                label-placement="floating"
+                :value="createForm.delivery_start_date"
+                @ionInput="(e: any) => createForm.delivery_start_date = String(e.detail.value ?? '')"
+              ></ion-input>
+            </ion-item>
+            <ion-item class="modal-input">
+              <ion-input
+                type="date"
+                label="Delivery end"
+                label-placement="floating"
+                :value="createForm.delivery_end_date"
+                @ionInput="(e: any) => createForm.delivery_end_date = String(e.detail.value ?? '')"
+              ></ion-input>
+            </ion-item>
+          </div>
+
+          <div class="date-row">
+            <ion-item class="modal-input">
+              <ion-input
+                type="number"
+                :label="`${createPrimaryUnit} per hectare *`"
+                label-placement="floating"
+                min="0.01"
+                :value="createForm.items_per_hectare"
+                @ionInput="(e: any) => createForm.items_per_hectare = e.detail.value === '' ? 1 : Number(e.detail.value)"
+              ></ion-input>
+            </ion-item>
+            <ion-item v-if="createIsDual" class="modal-input">
+              <ion-input
+                type="number"
+                :label="`${createSecondaryUnit} per hectare *`"
+                label-placement="floating"
+                min="0.01"
+                :value="createForm.secondary_items_per_hectare"
+                @ionInput="(e: any) => createForm.secondary_items_per_hectare = e.detail.value === '' ? 1 : Number(e.detail.value)"
+              ></ion-input>
+            </ion-item>
+          </div>
+
+          <div class="date-row">
+            <ion-item class="modal-input">
+              <ion-input
+                type="number"
+                label="Max hectares *"
+                label-placement="floating"
+                min="0.01"
+                :value="createForm.max_hectares_limit"
+                @ionInput="(e: any) => createForm.max_hectares_limit = e.detail.value === '' ? 3 : Number(e.detail.value)"
+              ></ion-input>
+            </ion-item>
+            <ion-item class="modal-input">
+              <ion-input
+                type="number"
+                label="Min hectares"
+                label-placement="floating"
+                min="0"
+                :value="createForm.min_hectares_limit"
+                @ionInput="(e: any) => createForm.min_hectares_limit = e.detail.value === '' ? 0 : Number(e.detail.value)"
+              ></ion-input>
+            </ion-item>
+          </div>
+
+          <p class="modal-hint">Campaign barangays. Leave all selected to cover every barangay.</p>
+          <BarangayMultiPicker
+            :barangays="officialBarangays"
+            v-model="createForm.target_barangays"
+            v-model:select-all="createSelectAllBarangays"
+          />
+
+          <p class="modal-hint section-gap">
+            Variety stock. Example: LP 937 — 550, JACKPOT — 1,090. A barangay assignment is only a recommendation.
+          </p>
+          <VarietyBreakdownEditor
+            v-model="createForm.varieties"
+            :barangays="officialBarangays"
+            :fcas="activeFcaNames"
+            :unit-label="createPrimaryUnit"
+          />
+
+          <ion-button expand="block" class="save-btn" :disabled="savingCreate" @click="submitCreateCampaign">
+            {{ savingCreate ? 'Saving…' : 'Create Campaign' }}
+          </ion-button>
+        </ion-content>
+      </ion-modal>
+
       <!-- EDIT CAMPAIGN MODAL -->
       <ion-modal :is-open="editOpen" @didDismiss="editOpen = false">
         <ion-header>
@@ -362,32 +590,16 @@
           <div v-if="activeProgram">
             <p class="modal-program">{{ activeProgram.program_name }}</p>
             <p class="modal-hint">
-              Enter each seed variety and its bag allocation. The sum becomes the program's opening stock.
+              Enter each seed variety and its allocation. The sum becomes the program's opening stock.
+              A barangay assignment only highlights the Recommended chip. Technicians can still issue any variety with stock.
               Saving replaces the existing breakdown (unless claims already exist, in which case only new varieties are added).
             </p>
-            <div v-for="(v, vi) in varietyRows" :key="vi" class="variety-edit-row">
-              <ion-input
-                class="variety-edit-name"
-                :value="v.variety_name"
-                placeholder="Variety name (e.g. JACKPOT)"
-                @ionInput="(e: any) => v.variety_name = e.detail.value"
-              ></ion-input>
-              <ion-input
-                type="number"
-                class="variety-edit-qty"
-                :value="v.quantity"
-                placeholder="Qty"
-                min="0"
-                @ionInput="(e: any) => v.quantity = e.detail.value === '' ? null : Number(e.detail.value)"
-              ></ion-input>
-              <button class="variety-remove-btn" @click="varietyRows.splice(vi, 1)">✕</button>
-            </div>
-            <ion-button expand="block" fill="outline" class="variety-add-btn" @click="varietyRows.push({ variety_name: '', quantity: null })">
-              + Add variety
-            </ion-button>
-            <p class="modal-hint" style="margin-top:0.5rem">
-              Total: {{ varietyRows.reduce((s, v) => s + (Number(v.quantity) || 0), 0).toLocaleString() }} {{ activeProgram.unit_of_measurement }}
-            </p>
+            <VarietyBreakdownEditor
+              v-model="varietyRows"
+              :barangays="officialBarangays"
+              :fcas="activeFcaNames"
+              :unit-label="activeProgram.unit_of_measurement"
+            />
             <ion-button expand="block" class="save-btn" :disabled="savingVarieties" @click="submitVarieties">
               {{ savingVarieties ? 'Saving…' : 'Save Varieties' }}
             </ion-button>
@@ -463,6 +675,8 @@
 
 <script setup lang="ts">
 import AppHeader from '@/components/Navigation/AppHeader.vue';
+import BarangayMultiPicker from '@/components/BarangayMultiPicker.vue';
+import VarietyBreakdownEditor, { type VarietyDraft } from '@/components/Subsidy/VarietyBreakdownEditor.vue';
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
 import { useRouter } from 'vue-router';
 import {
@@ -479,8 +693,10 @@ import apiClient from '@/utils/axios';
 import { cropLabel } from '@/utils/cropLabel';
 import { promptAuditRemarks } from '@/composables/promptAuditRemarks';
 import {
-  SEED_CLASSES, itemTypeLabel, catalogSummary, type SeedClass, type ItemType,
+  SEED_CLASSES, itemTypeLabel, catalogSummary, itemTypesFor, isDualUnit, getCatalogEntry,
+  type SeedClass, type ItemType,
 } from '@/constants/subsidyCatalog';
+import { useOfficialBarangays } from '@/composables/useOfficialBarangays';
 
 const ALL_ITEM_TYPES: ItemType[] = ['seed', 'abono', 'liquid_fertilizer', 'wettable', 'cash'];
 
@@ -510,7 +726,15 @@ interface SubsidyProgramRow {
   delivery_start_date?: string | null;
   delivery_end_date?: string | null;
   created_at?: string;
-  varieties?: Array<{ id: string; variety_name: string; total_quantity: number; remaining_quantity: number; unit?: string | null }>;
+  varieties?: Array<{
+    id: string;
+    variety_name: string;
+    total_quantity: number;
+    remaining_quantity: number;
+    unit?: string | null;
+    target_fca?: string | null;
+    target_barangays?: string[] | null;
+  }>;
 }
 
 const router = useRouter();
@@ -538,8 +762,41 @@ const settingsReorderSecondary = ref<number | null>(null);
 const savingSettings = ref(false);
 
 const varietiesOpen = ref(false);
-const varietyRows = ref<Array<{ variety_name: string; quantity: number | null }>>([]);
+const varietyRows = ref<VarietyDraft[]>([]);
 const savingVarieties = ref(false);
+
+const { barangays: officialBarangays } = useOfficialBarangays();
+const createOpen = ref(false);
+const fcaOpen = ref(false);
+const fcas = ref<Array<{ id: string; name: string; is_active: boolean }>>([]);
+const fcaDraft = ref('');
+const savingFca = ref(false);
+const activeFcaNames = computed(() => fcas.value.filter((row) => row.is_active).map((row) => row.name));
+const savingCreate = ref(false);
+const createSelectAllBarangays = ref(true);
+
+const blankVariety = (): VarietyDraft => ({
+  variety_name: '',
+  quantity: null,
+  target_fca: '',
+  target_barangays: [],
+});
+
+const createForm = ref({
+  program_name: '',
+  target_crop: 'Rice',
+  hvcc_commodity: '',
+  seed_class: 'Hybrid' as SeedClass,
+  item_type: 'seed' as ItemType,
+  items_per_hectare: 1,
+  secondary_items_per_hectare: 1,
+  max_hectares_limit: 3,
+  min_hectares_limit: 0,
+  delivery_start_date: '',
+  delivery_end_date: '',
+  target_barangays: [] as string[],
+  varieties: [blankVariety()] as VarietyDraft[],
+});
 
 const editOpen = ref(false);
 const savingEdit = ref(false);
@@ -638,6 +895,148 @@ const fetchPrograms = async () => {
 
 const openIntake = () => {
   router.push('/admin/subsidies/import');
+};
+
+const createItemTypes = computed(() => itemTypesFor(createForm.value.seed_class));
+const createCatalog = computed(() => getCatalogEntry(createForm.value.seed_class, createForm.value.item_type));
+const createIsDual = computed(() => isDualUnit(createForm.value.seed_class, createForm.value.item_type));
+const createPrimaryUnit = computed(() => createCatalog.value?.unit || 'Bags');
+const createSecondaryUnit = computed(() => createCatalog.value?.secondaryUnit || 'bags');
+
+const onCreateSeedClass = (e: any) => {
+  const next = e.detail.value as SeedClass;
+  createForm.value.seed_class = next;
+  const types = itemTypesFor(next);
+  if (!types.includes(createForm.value.item_type)) {
+    createForm.value.item_type = types[0] || 'seed';
+  }
+};
+
+const varietyPayload = (rows: VarietyDraft[]) =>
+  rows
+    .filter((v) => v.variety_name.trim() && (v.quantity ?? 0) >= 0)
+    .map((v) => ({
+      variety_name: v.variety_name.trim(),
+      quantity: Number(v.quantity) || 0,
+      target_fca: v.target_fca.trim() || null,
+      target_barangays: v.target_barangays.length ? v.target_barangays : null,
+    }));
+
+const openCreateCampaign = (line: 'hybrid' | 'rcef' = 'hybrid') => {
+  const hybrid = line === 'hybrid';
+  createForm.value = {
+    program_name: hybrid
+      ? 'National Rice Program - 2026 Wet Season Hybrid Seeds'
+      : 'PhilRice RCEF - 2026 Wet Season Certified Inbred Seeds',
+    target_crop: 'Rice',
+    hvcc_commodity: '',
+    seed_class: hybrid ? 'Hybrid' : 'Inbred',
+    item_type: 'seed',
+    items_per_hectare: hybrid ? 20 : 2,
+    secondary_items_per_hectare: 1,
+    max_hectares_limit: 3,
+    min_hectares_limit: 0,
+    delivery_start_date: '',
+    delivery_end_date: '',
+    target_barangays: [],
+    varieties: [blankVariety()],
+  };
+  createSelectAllBarangays.value = true;
+  createOpen.value = true;
+};
+
+const fetchFcas = async () => {
+  try {
+    const res = await apiClient.get('/fcas');
+    fcas.value = res.data?.data ?? [];
+  } catch {
+    fcas.value = [];
+  }
+};
+
+const addFca = async () => {
+  const name = fcaDraft.value.trim();
+  if (!name) {
+    await toast('Enter an FCA name.', 'warning');
+    return;
+  }
+  savingFca.value = true;
+  try {
+    const res = await apiClient.post('/fcas', { name });
+    await toast(res.data?.message || 'FCA added.', 'success');
+    fcaDraft.value = '';
+    await fetchFcas();
+  } catch (e: any) {
+    await toast(e?.response?.data?.message || 'Could not add that FCA.', 'danger');
+  } finally {
+    savingFca.value = false;
+  }
+};
+
+const toggleFca = async (fca: { id: string; is_active: boolean }) => {
+  try {
+    await apiClient.patch(`/fcas/${fca.id}`, { is_active: !fca.is_active });
+    await fetchFcas();
+  } catch (e: any) {
+    await toast(e?.response?.data?.message || 'Could not update that FCA.', 'danger');
+  }
+};
+
+const submitCreateCampaign = async () => {
+  const name = createForm.value.program_name.trim();
+  if (!name) {
+    await toast('Enter a campaign name.', 'warning');
+    return;
+  }
+  const bagsPerHa = Number(createForm.value.items_per_hectare);
+  const maxHa = Number(createForm.value.max_hectares_limit);
+  const minHa = Number(createForm.value.min_hectares_limit) || 0;
+  if (!(bagsPerHa > 0) || !(maxHa > 0)) {
+    await toast('Rate per hectare and max hectares must be greater than zero.', 'warning');
+    return;
+  }
+  if (minHa > maxHa) {
+    await toast('Minimum hectares cannot exceed the maximum hectares cap.', 'warning');
+    return;
+  }
+  if (createForm.value.delivery_start_date && createForm.value.delivery_end_date
+    && createForm.value.delivery_end_date < createForm.value.delivery_start_date) {
+    await toast('Delivery end must be on or after the start date.', 'warning');
+    return;
+  }
+  const secondaryRate = Number(createForm.value.secondary_items_per_hectare);
+  if (createIsDual.value && !(secondaryRate > 0)) {
+    await toast(`Enter a ${createSecondaryUnit.value} per hectare rate.`, 'warning');
+    return;
+  }
+
+  const varieties = varietyPayload(createForm.value.varieties);
+  savingCreate.value = true;
+  try {
+    const res = await apiClient.post('/subsidies', {
+      program_name: name,
+      target_crop: createForm.value.target_crop,
+      hvcc_commodity: createForm.value.target_crop === 'HVCC' ? (createForm.value.hvcc_commodity.trim() || null) : null,
+      seed_class: createForm.value.seed_class,
+      item_type: createForm.value.item_type,
+      items_per_hectare: bagsPerHa,
+      secondary_items_per_hectare: createIsDual.value ? secondaryRate : null,
+      max_hectares_limit: maxHa,
+      min_hectares_limit: minHa,
+      delivery_start_date: createForm.value.delivery_start_date || null,
+      delivery_end_date: createForm.value.delivery_end_date || null,
+      target_barangays: createSelectAllBarangays.value ? null : createForm.value.target_barangays,
+      varieties,
+      status: 'Draft',
+    });
+    await toast(res.data?.message || 'Subsidy campaign created.', 'success');
+    createOpen.value = false;
+    await fetchPrograms();
+  } catch (e: any) {
+    await toast(e?.response?.data?.message || 'Could not create campaign.', 'danger');
+  } finally {
+    savingCreate.value = false;
+  }
 };
 
 const openMasterlist = (id: string) => {
@@ -804,17 +1203,21 @@ const submitSettings = async () => {
 
 const openVarieties = (p: SubsidyProgramRow) => {
   activeProgram.value = p;
-  // Pre-populate from existing varieties if program data has them (from API).
-  const existing: any[] = (p as any).varieties ?? [];
+  const existing = p.varieties ?? [];
   varietyRows.value = existing.length
-    ? existing.map((v: any) => ({ variety_name: v.variety_name, quantity: Number(v.total_quantity) }))
-    : [{ variety_name: '', quantity: null }];
+    ? existing.map((v) => ({
+      variety_name: v.variety_name,
+      quantity: Number(v.total_quantity),
+      target_fca: v.target_fca || '',
+      target_barangays: [...(v.target_barangays ?? [])],
+    }))
+    : [blankVariety()];
   varietiesOpen.value = true;
 };
 
 const submitVarieties = async () => {
   if (!activeProgram.value) return;
-  const filled = varietyRows.value.filter(v => v.variety_name.trim() && (v.quantity ?? 0) >= 0);
+  const filled = varietyPayload(varietyRows.value);
   if (!filled.length) {
     await toast('Add at least one variety with a name and quantity.', 'warning');
     return;
@@ -827,7 +1230,7 @@ const submitVarieties = async () => {
   savingVarieties.value = true;
   try {
     const res = await apiClient.put(`/subsidies/${activeProgram.value.id}/varieties`, {
-      varieties: filled.map(v => ({ variety_name: v.variety_name.trim(), quantity: Number(v.quantity) || 0 })),
+      varieties: filled,
       audit_remarks: remarks,
     });
     await toast(res.data?.message || 'Varieties saved.', 'success');
@@ -842,6 +1245,7 @@ const submitVarieties = async () => {
 
 onMounted(() => {
   fetchPrograms();
+  fetchFcas();
   window.addEventListener('akap:refresh', fetchPrograms);
 });
 onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchPrograms));
@@ -857,10 +1261,51 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchPrograms))
 .create-btn {
   --background: #1a4731;
   --color: #fff;
+  --border-color: #1a4731;
+  --color-activated: #1a4731;
   text-transform: none;
   font-weight: 800;
   margin: 0;
 }
+.header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  justify-content: flex-end;
+}
+.outline-btn {
+  --background: #fff;
+  --color: #1a4731;
+  --border-color: #1a4731;
+  --border-width: 1px;
+  --border-style: solid;
+}
+.center-actions { justify-content: center; }
+.section-gap { margin-top: 1rem; }
+.fca-add-row { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem; }
+.fca-add-input { flex: 1; }
+.fca-list { list-style: none; margin: 0; padding: 0; }
+.fca-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0;
+  border-bottom: 1px solid #e2e8f0;
+  color: #0f172a;
+}
+.fca-list .inactive { color: #94a3b8; text-decoration: line-through; }
+.fca-toggle {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  border-radius: 6px;
+  padding: 0.3rem 0.55rem;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  color: #1a4731;
+}
+.fca-empty { color: #64748b; }
 .center-state {
   text-align: center;
   padding: 3rem 1rem;
