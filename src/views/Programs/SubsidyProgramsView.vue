@@ -180,6 +180,10 @@
                             <ion-icon :icon="listOutline" slot="start"></ion-icon>
                             <ion-label>Manage Seed Varieties</ion-label>
                           </ion-item>
+                          <ion-item button :detail="false" @click="openEditCampaign(p)">
+                            <ion-icon :icon="createOutline" slot="start"></ion-icon>
+                            <ion-label>Edit Campaign</ion-label>
+                          </ion-item>
                           <ion-item button :detail="false" @click="openSettings(p)">
                             <ion-icon :icon="settingsOutline" slot="start"></ion-icon>
                             <ion-label>Configure Stock Rules</ion-label>
@@ -210,6 +214,87 @@
           </div>
         </div>
       </div>
+
+      <!-- EDIT CAMPAIGN MODAL -->
+      <ion-modal :is-open="editOpen" @didDismiss="editOpen = false">
+        <ion-header>
+          <ion-toolbar color="primary">
+            <ion-title>Edit Campaign</ion-title>
+            <ion-buttons slot="end">
+              <ion-button @click="editOpen = false">Close</ion-button>
+            </ion-buttons>
+          </ion-toolbar>
+        </ion-header>
+        <ion-content class="ion-padding">
+          <div v-if="activeProgram">
+            <p class="modal-hint">
+              Update the campaign name, delivery window, and allocation rates.
+              Stock totals and subsidy line stay unchanged.
+            </p>
+            <p v-if="(activeProgram.claimed_count || 0) > 0" class="modal-warn">
+              This campaign already has {{ activeProgram.claimed_count }} claim(s).
+              Rate changes apply to future releases only.
+            </p>
+
+            <ion-item class="modal-input">
+              <ion-input
+                label="Campaign name *"
+                label-placement="floating"
+                :value="editForm.program_name"
+                @ionInput="(e: any) => editForm.program_name = String(e.detail.value ?? '')"
+              ></ion-input>
+            </ion-item>
+
+            <div class="date-row">
+              <ion-item class="modal-input">
+                <ion-input
+                  type="date"
+                  label="Delivery start"
+                  label-placement="floating"
+                  :value="editForm.delivery_start_date"
+                  @ionInput="(e: any) => editForm.delivery_start_date = String(e.detail.value ?? '')"
+                ></ion-input>
+              </ion-item>
+              <ion-item class="modal-input">
+                <ion-input
+                  type="date"
+                  label="Delivery end"
+                  label-placement="floating"
+                  :value="editForm.delivery_end_date"
+                  @ionInput="(e: any) => editForm.delivery_end_date = String(e.detail.value ?? '')"
+                ></ion-input>
+              </ion-item>
+            </div>
+
+            <div class="date-row">
+              <ion-item class="modal-input">
+                <ion-input
+                  type="number"
+                  label="Bags per hectare *"
+                  label-placement="floating"
+                  min="0.01"
+                  :value="editForm.items_per_hectare"
+                  @ionInput="(e: any) => editForm.items_per_hectare = e.detail.value === '' ? 1 : Number(e.detail.value)"
+                ></ion-input>
+              </ion-item>
+              <ion-item class="modal-input">
+                <ion-input
+                  type="number"
+                  label="Max hectares *"
+                  label-placement="floating"
+                  min="0.01"
+                  :value="editForm.max_hectares_limit"
+                  @ionInput="(e: any) => editForm.max_hectares_limit = e.detail.value === '' ? 3 : Number(e.detail.value)"
+                ></ion-input>
+              </ion-item>
+            </div>
+
+            <ion-button expand="block" class="save-btn" :disabled="savingEdit" @click="submitEditCampaign">
+              {{ savingEdit ? 'Saving…' : 'Save Campaign' }}
+            </ion-button>
+          </div>
+        </ion-content>
+      </ion-modal>
 
       <!-- LOG DELIVERY MODAL -->
       <ion-modal :is-open="restockOpen" @didDismiss="restockOpen = false">
@@ -388,7 +473,7 @@ import {
 import {
   refreshOutline, cloudUploadOutline, addCircleOutline, settingsOutline, saveOutline,
   searchOutline, ellipsisVertical, cubeOutline, checkmarkDoneOutline,
-  playCircleOutline, listOutline,
+  playCircleOutline, listOutline, createOutline,
 } from 'ionicons/icons';
 import apiClient from '@/utils/axios';
 import { cropLabel } from '@/utils/cropLabel';
@@ -422,6 +507,8 @@ interface SubsidyProgramRow {
   is_low_stock: boolean;
   beneficiaries_count: number;
   claimed_count: number;
+  delivery_start_date?: string | null;
+  delivery_end_date?: string | null;
   created_at?: string;
   varieties?: Array<{ id: string; variety_name: string; total_quantity: number; remaining_quantity: number; unit?: string | null }>;
 }
@@ -453,6 +540,16 @@ const savingSettings = ref(false);
 const varietiesOpen = ref(false);
 const varietyRows = ref<Array<{ variety_name: string; quantity: number | null }>>([]);
 const savingVarieties = ref(false);
+
+const editOpen = ref(false);
+const savingEdit = ref(false);
+const editForm = ref({
+  program_name: '',
+  delivery_start_date: '',
+  delivery_end_date: '',
+  items_per_hectare: 1,
+  max_hectares_limit: 3,
+});
 
 const toast = async (message: string, color: 'success' | 'warning' | 'danger' | 'primary' = 'success') => {
   const t = await toastController.create({ message, duration: 2800, color, position: 'top' });
@@ -545,6 +642,63 @@ const openIntake = () => {
 
 const openMasterlist = (id: string) => {
   router.push(`/admin/subsidies/${id}/masterlist`);
+};
+
+const toDateInput = (value?: string | null) => {
+  if (!value) return '';
+  return String(value).slice(0, 10);
+};
+
+const openEditCampaign = (p: SubsidyProgramRow) => {
+  activeProgram.value = p;
+  editForm.value = {
+    program_name: p.program_name || '',
+    delivery_start_date: toDateInput(p.delivery_start_date),
+    delivery_end_date: toDateInput(p.delivery_end_date),
+    items_per_hectare: Number(p.items_per_hectare) || 1,
+    max_hectares_limit: Number(p.max_hectares_limit) || 3,
+  };
+  editOpen.value = true;
+};
+
+const submitEditCampaign = async () => {
+  if (!activeProgram.value) return;
+  const name = editForm.value.program_name.trim();
+  if (!name) {
+    await toast('Enter a campaign name.', 'warning');
+    return;
+  }
+  const bagsPerHa = Number(editForm.value.items_per_hectare);
+  const maxHa = Number(editForm.value.max_hectares_limit);
+  if (!(bagsPerHa > 0) || !(maxHa > 0)) {
+    await toast('Bags per hectare and max hectares must be greater than zero.', 'warning');
+    return;
+  }
+
+  const remarks = await promptAuditRemarks({
+    header: 'Justify campaign edit',
+    message: 'Explain why this subsidy campaign is being updated.',
+  });
+  if (!remarks) return;
+
+  savingEdit.value = true;
+  try {
+    const res = await apiClient.patch(`/subsidies/${activeProgram.value.id}`, {
+      program_name: name,
+      delivery_start_date: editForm.value.delivery_start_date || null,
+      delivery_end_date: editForm.value.delivery_end_date || null,
+      items_per_hectare: bagsPerHa,
+      max_hectares_limit: maxHa,
+      audit_remarks: remarks,
+    });
+    await toast(res.data?.message || 'Subsidy campaign updated.', 'success');
+    editOpen.value = false;
+    await fetchPrograms();
+  } catch (e: any) {
+    await toast(e?.response?.data?.message || 'Could not update campaign.', 'danger');
+  } finally {
+    savingEdit.value = false;
+  }
 };
 
 const confirmActivate = async (p: SubsidyProgramRow) => {
@@ -988,6 +1142,24 @@ onBeforeUnmount(() => window.removeEventListener('akap:refresh', fetchPrograms))
 }
 .modal-program { font-weight: 800; color: #1a4731; font-size: 1.15rem; margin: 0 0 4px; }
 .modal-hint { color: #64748b; font-size: 0.85rem; margin: 4px 0 1rem; }
+.modal-warn {
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+  border-radius: 8px;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.82rem;
+  margin: 0 0 0.85rem;
+  line-height: 1.4;
+}
+.date-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+@media (max-width: 560px) {
+  .date-row { grid-template-columns: 1fr; }
+}
 .modal-input { --background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 0.8rem; }
 .legacy-note {
   margin-top: 1.25rem;

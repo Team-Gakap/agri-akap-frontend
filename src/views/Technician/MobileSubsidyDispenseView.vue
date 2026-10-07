@@ -175,21 +175,45 @@
       <!-- Variety picker card: shown when verify returned varieties and we await the tech's tap -->
       <ion-card v-if="pendingCtx && pendingVarieties.length" class="variety-picker-card">
         <ion-card-header>
-          <ion-card-subtitle>Select seed variety for {{ pendingCtx.farmer_name }}</ion-card-subtitle>
-          <ion-card-title>Which variety is being handed over?</ion-card-title>
+          <ion-card-subtitle>Select seed variety</ion-card-subtitle>
+          <ion-card-title>
+            Confirm release
+            <template v-if="pendingAllocatedBags">
+              — {{ pendingAllocatedBags }} bag{{ pendingAllocatedBags === 1 ? '' : 's' }}
+            </template>
+          </ion-card-title>
         </ion-card-header>
         <ion-card-content>
-          <p class="variety-picker-hint">Tap the exact variety in the truck / drop-off point now.</p>
+          <div class="eligibility-summary">
+            <div class="elig-name">
+              {{ pendingCtx.farmer_name }}
+              <span v-if="pendingCtx.priority_label" class="priority-chip">{{ pendingCtx.priority_label }}</span>
+            </div>
+            <div class="elig-meta">
+              <span>{{ pendingCtx.rsbsa_no || 'No RSBSA' }}</span>
+              <span v-if="pendingCtx.farm_brgy || pendingCtx.barangay">
+                · {{ pendingCtx.farm_brgy || pendingCtx.barangay }}
+              </span>
+            </div>
+            <div class="elig-meta">
+              Farm area {{ formatHa(pendingCtx.eligible_size || pendingCtx.total_farm_size) }} ha
+              <template v-if="pendingAllocatedBags">
+                · Allocated {{ pendingAllocatedBags }} bag{{ pendingAllocatedBags === 1 ? '' : 's' }}
+              </template>
+            </div>
+          </div>
+          <p class="variety-picker-hint">Tap the exact variety in the truck / drop-off point now. All bags must be the same variety.</p>
           <div class="variety-chips">
             <button
               v-for="v in pendingVarieties"
               :key="v.id"
               class="variety-chip"
               :disabled="v.remaining_quantity <= 0 || claiming"
-              :class="{ depleted: v.remaining_quantity <= 0 }"
+              :class="{ depleted: v.remaining_quantity <= 0, recommended: v.recommended }"
               @click="selectVariety(v)"
             >
               <span class="chip-name">{{ v.variety_name }}</span>
+              <span v-if="v.recommended" class="chip-rec">Recommended</span>
               <span class="chip-stock">{{ v.remaining_quantity.toLocaleString() }} {{ v.unit }} left</span>
             </button>
           </div>
@@ -271,7 +295,7 @@ let overrideResolver: ((value: { password: string; reason: string; reason_code: 
 const changingProgram = ref(false);
 /** Holds the verified ReleaseContext while waiting for the technician to tap a variety chip. */
 const pendingCtx = ref<import('@/stores/distributionStore').ReleaseContext | null>(null);
-const pendingVarieties = ref<Array<{ id: string; variety_name: string; unit: string; remaining_quantity: number }>>([]);
+const pendingVarieties = ref<Array<{ id: string; variety_name: string; unit: string; remaining_quantity: number; recommended?: boolean }>>([]);
 const searchQuery = ref('');
 const searchResults = ref<any[]>([]);
 const farmer = ref<any | null>(null);
@@ -297,6 +321,11 @@ const selectedProgram = computed(() =>
 
 const hasProgram = computed(() => !!selectedProgramId.value);
 const showProgramPicker = computed(() => !hasProgram.value || changingProgram.value);
+
+const pendingAllocatedBags = computed(() => {
+  const fromCtx = Number(pendingCtx.value?.allocated_bags ?? pendingCtx.value?.quantity ?? 0);
+  return fromCtx > 0 ? fromCtx : 0;
+});
 
 const programOptionLabel = (p: any) => p.program_name || p.name || 'Subsidy program';
 
@@ -430,6 +459,7 @@ const clearFarmer = () => {
 
 const buildOfflineContext = (program: any, source: 'subsidy' | 'program'): ReleaseContext => {
   const rsbsaNo = farmer.value.rsbsa_no || farmer.value.rsbsaNo;
+  const farmBrgy = farmer.value.farm_brgy || farmer.value.permanent_brgy || farmer.value.barangay || null;
   return {
     farmer_id: farmer.value.id,
     program_id: selectedProgramId.value,
@@ -439,8 +469,8 @@ const buildOfflineContext = (program: any, source: 'subsidy' | 'program'): Relea
     seed_class: program?.seed_class ?? null,
     item_type: program?.item_type ?? null,
     unit: program?.unit_of_measurement || '',
-    total_farm_size: 0,
-    eligible_size: 0,
+    total_farm_size: Number(farmer.value.total_farm_area_ha || 0),
+    eligible_size: Number(farmer.value.total_farm_area_ha || 0),
     quantity: 0,
     inventory_remaining: program?.remaining_quantity ?? 0,
     unit_secondary: program?.secondary_unit ?? null,
@@ -449,6 +479,12 @@ const buildOfflineContext = (program: any, source: 'subsidy' | 'program'): Relea
     plot_lat: farmer.value.farm_plots?.[0]?.latitude ?? farmer.value.farmPlots?.[0]?.latitude,
     plot_long: farmer.value.farm_plots?.[0]?.longitude ?? farmer.value.farmPlots?.[0]?.longitude,
     rsbsa_no: rsbsaNo,
+    farm_brgy: farmBrgy,
+    barangay: farmBrgy,
+    allocated_bags: 0,
+    is_pwd: !!farmer.value.is_pwd,
+    is_senior: false,
+    priority_label: farmer.value.is_pwd ? 'PWD' : null,
     source,
     offline: true,
   };
@@ -473,6 +509,7 @@ const verifyOnline = async (program: any, source: 'subsidy' | 'program'): Promis
       total_farm_size: data.total_farm_size || 0,
       eligible_size: data.eligible_size || 0,
       quantity: data.quantity || 0,
+      allocated_bags: Number(data.allocated_bags ?? data.quantity ?? 0),
       inventory_remaining: data.inventory_remaining ?? program.remaining_quantity,
       unit_secondary: data.unit_secondary ?? program.secondary_unit ?? null,
       quantity_secondary: data.quantity_secondary ?? null,
@@ -480,7 +517,12 @@ const verifyOnline = async (program: any, source: 'subsidy' | 'program'): Promis
       plot_lat: data.plot_lat,
       plot_long: data.plot_long,
       beneficiary_id: data.beneficiary_id,
-      rsbsa_no: farmer.value.rsbsa_no || farmer.value.rsbsaNo,
+      rsbsa_no: data.rsbsa_no || farmer.value.rsbsa_no || farmer.value.rsbsaNo,
+      farm_brgy: data.farm_brgy || data.barangay || farmer.value.farm_brgy || farmer.value.permanent_brgy || null,
+      barangay: data.barangay || data.farm_brgy || farmer.value.farm_brgy || farmer.value.permanent_brgy || null,
+      is_pwd: !!data.is_pwd,
+      is_senior: !!data.is_senior,
+      priority_label: data.priority_label ?? null,
       source: 'subsidy',
       offline: false,
       varieties: data.varieties ?? [],
@@ -616,7 +658,9 @@ const claimForCurrentFarmer = async (presetOverride?: { password: string; reason
     // the technician tap the correct variety chip before firing the claim.
     if (ctx.source === 'subsidy' && ctx.varieties && ctx.varieties.length > 0) {
       pendingCtx.value = ctx;
-      pendingVarieties.value = ctx.varieties;
+      pendingVarieties.value = [...ctx.varieties].sort(
+        (a, b) => Number(!!b.recommended) - Number(!!a.recommended),
+      );
       claiming.value = false;
       return; // resume in selectVariety()
     }
@@ -628,7 +672,7 @@ const claimForCurrentFarmer = async (presetOverride?: { password: string; reason
       offline: result.offline,
       farmerName: result.data?.farmer_name || farmerName,
       rsbsa: ctx.rsbsa_no || farmerRow?.rsbsa_no || farmerRow?.rsbsaNo || null,
-      barangay: farmerRow?.permanent_brgy || farmerRow?.barangay || null,
+      barangay: ctx.farm_brgy || ctx.barangay || farmerRow?.farm_brgy || farmerRow?.permanent_brgy || farmerRow?.barangay || null,
       campaign: program ? programOptionLabel(program) : (ctx.item_released || ''),
       eligibleSize: ctx.eligible_size,
       totalFarmSize: ctx.total_farm_size,
@@ -690,7 +734,7 @@ const selectVariety = async (variety: { id: string; variety_name: string }) => {
       offline: result.offline,
       farmerName: result.data?.farmer_name || farmerName,
       rsbsa: ctx.rsbsa_no || farmerRow?.rsbsa_no || farmerRow?.rsbsaNo || null,
-      barangay: farmerRow?.permanent_brgy || farmerRow?.barangay || null,
+      barangay: ctx.farm_brgy || ctx.barangay || farmerRow?.farm_brgy || farmerRow?.permanent_brgy || farmerRow?.barangay || null,
       campaign: program ? programOptionLabel(program) : (ctx.item_released || ''),
       eligibleSize: ctx.eligible_size,
       totalFarmSize: ctx.total_farm_size,
@@ -1197,6 +1241,39 @@ onBeforeUnmount(() => {
 
 /* Variety picker card */
 .variety-picker-card { margin: 0 0 1rem; }
+.eligibility-summary {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0.75rem 0.85rem;
+  margin: 0 0 0.75rem;
+}
+.elig-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 800;
+  color: #1a4731;
+  font-size: 1rem;
+}
+.elig-meta {
+  margin-top: 0.2rem;
+  font-size: 0.82rem;
+  color: #64748b;
+}
+.priority-chip {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 999px;
+  padding: 0.12rem 0.45rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
 .variety-picker-hint { font-size: 0.85rem; color: #64748b; margin: 0 0 0.75rem; }
 .variety-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.85rem; }
 .variety-chip {
@@ -1212,10 +1289,16 @@ onBeforeUnmount(() => {
   font-family: inherit;
   transition: background 0.15s;
 }
+.variety-chip.recommended {
+  border-color: #ca8a04;
+  background: #fffbeb;
+}
 .variety-chip:hover:not(:disabled) { background: #ecfdf3; }
+.variety-chip.recommended:hover:not(:disabled) { background: #fef3c7; }
 .variety-chip:active:not(:disabled) { background: #dcfce7; }
 .variety-chip.depleted { border-color: #cbd5e1; opacity: 0.45; cursor: not-allowed; }
 .chip-name { font-weight: 800; color: #1a4731; font-size: 0.95rem; }
+.chip-rec { font-size: 0.65rem; font-weight: 800; color: #a16207; text-transform: uppercase; letter-spacing: 0.04em; }
 .chip-stock { font-size: 0.72rem; color: #64748b; margin-top: 2px; }
 .cancel-variety-btn { margin-top: 0; text-transform: none; }
 </style>

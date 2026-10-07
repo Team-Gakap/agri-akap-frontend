@@ -27,7 +27,13 @@ export interface ReleaseContext {
   plot_long?: number | null;
   beneficiary_id?: string | null;
   rsbsa_no?: string | null;
-  source?: 'subsidy' | 'program';
+  farm_brgy?: string | null;
+  barangay?: string | null;
+  allocated_bags?: number;
+  is_pwd?: boolean;
+  is_senior?: boolean;
+  priority_label?: string | null;
+  source?: 'subsidy' | 'program' | 'seed_variety';
   override_password?: string;
   override_reason?: string;
   override_reason_code?: string;
@@ -39,7 +45,7 @@ export interface ReleaseContext {
    * program has a per-variety stock breakdown; populated for UX picker only,
    * not sent to the API.
    */
-  varieties?: Array<{ id: string; variety_name: string; unit: string; remaining_quantity: number }>;
+  varieties?: Array<{ id: string; variety_name: string; unit: string; remaining_quantity: number; recommended?: boolean }>;
   /** True when the context was stashed offline (verify was skipped). */
   offline: boolean;
 }
