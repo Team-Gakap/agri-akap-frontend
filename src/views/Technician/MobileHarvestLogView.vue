@@ -10,7 +10,7 @@
     </ion-header>
 
     <ion-content class="page-bg ion-padding">
-      <p class="lede">Record harvest yield in metric tons.</p>
+      <p class="lede">Record harvest yield in kilograms.</p>
 
       <ion-card class="section-card">
         <ion-card-header>
@@ -56,7 +56,7 @@
           </ion-select>
           <VarietyField v-model="form.variety" :crop="form.cropType" interface-name="action-sheet" />
           <ion-input type="number" label="Area harvested (ha)" label-placement="stacked" :value="form.areaHarvested" @ionInput="onAreaHarvestedInput"></ion-input>
-          <ion-input type="number" label="Total yield (MT)" label-placement="stacked" :value="form.totalYield" @ionInput="(e: CustomEvent) => form.totalYield = e.detail.value ?? ''"></ion-input>
+          <ion-input type="number" label="Total yield (kg)" label-placement="stacked" :value="form.totalYield" @ionInput="(e: CustomEvent) => form.totalYield = e.detail.value ?? ''"></ion-input>
           <ion-input type="date" label="Date harvested" label-placement="stacked" :value="form.dateHarvested" @ionInput="(e: CustomEvent) => form.dateHarvested = e.detail.value ?? ''"></ion-input>
           <p v-if="harvestReadyHint" class="autofill-hint">{{ harvestReadyHint }}</p>
         </ion-card-content>
@@ -196,7 +196,7 @@ const queueThisHarvest = () => queueHarvestLog({
   variety: form.variety.trim(),
   area_harvested: Number(form.areaHarvested),
   total_yield: Number(form.totalYield),
-  yield_unit: 'Metric Tons',
+  yield_unit: 'Kilograms',
   date_harvested: form.dateHarvested,
   farm_location: form.farmLocation,
 });
@@ -222,7 +222,7 @@ const submit = async () => {
         variety: form.variety.trim(),
         area_harvested: Number(form.areaHarvested),
         total_yield: Number(form.totalYield),
-        yield_unit: 'Metric Tons',
+        yield_unit: 'Kilograms',
         date_harvested: form.dateHarvested,
         farm_location: form.farmLocation,
       });

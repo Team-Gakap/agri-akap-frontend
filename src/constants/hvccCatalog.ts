@@ -58,6 +58,16 @@ export function isTreeFruitCategory(category?: string | null): boolean {
   return TREE_FRUIT_CATEGORIES.includes(category as (typeof TREE_FRUIT_CATEGORIES)[number]);
 }
 
+function stapleCrop(value: string): 'rice' | 'corn' | null {
+  const key = value.trim().toLowerCase();
+  const compact = key.replace(/[\s/_-]+/g, '');
+  if (!compact) return null;
+  if (compact === 'rice' || compact === 'palay' || compact === 'ricepalay') return 'rice';
+  if (key.includes('rice') && key.includes('palay') && !key.includes('hvcc')) return 'rice';
+  if (compact === 'corn' || compact === 'maize' || compact === 'mais' || compact === 'cornmaize') return 'corn';
+  return null;
+}
+
 export function plotMatchesCrop(plotCommodity: string, crop: string, hvccCommodity?: string | null): boolean {
   const plot = plotCommodity.trim().toLowerCase();
   const key = crop.trim().toLowerCase();
@@ -65,6 +75,9 @@ export function plotMatchesCrop(plotCommodity: string, crop: string, hvccCommodi
     if (hvccCommodity && plot === hvccCommodity.trim().toLowerCase()) return true;
     return plot === 'hvcc' || plot.includes('high-value') || plot === 'hvc' || plot.includes('hvc');
   }
+  const plotStaple = stapleCrop(plotCommodity);
+  const cropStaple = stapleCrop(crop);
+  if (plotStaple && cropStaple) return plotStaple === cropStaple;
   return plot === key;
 }
 

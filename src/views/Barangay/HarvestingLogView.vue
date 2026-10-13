@@ -90,7 +90,7 @@
               @ionInput="(e: any) => form.num_hills_trees = e.detail.value"
             ></ion-input>
             <ion-input class="field" type="number" label="Area Harvested (ha)" label-placement="stacked" :value="form.area_harvested" @ionInput="onAreaHarvestedInput"></ion-input>
-            <ion-input class="field" type="number" label="Total Yield Produced (MT)" label-placement="stacked" :value="form.yield_amount" @ionInput="(e: any) => form.yield_amount = e.detail.value"></ion-input>
+            <ion-input class="field" type="number" label="Total Yield Produced (kg)" label-placement="stacked" :value="form.yield_amount" @ionInput="(e: any) => form.yield_amount = e.detail.value"></ion-input>
             <ion-input class="field" type="date" label="Date of Harvest" label-placement="stacked" :value="form.date_of_harvest" @ionInput="(e: any) => form.date_of_harvest = e.detail.value"></ion-input>
           </div>
           <p v-if="harvestReadyHint" class="autofill-hint">{{ harvestReadyHint }}</p>
@@ -262,7 +262,7 @@ const form = reactive({
   variety: '',
   area_harvested: '',
   yield_amount: '',
-  yield_unit: 'Metric Tons',
+  yield_unit: 'Kilograms',
   date_of_harvest: '',
 });
 
@@ -453,7 +453,7 @@ const addEntry = async () => {
       variety: form.variety.trim() || null,
       area_harvested: Number(form.area_harvested),
       total_yield: Number(form.yield_amount),
-      yield_unit: 'Metric Tons',
+      yield_unit: 'Kilograms',
       date_harvested: form.date_of_harvest,
       farm_location: form.farm_location,
       barangay_name: payloadBarangayName(),
@@ -471,7 +471,7 @@ const addEntry = async () => {
       variety: form.variety,
       area_harvested: Number(form.area_harvested),
       yield_amount: Number(form.yield_amount),
-      yield_unit: 'Metric Tons',
+      yield_unit: 'Kilograms',
       yield_display: yieldDisplay,
       date_of_harvest: form.date_of_harvest,
     });

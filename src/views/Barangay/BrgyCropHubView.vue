@@ -663,7 +663,7 @@ function openEdit(row: LedgerRow) {
     editFields.value = [
       { key: 'variety', label: 'Variety', type: 'variety', required: true },
       { key: 'area_harvested', label: 'Area Harvested (ha)', type: 'number', required: true },
-      { key: 'total_yield', label: 'Total Yield (MT)', type: 'number', required: true },
+      { key: 'total_yield', label: 'Total Yield (kg)', type: 'number', required: true },
       { key: 'date_harvested', label: 'Date Harvested', type: 'date', required: true },
     ];
     editInitial.value = {

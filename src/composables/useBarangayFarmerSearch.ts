@@ -25,19 +25,29 @@ function cropLabel(crop: string, hvccCommodity?: string | null): string {
 
 function farmerInBarangay(farmer: any, barangay: string): boolean {
   const wanted = barangay.trim().toLowerCase();
-  const home = String(farmer?.permanent_brgy || farmer?.barangay || '').trim().toLowerCase();
-  const farm = String(farmer?.farm_brgy || '').trim().toLowerCase();
-  return home === wanted || farm === wanted;
+  const home = String(farmer?.permanent_brgy || '').trim().toLowerCase();
+  return home === wanted;
 }
 
-/** Filters previously-cached farmers by name/RSBSA/id/QR + optional barangay — used offline. */
-async function searchCachedFarmersLocal(term: string, barangay?: string): Promise<any[]> {
+function farmerMatchesCommodity(farmer: any, commodity?: string): boolean {
+  const crop = (commodity || '').trim();
+  if (!crop) return true;
+  const plots = farmer?.farm_plots || farmer?.farmPlots || [];
+  if (!plots.length) return true;
+  const specified = plots.filter((p: any) => !isUnspecifiedCommodity(String(p?.commodity || '')));
+  if (!specified.length) return true;
+  return specified.some((p: any) => plotMatchesCrop(String(p?.commodity || ''), crop));
+}
+
+/** Filters previously-cached farmers by name/RSBSA/id/QR + farmer address and crop — used offline. */
+async function searchCachedFarmersLocal(term: string, barangay?: string, commodity?: string): Promise<any[]> {
   const value = term.trim().toLowerCase();
   const rows = await db.cachedFarmers.toArray();
   return rows
     .map((r) => r.payload)
     .filter((f: any) => {
       if (barangay && !farmerInBarangay(f, barangay)) return false;
+      if (!farmerMatchesCommodity(f, commodity)) return false;
       if (!value) return true;
       return farmerMatchesSearchTerm(f, value);
     })
@@ -159,10 +169,12 @@ export function useBarangayFarmerSearch(
     try {
       if (isOnline()) {
         try {
+          const commodity = options.commodity?.()?.trim() || '';
           const res = await apiClient.get('/farmers', {
             params: {
               search: term || undefined,
               barangay: brgy || undefined,
+              commodity: commodity || undefined,
               per_page: 15,
             },
           });
@@ -179,7 +191,7 @@ export function useBarangayFarmerSearch(
         }
       }
 
-      const cachedRows = await searchCachedFarmersLocal(term, brgy || undefined);
+      const cachedRows = await searchCachedFarmersLocal(term, brgy || undefined, options.commodity?.() || undefined);
       results.value = cachedRows.map(mapFarmer);
     } catch {
       searchError.value = 'Could not search the farmer list.';

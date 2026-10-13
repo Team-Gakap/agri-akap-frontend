@@ -71,7 +71,7 @@
           <div class="filter-group brgy-group">
             <SearchableSelect
               variant="filter"
-              label="Barangay"
+              label="Farmer address"
               placeholder="All barangays"
               empty-label="All barangays"
               allow-empty

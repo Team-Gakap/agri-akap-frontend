@@ -198,7 +198,7 @@
                   <th>Crop</th>
                   <th>Variety</th>
                   <th class="col-num">Area Harvested (ha)</th>
-                  <th class="col-num">Total Yield (MT)</th>
+                  <th class="col-num">Total Yield (kg)</th>
                   <th>Date Harvested</th>
                   <th class="no-print">Actions</th>
                 </tr>
@@ -457,7 +457,7 @@ const plantingEditFields: ReportEditField[] = [
 const harvestEditFields: ReportEditField[] = [
   { key: 'variety', label: 'Variety', type: 'variety', required: true },
   { key: 'area_harvested', label: 'Area Harvested (ha)', type: 'number', required: true },
-  { key: 'total_yield', label: 'Total Yield (MT)', type: 'number', required: true },
+  { key: 'total_yield', label: 'Total Yield (kg)', type: 'number', required: true },
   { key: 'date_harvested', label: 'Date Harvested', type: 'date', required: true },
 ];
 
@@ -595,7 +595,7 @@ async function downloadExcel() {
           { key: 'crop', label: 'Crop' },
           { key: 'variety', label: 'Variety' },
           { key: 'area_harvested', label: 'Hectares Planted' },
-          { key: 'total_yield', label: 'Yield (MT)' },
+          { key: 'total_yield', label: 'Yield (kg)' },
           { key: 'num_hills_trees', label: 'Number of Hills/Trees' },
           { key: 'date_harvested', label: 'Date Harvested' },
         ],
