@@ -45,6 +45,12 @@
         </ion-select>
       </div>
 
+      <div class="layer-bar">
+        <ion-chip :class="{ off: shadeMetric !== 'farmers' }" @click="setShadeMetric('farmers')">Farmers</ion-chip>
+        <ion-chip :class="{ off: shadeMetric !== 'pests' }" @click="setShadeMetric('pests')">Pests</ion-chip>
+        <ion-chip :class="{ off: shadeMetric !== 'subsidies' }" @click="setShadeMetric('subsidies')">Subsidies</ion-chip>
+      </div>
+
       <!-- Layer toggles -->
       <div class="layer-bar">
         <ion-chip :class="{ off: !layers.farms }" @click="toggleLayer('farms')">
@@ -88,6 +94,7 @@ import 'leaflet/dist/leaflet.css';
 import 'leaflet.heat';
 import apiClient from '@/utils/axios';
 import AppHeader from '@/components/Navigation/AppHeader.vue';
+import { findRowForGeoName, indexByOfficialName, toOfficialBarangayName } from '@/utils/echagueGeoName';
 
 const route = useRoute();
 const isTechMap = route.path.startsWith('/tech');
@@ -109,14 +116,80 @@ const barangays = ref<string[]>([]);
 const commodities = ref<string[]>([]);
 const counts = reactive({ farms: 0, damage: 0, pests: 0 });
 const layers = reactive({ farms: true, damage: true, pests: true });
+const shadeMetric = ref<'farmers' | 'pests' | 'subsidies'>('farmers');
+const barangayStats = ref<Array<{
+  psgc: string | null;
+  barangay: string;
+  barangay_name: string;
+  farmer_count: number;
+  pest_count: number;
+  subsidy_count: number;
+}>>([]);
 
 let map: L.Map | null = null;
+let barangayLayer: L.GeoJSON | null = null;
+let barangayGeo: any = null;
 let farmLayer: L.LayerGroup | null = null;
 let damageLayer: L.LayerGroup | null = null;
 let pestLayer: L.LayerGroup | null = null;
 let heatLayer: any = null;
 
 const colorFor = (c: string | null) => (c && commodityColors[c]) || OTHER_COLOR;
+
+const metricValue = (row: { farmer_count: number; pest_count: number; subsidy_count: number } | undefined) => {
+  if (!row) return 0;
+  if (shadeMetric.value === 'pests') return row.pest_count;
+  if (shadeMetric.value === 'subsidies') return row.subsidy_count;
+  return row.farmer_count;
+};
+
+const statsForFeature = (feature: any) => {
+  const props = (feature?.properties ?? {}) as Record<string, unknown>;
+  const pcode = String(props.adm4_pcode ?? '').toUpperCase();
+  const coded = barangayStats.value.find((row) => String(row.psgc ?? '').toUpperCase() === pcode);
+  if (coded) return coded;
+  return findRowForGeoName(String(props.adm4_name ?? ''), indexByOfficialName(barangayStats.value));
+};
+
+const paintBarangays = () => {
+  if (!map || !barangayGeo) return;
+  if (barangayLayer) map.removeLayer(barangayLayer);
+  const max = barangayStats.value.reduce((peak, row) => Math.max(peak, metricValue(row)), 0);
+  barangayLayer = L.geoJSON(barangayGeo, {
+    style: (feature) => {
+      const value = metricValue(statsForFeature(feature));
+      const fill = value <= 0
+        ? '#e2e8f0'
+        : shadeMetric.value === 'pests'
+          ? '#ef4444'
+          : shadeMetric.value === 'subsidies'
+            ? '#2563eb'
+            : '#15803d';
+      return {
+        color: '#ffffff',
+        weight: 1,
+        fillColor: fill,
+        fillOpacity: value <= 0 || max <= 0 ? 0.35 : 0.22 + (value / max) * 0.5,
+      };
+    },
+    onEachFeature: (feature, layer) => {
+      const row = statsForFeature(feature);
+      const name = toOfficialBarangayName(String((feature.properties as Record<string, unknown> | null)?.adm4_name ?? ''));
+      layer.bindPopup(
+        `<strong>${esc(name)}</strong><br/>` +
+        `Farmers: <b>${row?.farmer_count ?? 0}</b><br/>` +
+        `Pest alerts: <b>${row?.pest_count ?? 0}</b><br/>` +
+        `Subsidy claims: <b>${row?.subsidy_count ?? 0}</b>`,
+      );
+    },
+  }).addTo(map);
+  barangayLayer.bringToBack();
+};
+
+const setShadeMetric = (metric: 'farmers' | 'pests' | 'subsidies') => {
+  shadeMetric.value = metric;
+  paintBarangays();
+};
 
 const toast = async (message: string, color = 'primary') => {
   const t = await toastController.create({ message, duration: 2200, color, position: 'top' });
@@ -236,7 +309,23 @@ const loadData = async () => {
     if (barangay.value) params.barangay = barangay.value;
     if (commodity.value) params.commodity = commodity.value;
     const res = await apiClient.get('/dashboard/map-data', { params });
+    try {
+      const statsRes = await apiClient.get('/dashboard/barangay-stats', {
+        params: barangay.value ? { barangay: barangay.value } : {},
+      });
+      barangayStats.value = (statsRes.data?.data ?? []).map((row: any) => ({
+        psgc: row.psgc ? String(row.psgc).toUpperCase() : null,
+        barangay: String(row.barangay ?? ''),
+        barangay_name: String(row.barangay ?? ''),
+        farmer_count: Number(row.farmer_count ?? 0),
+        pest_count: Number(row.pest_count ?? 0),
+        subsidy_count: Number(row.subsidy_count ?? 0),
+      }));
+    } catch {
+      barangayStats.value = [];
+    }
     render(res.data?.data ?? {});
+    paintBarangays();
   } catch (e) {
     await toast('Failed to load map data.', 'danger');
   } finally {
@@ -271,6 +360,12 @@ const focusFromQuery = () => {
 onMounted(async () => {
   await nextTick();
   initMap();
+  try {
+    const geoRes = await fetch('/geo/echague-barangays.geojson');
+    if (geoRes.ok) barangayGeo = await geoRes.json();
+  } catch {
+    barangayGeo = null;
+  }
   await loadFilters();
   await loadData();
   focusFromQuery();

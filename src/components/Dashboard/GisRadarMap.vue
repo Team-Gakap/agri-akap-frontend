@@ -50,6 +50,13 @@
       </button>
     </div>
 
+    <div class="layer-bar metric-bar no-print">
+      <button type="button" class="layer-chip" :class="{ on: shadeMetric === 'farmers' }" @click="setShadeMetric('farmers')">Farmers</button>
+      <button type="button" class="layer-chip" :class="{ on: shadeMetric === 'pests' }" @click="setShadeMetric('pests')">Pests</button>
+      <button type="button" class="layer-chip" :class="{ on: shadeMetric === 'subsidies' }" @click="setShadeMetric('subsidies')">Subsidies</button>
+      <button type="button" class="layer-chip chip-flood" :class="{ on: shadeMetric === 'rain' }" @click="setShadeMetric('rain')">Rain</button>
+    </div>
+
     <div v-if="mapLoadError" class="map-error">
       <p><strong>Map unavailable.</strong> {{ mapLoadError }}</p>
     </div>
@@ -160,6 +167,16 @@ const PARCEL_AMBER = '#d97706';
 
 type LayerKey = 'plots' | 'pests' | 'flood' | 'damage';
 type Basemap = 'satellite' | 'terrain';
+type ShadeMetric = 'farmers' | 'pests' | 'subsidies' | 'rain';
+
+interface BarangayStat {
+  psgc: string | null;
+  barangay: string;
+  barangay_name: string;
+  farmer_count: number;
+  pest_count: number;
+  subsidy_count: number;
+}
 
 interface ClimateRow {
   barangay: string;
@@ -188,6 +205,8 @@ const mapLoading = ref(false);
 const mapLoadError = ref('');
 const basemap = ref<Basemap>('satellite');
 const layers = reactive({ plots: true, pests: true, flood: true, damage: true });
+const shadeMetric = ref<ShadeMetric>('farmers');
+const barangayStats = ref<BarangayStat[]>([]);
 const selected = ref<SelectedEntity | null>(null);
 
 let map: google.maps.Map | null = null;
@@ -226,6 +245,51 @@ const climateRows = computed<ClimateRow[]>(() =>
 );
 
 const climateIndex = computed(() => indexByOfficialName(climateRows.value));
+
+const mergedStats = computed<BarangayStat[]>(() => {
+  const byName = new Map<string, BarangayStat>();
+  for (const row of barangayStats.value) {
+    const key = row.barangay.trim().toLowerCase();
+    const prev = byName.get(key);
+    if (!prev) {
+      byName.set(key, { ...row, barangay_name: row.barangay });
+      continue;
+    }
+    prev.farmer_count += row.farmer_count;
+    prev.pest_count += row.pest_count;
+    prev.subsidy_count += row.subsidy_count;
+    if (!prev.psgc && row.psgc) prev.psgc = row.psgc;
+  }
+  return [...byName.values()];
+});
+
+const statsByPsgc = computed(() => {
+  const index = new Map<string, BarangayStat>();
+  for (const row of mergedStats.value) {
+    if (row.psgc) index.set(row.psgc.toUpperCase(), row);
+  }
+  return index;
+});
+
+const statsByName = computed(() => indexByOfficialName(mergedStats.value));
+
+function statsForFeature(feature: google.maps.Data.Feature): BarangayStat | undefined {
+  const pcode = String(feature.getProperty('adm4_pcode') ?? '').toUpperCase();
+  if (pcode && statsByPsgc.value.has(pcode)) return statsByPsgc.value.get(pcode);
+  return findRowForGeoName(String(feature.getProperty('adm4_name') ?? ''), statsByName.value);
+}
+
+function metricCount(row: BarangayStat | undefined, metric: ShadeMetric): number {
+  if (!row || metric === 'rain') return 0;
+  if (metric === 'pests') return row.pest_count;
+  if (metric === 'subsidies') return row.subsidy_count;
+  return row.farmer_count;
+}
+
+const metricMax = computed(() => {
+  if (shadeMetric.value === 'rain') return 0;
+  return mergedStats.value.reduce((max, row) => Math.max(max, metricCount(row, shadeMetric.value)), 0);
+});
 
 function isActivePest(p: any): boolean {
   const status = String(p.status || '').toLowerCase();
@@ -350,11 +414,33 @@ function floodFill(precip: number | undefined): { color: string; opacity: number
   return { color: '#94a3b8', opacity: 0.12 };
 }
 
+function densityFill(value: number, max: number, metric: ShadeMetric): { color: string; opacity: number } {
+  if (value <= 0 || max <= 0) return { color: '#e2e8f0', opacity: 0.35 };
+  const color = metric === 'pests' ? '#ef4444' : metric === 'subsidies' ? '#2563eb' : '#15803d';
+  return { color, opacity: 0.22 + (value / max) * 0.5 };
+}
+
+function setShadeMetric(metric: ShadeMetric) {
+  shadeMetric.value = metric;
+  refreshChoropleth();
+}
+
 function choroplethStyle(feature: google.maps.Data.Feature): google.maps.Data.StyleOptions {
   const geoName = String(feature.getProperty('adm4_name') ?? '');
   const official = toOfficialBarangayName(geoName);
   const row = climateForGeo(geoName);
   const selectedBrgy = selected.value?.kind === 'barangay' && selected.value.title === official;
+  if (shadeMetric.value !== 'rain') {
+    const fill = densityFill(metricCount(statsForFeature(feature), shadeMetric.value), metricMax.value, shadeMetric.value);
+    return {
+      strokeColor: selectedBrgy ? '#D4AF37' : '#ffffff',
+      strokeWeight: selectedBrgy ? 2.5 : 1,
+      fillColor: fill.color,
+      fillOpacity: selectedBrgy ? Math.min(0.85, fill.opacity + 0.12) : fill.opacity,
+      zIndex: selectedBrgy ? 3 : 1,
+      clickable: true,
+    };
+  }
   if (!layers.flood) {
     return {
       strokeColor: selectedBrgy ? '#D4AF37' : '#94a3b8',
@@ -380,10 +466,13 @@ function refreshChoropleth() {
   map?.data.setStyle(choroplethStyle);
 }
 
-function selectBarangay(geoName: string) {
+function selectBarangay(geoName: string, pcode = '') {
   const official = toOfficialBarangayName(geoName);
   const row = climateForGeo(geoName);
   const precip = row?.precipitation_probability ?? 0;
+  const stats = (pcode && statsByPsgc.value.get(pcode.toUpperCase()))
+    || findRowForGeoName(geoName, statsByName.value);
+  const farmerCount = stats?.farmer_count ?? row?.farmer_count ?? 0;
   selected.value = {
     kind: 'barangay',
     kindLabel: 'Barangay / flood zone',
@@ -392,7 +481,9 @@ function selectBarangay(geoName: string) {
       { label: '72h rain probability', value: `${precip}%` },
       { label: 'Root-zone moisture', value: soilLabel(row?.soil_moisture ?? null) },
       { label: 'Wind', value: row?.wind_speed_kmh != null ? `${row.wind_speed_kmh} km/h` : '—' },
-      { label: 'Registered farmers', value: String(row?.farmer_count ?? 0) },
+      { label: 'Registered farmers', value: String(farmerCount) },
+      { label: 'Pest alerts', value: String(stats?.pest_count ?? 0) },
+      { label: 'Subsidy claims', value: String(stats?.subsidy_count ?? 0) },
     ],
     flag: precip >= 80 ? `Active threat: flood / lodging hazard (${precip}% rain)` : undefined,
     sms: {
@@ -586,7 +677,8 @@ async function initMap() {
   map.data.addListener('click', (e: google.maps.Data.MouseEvent) => {
     skipMapClick = true;
     const geoName = String(e.feature.getProperty('adm4_name') ?? '');
-    selectBarangay(geoName);
+    const pcode = String(e.feature.getProperty('adm4_pcode') ?? '');
+    selectBarangay(geoName, pcode);
   });
   map.addListener('click', () => {
     if (skipMapClick) {
@@ -613,7 +705,18 @@ async function loadGeoJson() {
 async function fetchMapData() {
   mapLoading.value = true;
   try {
-    const res = await apiClient.get('/dashboard/map-data');
+    const [res, statsRes] = await Promise.all([
+      apiClient.get('/dashboard/map-data'),
+      apiClient.get('/dashboard/barangay-stats'),
+    ]);
+    barangayStats.value = (statsRes.data?.data ?? []).map((row: BarangayStat) => ({
+      psgc: row.psgc ? String(row.psgc).toUpperCase() : null,
+      barangay: row.barangay,
+      barangay_name: row.barangay,
+      farmer_count: Number(row.farmer_count ?? 0),
+      pest_count: Number(row.pest_count ?? 0),
+      subsidy_count: Number(row.subsidy_count ?? 0),
+    }));
     lastPayload.value = {
       farm_plots: [],
       plot_totals: { mapped: 0, total: 0 },
@@ -716,6 +819,8 @@ onBeforeUnmount(() => {
   font-family: inherit;
 }
 .layer-chip ion-icon { font-size: 0.9rem; }
+.metric-bar { padding-top: 0; }
+.metric-bar .layer-chip.on { background: #14532d; color: #fff; border-color: #14532d; }
 .layer-chip.chip-plots.on {
   background: #16A34A;
   border-color: #16A34A;
