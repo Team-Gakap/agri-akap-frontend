@@ -474,6 +474,7 @@ onMounted(async () => {
           birthdate: f.birthdate || '',
           address: f.permanent_brgy || '',
           barangay: f.permanent_brgy || '',
+          total_farm_area_ha: Number(f.total_farm_area_ha) || 0,
           is_temporary: Boolean(f.is_temporary),
           registration_type: f.registration_type || 'rsbsa',
           plots: (f.farm_plots || f.farmPlots || []).map((p: any) => ({
@@ -624,7 +625,7 @@ const submitAssessment = async () => {
 
     const queueThisAssessment = () => queueAssessment({
       assessment_id: state.assessmentId || undefined,
-      farm_plot_id: farmPlotIdForApi(state.farmPlotId),
+      farm_plot_id: farmPlotIdForApi(state.farmPlotId) || '',
       farmer_id: state.farmerId || undefined,
       farmer_name: state.farmerName || undefined,
       calamity_type: state.calamityType,
