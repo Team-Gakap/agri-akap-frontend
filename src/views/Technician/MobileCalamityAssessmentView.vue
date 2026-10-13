@@ -69,6 +69,7 @@
               @ionInput="(e: CustomEvent) => farmerSearch.onQueryInput(e.detail.value ?? '')"
             ></ion-input>
             <div v-if="farmerSearch.searching.value" class="hint">Searching…</div>
+            <div v-else-if="farmerSearch.searchError.value" class="hint">{{ farmerSearch.searchError.value }}</div>
             <ul v-if="farmerSearch.results.value.length" class="suggest">
               <li v-for="f in farmerSearch.results.value" :key="f.id" @click="onSelectFarmer(f)">
                 <strong>{{ f.surname }}, {{ f.first_name }}</strong>
@@ -256,6 +257,7 @@ import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { captureGpsAtEvidenceTime, fetchRealLocation } from '@/composables/useNativeHardware';
 import {
   useBarangayFarmerSearch,
+  farmPlotIdForApi,
   type FarmerOption,
 } from '@/composables/useBarangayFarmerSearch';
 import { useActivePlanting, stageSelectValue, isHarvestReady } from '@/composables/useActivePlanting';
@@ -622,7 +624,7 @@ const submitAssessment = async () => {
 
     const queueThisAssessment = () => queueAssessment({
       assessment_id: state.assessmentId || undefined,
-      farm_plot_id: state.farmPlotId,
+      farm_plot_id: farmPlotIdForApi(state.farmPlotId),
       farmer_id: state.farmerId || undefined,
       farmer_name: state.farmerName || undefined,
       calamity_type: state.calamityType,
@@ -662,8 +664,9 @@ const submitAssessment = async () => {
       } else {
         await apiClient.post('/damage-assessments', {
           id: crypto.randomUUID(),
-          farm_plot_id: state.farmPlotId || undefined,
+          farm_plot_id: farmPlotIdForApi(state.farmPlotId),
           farmer_id: state.farmerId || undefined,
+          crop_type: state.cropType || undefined,
           calamity_type: state.calamityType,
           calamity_name: calamityNameForSubmit(),
           crop_stage: state.cropStage || undefined,

@@ -27,6 +27,7 @@
               @ionInput="(e: any) => farmerSearch.onQueryInput(e.detail.value || '')"
             ></ion-input>
             <div v-if="farmerSearch.searching.value" class="hint">Searching…</div>
+            <div v-else-if="farmerSearch.searchError.value" class="hint">{{ farmerSearch.searchError.value }}</div>
             <ul v-if="farmerSearch.results.value.length || farmerSearch.canEnlistWalkIn.value" class="suggest">
               <li v-for="f in farmerSearch.results.value" :key="f.id" @click="onSelectFarmer(f)">
                 <strong>{{ farmerDisplayName(f) }} <UnverifiedWalkInChip :show="f.is_temporary" /></strong>
@@ -160,6 +161,7 @@ import EncodingBarangaySelector from '@/components/EncodingBarangaySelector.vue'
 import VarietyField from '@/components/VarietyField.vue';
 import {
   useBarangayFarmerSearch,
+  farmPlotIdForApi,
   formatBirthday,
   farmerDisplayName,
   type FarmerOption,
@@ -389,7 +391,7 @@ const applyPlantingAutofill = async () => {
   harvestReadyHint.value = '';
   if (!form.farmer_id) return;
   const planting = await fetchActivePlanting(form.farmer_id, {
-    farmPlotId: form.plot_id || undefined,
+    farmPlotId: farmPlotIdForApi(form.plot_id),
     commodity: form.crop_type,
   });
   if (!planting) return;
@@ -443,7 +445,7 @@ const addEntry = async () => {
     await apiClient.post('/harvest-logs', {
       id,
       farmer_id: form.farmer_id,
-      farm_plot_id: form.plot_id || undefined,
+      farm_plot_id: farmPlotIdForApi(form.plot_id),
       crop_type: form.crop_type,
       crop_category: form.crop_type === 'HVCC' ? form.crop_category : null,
       hvcc_commodity: form.crop_type === 'HVCC' ? form.hvcc_commodity : null,

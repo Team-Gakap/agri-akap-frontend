@@ -37,7 +37,7 @@
 
         <div class="form-card">
           <h3>Add Record — {{ crop }}</h3>
-          <p class="crop-hint">Only farmers with a {{ crop }} farm plot can be added on this form.</p>
+          <p class="crop-hint">Search the masterlist by name or RSBSA. A {{ crop }} plot is attached when you save.</p>
 
           <div class="search-box">
             <ion-input
@@ -50,6 +50,7 @@
               @ionInput="(e: any) => farmerSearch.onQueryInput(e.detail.value || '')"
             ></ion-input>
             <div v-if="farmerSearch.searching.value" class="hint">Searching…</div>
+            <div v-else-if="farmerSearch.searchError.value" class="hint">{{ farmerSearch.searchError.value }}</div>
             <ul v-if="farmerSearch.results.value.length || farmerSearch.canEnlistWalkIn.value" class="suggest">
               <li
                 v-for="f in farmerSearch.results.value"
@@ -193,6 +194,7 @@ import EncodingBarangaySelector from '@/components/EncodingBarangaySelector.vue'
 import VarietyField from '@/components/VarietyField.vue';
 import {
   useBarangayFarmerSearch,
+  farmPlotIdForApi,
   formatBirthday,
   farmerDisplayName,
   type FarmerOption,
@@ -460,7 +462,7 @@ const addEntry = async () => {
     await apiClient.post('/planting-logs', {
       id,
       farmer_id: form.farmer_id,
-      farm_plot_id: form.plot_id || undefined,
+      farm_plot_id: farmPlotIdForApi(form.plot_id),
       crop_type: crop.value,
       crop_category: crop.value === 'HVCC' ? cropCategory.value : null,
       hvcc_commodity: crop.value === 'HVCC' ? hvccCommodity.value : null,

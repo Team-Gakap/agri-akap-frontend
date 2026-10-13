@@ -191,9 +191,12 @@
             </div>
             <div class="elig-meta">
               <span>{{ pendingCtx.rsbsa_no || 'No RSBSA' }}</span>
-              <span v-if="pendingCtx.farm_brgy || pendingCtx.barangay">
-                · {{ pendingCtx.farm_brgy || pendingCtx.barangay }}
-              </span>
+            </div>
+            <div class="elig-meta" v-if="pendingCtx.farm_brgy">
+              Farm barangay {{ pendingCtx.farm_brgy }}
+            </div>
+            <div class="elig-meta" v-if="pendingCtx.permanent_brgy">
+              Farmer address {{ pendingCtx.permanent_brgy }}
             </div>
             <div class="elig-meta">
               Farm area {{ formatHa(pendingCtx.eligible_size || pendingCtx.total_farm_size) }} ha
@@ -462,7 +465,8 @@ const clearFarmer = () => {
 
 const buildOfflineContext = (program: any, source: 'subsidy' | 'program'): ReleaseContext => {
   const rsbsaNo = farmer.value.rsbsa_no || farmer.value.rsbsaNo;
-  const farmBrgy = farmer.value.farm_brgy || farmer.value.permanent_brgy || farmer.value.barangay || null;
+  const farmBrgy = farmer.value.farm_brgy || null;
+  const homeBrgy = farmer.value.permanent_brgy || farmer.value.barangay || null;
   return {
     farmer_id: farmer.value.id,
     program_id: selectedProgramId.value,
@@ -483,7 +487,8 @@ const buildOfflineContext = (program: any, source: 'subsidy' | 'program'): Relea
     plot_long: farmer.value.farm_plots?.[0]?.longitude ?? farmer.value.farmPlots?.[0]?.longitude,
     rsbsa_no: rsbsaNo,
     farm_brgy: farmBrgy,
-    barangay: farmBrgy,
+    permanent_brgy: homeBrgy,
+    barangay: farmBrgy || homeBrgy,
     allocated_bags: 0,
     is_pwd: !!farmer.value.is_pwd,
     is_senior: false,
@@ -521,8 +526,9 @@ const verifyOnline = async (program: any, source: 'subsidy' | 'program'): Promis
       plot_long: data.plot_long,
       beneficiary_id: data.beneficiary_id,
       rsbsa_no: data.rsbsa_no || farmer.value.rsbsa_no || farmer.value.rsbsaNo,
-      farm_brgy: data.farm_brgy || data.barangay || farmer.value.farm_brgy || farmer.value.permanent_brgy || null,
-      barangay: data.barangay || data.farm_brgy || farmer.value.farm_brgy || farmer.value.permanent_brgy || null,
+      farm_brgy: data.farm_brgy || farmer.value.farm_brgy || null,
+      permanent_brgy: data.permanent_brgy || farmer.value.permanent_brgy || null,
+      barangay: data.barangay || data.farm_brgy || data.permanent_brgy || farmer.value.farm_brgy || farmer.value.permanent_brgy || null,
       is_pwd: !!data.is_pwd,
       is_senior: !!data.is_senior,
       priority_label: data.priority_label ?? null,

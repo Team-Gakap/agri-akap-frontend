@@ -151,7 +151,7 @@
                     <td>{{ row.last_name || '—' }}</td>
                     <td>{{ row.first_name || '—' }}</td>
                     <td>{{ row.middle_name || '—' }}</td>
-                    <td>{{ row.barangay }}</td>
+                    <td>{{ addressLabel(row) }}</td>
                     <td class="col-num">{{ formatArea(row.farm_area) }}</td>
                     <td class="col-num">{{ formatAllocation(row) }}</td>
                     <td><span class="tier-pill" :class="tierClass(row.priority_tier)">{{ tierLabel(row.priority_tier) }}</span></td>
@@ -440,6 +440,8 @@ interface MasterlistRow {
   first_name: string;
   middle_name?: string;
   barangay: string;
+  farm_brgy?: string | null;
+  permanent_brgy?: string | null;
   mobile_number?: string | null;
   farm_area: number;
   calculated_allocation: number;
@@ -626,7 +628,10 @@ const filterBarangayOptions = computed(() =>
 const filteredRows = computed(() => {
   const term = searchTerm.value.trim().toLowerCase();
   return rows.value.filter((r) => {
-    if (filterBarangay.value && r.barangay !== filterBarangay.value) return false;
+    if (filterBarangay.value
+      && r.barangay !== filterBarangay.value
+      && r.farm_brgy !== filterBarangay.value
+      && r.permanent_brgy !== filterBarangay.value) return false;
     if (filterStatus.value && r.status !== filterStatus.value) return false;
     if (term) {
       const haystack = `${r.rsbsa_no} ${r.last_name} ${r.first_name} ${r.middle_name || ''}`.toLowerCase();
@@ -771,6 +776,13 @@ const formatAllocation = (row: { calculated_allocation: number; calculated_alloc
   return primary;
 };
 
+const addressLabel = (row: { barangay?: string; farm_brgy?: string | null; permanent_brgy?: string | null }) => {
+  const farm = row.farm_brgy || '';
+  const home = row.permanent_brgy || '';
+  if (farm && home && farm !== home) return `${farm} (home ${home})`;
+  return farm || home || row.barangay || 'Unspecified';
+};
+
 const toast = async (message: string, color: 'success' | 'warning' | 'danger' | 'primary' = 'success') => {
   const t = await toastController.create({ message, duration: 2800, color, position: 'top' });
   await t.present();
@@ -783,7 +795,9 @@ const mapTargetRow = (r: any): MasterlistRow => ({
   last_name: r.last_name,
   first_name: r.first_name,
   middle_name: r.middle_name,
-  barangay: r.barangay || r.farm_brgy || 'Unspecified',
+  barangay: r.barangay || r.farm_brgy || r.permanent_brgy || 'Unspecified',
+  farm_brgy: r.farm_brgy || null,
+  permanent_brgy: r.permanent_brgy || null,
   mobile_number: r.mobile_number,
   farm_area: Number(r.farm_area || 0),
   calculated_allocation: Number(r.calculated_allocation ?? r.allocated_bags ?? 0),

@@ -28,6 +28,7 @@ export interface ReleaseContext {
   beneficiary_id?: string | null;
   rsbsa_no?: string | null;
   farm_brgy?: string | null;
+  permanent_brgy?: string | null;
   barangay?: string | null;
   allocated_bags?: number;
   is_pwd?: boolean;

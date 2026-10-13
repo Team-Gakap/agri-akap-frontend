@@ -26,6 +26,7 @@
               @ionInput="(e: CustomEvent) => farmerSearch.onQueryInput(e.detail.value ?? '')"
             ></ion-input>
             <div v-if="farmerSearch.searching.value" class="hint">Searching…</div>
+            <div v-else-if="farmerSearch.searchError.value" class="hint">{{ farmerSearch.searchError.value }}</div>
             <ul v-if="farmerSearch.results.value.length" class="suggest">
               <li v-for="f in farmerSearch.results.value" :key="f.id" @click="onSelectFarmer(f)">
                 <strong>{{ f.surname }}, {{ f.first_name }}</strong>
@@ -81,7 +82,7 @@ import {
   IonCard, IonCardHeader, IonCardTitle, IonCardContent, IonButton, IonInput, IonSelect, IonSelectOption,
 } from '@ionic/vue';
 import VarietyField from '@/components/VarietyField.vue';
-import { useBarangayFarmerSearch, type FarmerOption } from '@/composables/useBarangayFarmerSearch';
+import { useBarangayFarmerSearch, farmPlotIdForApi, type FarmerOption } from '@/composables/useBarangayFarmerSearch';
 import { useActivePlanting, stageSelectValue, isHarvestReady } from '@/composables/useActivePlanting';
 import { presentToast } from '@/utils/toast';
 import { capInputToPlot, plotSizeHa } from '@/utils/plotArea';
@@ -170,7 +171,7 @@ const applyPlantingAutofill = async () => {
   harvestReadyHint.value = '';
   if (!form.farmerId) return;
   const planting = await fetchActivePlanting(form.farmerId, {
-    farmPlotId: form.plotId || undefined,
+    farmPlotId: farmPlotIdForApi(form.plotId),
     commodity: form.cropType,
   });
   if (!planting) return;
@@ -196,7 +197,7 @@ const applyPlantingAutofill = async () => {
 
 const queueThisStandingCrop = () => queueStandingCropLog({
   farmer_id: form.farmerId,
-  farm_plot_id: form.plotId || undefined,
+  farm_plot_id: farmPlotIdForApi(form.plotId),
   rsbsa_no: form.rsbsaNo,
   farmer_name: form.farmerName,
   crop_type: form.cropType,
@@ -223,7 +224,7 @@ const submit = async () => {
       await apiClient.post('/standing-crop-logs', {
         id: crypto.randomUUID(),
         farmer_id: form.farmerId,
-        farm_plot_id: form.plotId || undefined,
+        farm_plot_id: farmPlotIdForApi(form.plotId),
         crop_type: form.cropType,
         variety: form.variety.trim(),
         area_ha: Number(form.areaHa),

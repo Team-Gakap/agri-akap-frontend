@@ -1,18 +1,43 @@
 import { ref, computed } from 'vue';
 import apiClient from '@/utils/axios';
 import { db } from '@/database/db';
-import { cacheFarmer, farmerHasCommodity, farmerMatchesSearchTerm, isNetworkError, isOnline } from '@/services/syncService';
+import { cacheFarmer, farmerMatchesSearchTerm, isNetworkError, isOnline } from '@/services/syncService';
 import { plotMatchesCrop } from '@/constants/hvccCatalog';
 
-/** Filters previously-cached farmers by name/RSBSA/id/QR + optional barangay/commodity — used offline. */
-async function searchCachedFarmersLocal(term: string, barangay?: string, commodity?: string): Promise<any[]> {
+/** Sentinel plot id: the server creates or claims a crop plot on save. */
+export const PROVISIONAL_PLOT_ID = '__registered_farm__';
+
+export function farmPlotIdForApi(id?: string | null): string | undefined {
+  const value = String(id || '').trim();
+  if (!value || value === PROVISIONAL_PLOT_ID) return undefined;
+  return value;
+}
+
+function isUnspecifiedCommodity(value: string): boolean {
+  const key = value.trim().toLowerCase();
+  return key === '' || key === 'unspecified';
+}
+
+function cropLabel(crop: string, hvccCommodity?: string | null): string {
+  if (crop.trim().toLowerCase() === 'hvcc') return hvccCommodity?.trim() || 'High-Value Crops';
+  return crop.trim();
+}
+
+function farmerInBarangay(farmer: any, barangay: string): boolean {
+  const wanted = barangay.trim().toLowerCase();
+  const home = String(farmer?.permanent_brgy || farmer?.barangay || '').trim().toLowerCase();
+  const farm = String(farmer?.farm_brgy || '').trim().toLowerCase();
+  return home === wanted || farm === wanted;
+}
+
+/** Filters previously-cached farmers by name/RSBSA/id/QR + optional barangay — used offline. */
+async function searchCachedFarmersLocal(term: string, barangay?: string): Promise<any[]> {
   const value = term.trim().toLowerCase();
   const rows = await db.cachedFarmers.toArray();
   return rows
     .map((r) => r.payload)
     .filter((f: any) => {
-      if (barangay && String(f.permanent_brgy || '').toLowerCase() !== barangay.toLowerCase()) return false;
-      if (commodity && !farmerHasCommodity(f, commodity)) return false;
+      if (barangay && !farmerInBarangay(f, barangay)) return false;
       if (!value) return true;
       return farmerMatchesSearchTerm(f, value);
     })
@@ -29,6 +54,7 @@ export interface FarmerOption {
   birthdate: string;
   address: string;
   barangay: string;
+  total_farm_area_ha: number;
   is_temporary: boolean;
   registration_type: string;
   plots: Array<{ id: string; location_brgy: string; commodity: string; size_ha: number }>;
@@ -82,13 +108,14 @@ export function useBarangayFarmerSearch(
   const query = ref('');
   const results = ref<FarmerOption[]>([]);
   const searching = ref(false);
+  const searchError = ref('');
   const selected = ref<FarmerOption | null>(null);
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   const hasAssignment = computed(() => !!assignedBarangay());
   const canEnlistWalkIn = computed(() => {
     const term = query.value.trim();
-    return term.length > 0 && results.value.length === 0 && !searching.value && !selected.value;
+    return term.length > 0 && results.value.length === 0 && !searching.value && !selected.value && !searchError.value;
   });
 
   const mapFarmer = (f: any): FarmerOption => {
@@ -108,7 +135,8 @@ export function useBarangayFarmerSearch(
       ext_name: f.ext_name || '',
       birthdate: f.birthdate || '',
       address: parts.join(', ') || f.permanent_brgy || '',
-      barangay: f.permanent_brgy || '',
+      barangay: f.farm_brgy || f.permanent_brgy || '',
+      total_farm_area_ha: Number(f.total_farm_area_ha) || 0,
       is_temporary: Boolean(f.is_temporary),
       registration_type: f.registration_type || 'rsbsa',
       plots: (f.farm_plots || f.farmPlots || []).map((p: any) => ({
@@ -127,16 +155,14 @@ export function useBarangayFarmerSearch(
       return;
     }
     searching.value = true;
+    searchError.value = '';
     try {
-      const commodity = options.commodity?.()?.trim() || undefined;
-
       if (isOnline()) {
         try {
           const res = await apiClient.get('/farmers', {
             params: {
               search: term || undefined,
               barangay: brgy || undefined,
-              commodity: commodity || undefined,
               per_page: 15,
             },
           });
@@ -144,16 +170,19 @@ export function useBarangayFarmerSearch(
           for (const r of rows) await cacheFarmer(r);
           results.value = rows.map(mapFarmer);
           return;
-        } catch (err) {
-          if (!isNetworkError(err)) throw err;
+        } catch (err: any) {
+          if (!isNetworkError(err)) {
+            searchError.value = err?.response?.data?.message || 'Could not search the farmer list.';
+            return;
+          }
           /* fall through to the offline cache below */
         }
       }
 
-      const cachedRows = await searchCachedFarmersLocal(term, brgy || undefined, commodity);
+      const cachedRows = await searchCachedFarmersLocal(term, brgy || undefined);
       results.value = cachedRows.map(mapFarmer);
     } catch {
-      results.value = [];
+      searchError.value = 'Could not search the farmer list.';
     } finally {
       searching.value = false;
     }
@@ -176,7 +205,11 @@ export function useBarangayFarmerSearch(
           const res = await apiClient.get(`/farmers/${option.id}`);
           await cacheFarmer(res.data?.data);
           const full = mapFarmer(res.data?.data ?? {});
-          selected.value = { ...option, plots: full.plots };
+          selected.value = {
+            ...option,
+            plots: full.plots,
+            total_farm_area_ha: full.total_farm_area_ha || option.total_farm_area_ha,
+          };
           return;
         } catch (err) {
           if (!isNetworkError(err)) return;
@@ -186,7 +219,11 @@ export function useBarangayFarmerSearch(
       const cached = await db.cachedFarmers.get(option.id);
       if (cached?.payload) {
         const full = mapFarmer(cached.payload);
-        selected.value = { ...option, plots: full.plots };
+        selected.value = {
+          ...option,
+          plots: full.plots,
+          total_farm_area_ha: full.total_farm_area_ha || option.total_farm_area_ha,
+        };
       }
     }
   };
@@ -194,10 +231,22 @@ export function useBarangayFarmerSearch(
   /** Plots for the selected farmer that match the active crop form. */
   const plotsForCommodity = (commodity: string, hvccCommodity?: string | null) => {
     const crop = commodity.trim();
-    if (!crop) return selected.value?.plots || [];
-    return (selected.value?.plots || []).filter(
-      (p) => plotMatchesCrop(p.commodity, crop, hvccCommodity),
-    );
+    const all = selected.value?.plots || [];
+    if (!crop) return all;
+    const matches = all.filter((p) => plotMatchesCrop(p.commodity, crop, hvccCommodity));
+    if (matches.length) return matches;
+    const label = cropLabel(crop, hvccCommodity);
+    const placeholders = all.filter((p) => isUnspecifiedCommodity(p.commodity));
+    if (placeholders.length) {
+      return placeholders.map((p) => ({ ...p, commodity: label || p.commodity }));
+    }
+    if (!selected.value) return [];
+    return [{
+      id: PROVISIONAL_PLOT_ID,
+      location_brgy: selected.value.barangay || 'Registered farm',
+      commodity: label,
+      size_ha: Number(selected.value.total_farm_area_ha) || 0,
+    }];
   };
 
   const clearSelection = () => {
@@ -234,6 +283,7 @@ export function useBarangayFarmerSearch(
     query,
     results,
     searching,
+    searchError,
     selected,
     hasAssignment,
     canEnlistWalkIn,

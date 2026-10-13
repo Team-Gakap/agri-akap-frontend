@@ -167,6 +167,7 @@
               @ionInput="(e: any) => farmerSearch.onQueryInput(e.detail.value || '')"
             ></ion-input>
             <div v-if="farmerSearch.searching.value" class="hint">Searching…</div>
+            <div v-else-if="farmerSearch.searchError.value" class="hint">{{ farmerSearch.searchError.value }}</div>
             <ul v-if="farmerSearch.results.value.length || farmerSearch.canEnlistWalkIn.value" class="suggest">
               <li v-for="f in farmerSearch.results.value" :key="f.id" @click="onSelectFarmer(f)">
                 <strong>{{ farmerDisplayName(f) }} <UnverifiedWalkInChip :show="f.is_temporary" /></strong>
@@ -201,7 +202,7 @@
             >
               <ion-select-option value="">Select plot</ion-select-option>
               <ion-select-option
-                v-for="p in farmerSearch.selected.value?.plots || []"
+                v-for="p in matchingPlots"
                 :key="p.id"
                 :value="p.id"
               >
@@ -319,6 +320,7 @@ import EncodingBarangaySelector from '@/components/EncodingBarangaySelector.vue'
 import VarietyField from '@/components/VarietyField.vue';
 import {
   useBarangayFarmerSearch,
+  farmPlotIdForApi,
   farmerDisplayName,
   type FarmerOption,
   type ManualWalkInPayload,
@@ -461,6 +463,7 @@ const form = reactive({
 });
 
 const showHills = computed(() => form.crop_type === 'HVCC' && isTreeFruitCategory(form.crop_category));
+const matchingPlots = computed(() => farmerSearch.plotsForCommodity(form.crop_type, form.hvcc_commodity));
 const applyCommodityToForm = (commodity?: string | null) => {
   const name = String(commodity || '');
   if (name === 'Rice' || name === 'Corn') {
@@ -656,12 +659,13 @@ const onSelectFarmer = async (f: FarmerOption) => {
   form.variety = '';
   yieldLossManual.value = false;
   form.est_yield_loss_pct = '';
-  if (sel.plots.length === 1) {
-    const p = sel.plots[0];
+  const plots = farmerSearch.plotsForCommodity(form.crop_type, form.hvcc_commodity);
+  if (plots.length === 1) {
+    const p = plots[0];
     form.plot_id = p.id;
     form.farm_location = p.location_brgy || sel.barangay;
     form.area_planted = String(p.size_ha || '');
-    applyCommodityToForm(p.commodity);
+    if (p.commodity && p.commodity !== 'Unspecified') applyCommodityToForm(p.commodity);
     recalcYieldLoss();
   }
   await applyPlantingAutofill();
@@ -669,11 +673,10 @@ const onSelectFarmer = async (f: FarmerOption) => {
 
 const onPlotChange = async (e: CustomEvent) => {
   form.plot_id = String(e.detail.value);
-  const p = farmerSearch.selected.value?.plots.find((x) => x.id === form.plot_id);
+  const p = matchingPlots.value.find((x) => x.id === form.plot_id);
   if (p) {
     form.farm_location = p.location_brgy || form.farm_location;
     form.area_planted = String(p.size_ha || form.area_planted);
-    applyCommodityToForm(p.commodity);
     recalcYieldLoss();
   }
   await applyPlantingAutofill();
@@ -683,7 +686,7 @@ const applyPlantingAutofill = async () => {
   harvestReadyHint.value = '';
   if (!form.farmer_id) return;
   const planting = await fetchActivePlanting(form.farmer_id, {
-    farmPlotId: form.plot_id || undefined,
+    farmPlotId: farmPlotIdForApi(form.plot_id),
     commodity: form.crop_type,
   });
   if (!planting) return;
@@ -736,7 +739,8 @@ const addEntry = async () => {
   try {
     await apiClient.post('/damage-assessments', {
       id,
-      farm_plot_id: form.plot_id,
+      farm_plot_id: farmPlotIdForApi(form.plot_id),
+      crop_type: form.crop_type,
       farmer_id: form.farmer_id,
       calamity_type: form.calamity_type,
       calamity_name: calamityNameForSubmit(),
