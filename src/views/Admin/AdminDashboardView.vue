@@ -98,8 +98,8 @@
             <GisRadarMap @sms="onGisSms" />
           </div>
 
-          <!-- ── 3. Diagnostic charts (7) ──────────────────────────────── -->
-          <div class="span-7 diag-col">
+          <!-- ── 3. Diagnostic charts ───────────────────────────────────── -->
+          <div class="span-12 diag-col">
             <div class="chart-pair">
               <section class="panel-card">
                 <header class="panel-head">
@@ -161,41 +161,10 @@
             </section>
           </div>
 
-          <!-- ── 4. Predictive (5) ──────────────────────────────────────── -->
-          <div class="span-5 pred-col">
-            <section class="panel-card harvest-card">
-              <header class="panel-head">
-                <div>
-                  <h2>Harvest Yield Projection</h2>
-                  <p>{{ seasonLabel }} season · MT = ha × municipal avg yield</p>
-                </div>
-              </header>
-              <div class="harvest-grid">
-                <div v-for="row in harvestRows" :key="row.crop_type" class="harvest-tile">
-                  <p class="harvest-crop">{{ row.crop_type }}</p>
-                  <p class="harvest-mt">{{ fmtMt(row.estimated_harvest_mt) }} <small>MT</small></p>
-                  <p class="kpi-hint">
-                    {{ fmtHa(row.total_area_ha) }} ha · target {{ fmtMt(row.season_target_mt) }} MT
-                  </p>
-                  <div class="micro-bar gold" aria-hidden="true">
-                    <span :style="{ width: harvestProgress(row) + '%' }"></span>
-                  </div>
-                </div>
-                <p v-if="!harvestRows.length" class="empty-note">No planted hectares to project.</p>
-              </div>
-              <div v-if="harvestRows.length" class="harvest-chart-box">
-                <Bar :data="harvestChartData" :options="harvestChartOptions" />
-              </div>
-              <p v-if="harvestRows.length" class="harvest-footer">
-                Estimated attainment: <strong>{{ fmtPct(harvestAttainment) }}%</strong> of target
-                <button type="button" class="kpi-link" @click="go('/admin/analytics')">
-                  Open predictive analytics
-                </button>
-              </p>
-            </section>
-          </div>
+          <!-- ── 4. Predictive analytics ─────────────────────────────────── -->
+          <PredictiveAnalyticsPanel class="span-12" />
 
-          <!-- ── 4. Prescriptive Action Center ──────────────────────────── -->
+          <!-- ── 5. Prescriptive Action Center ──────────────────────────── -->
           <section class="panel-card span-12 action-card">
             <header class="panel-head action-head">
               <div>
@@ -355,6 +324,7 @@ import {
 import apiClient from '@/utils/axios';
 import { toast } from '@/utils/toast';
 import GisRadarMap from '@/components/Dashboard/GisRadarMap.vue';
+import PredictiveAnalyticsPanel from '@/views/Admin/PredictiveAnalyticsView.vue';
 import AppHeader from '@/components/Navigation/AppHeader.vue';
 
 ChartJS.register(Title, Tooltip, Legend, ArcElement, BarElement, CategoryScale, LinearScale);
@@ -481,23 +451,6 @@ const stagePct = (key: string) => {
   return Number(row?.percent ?? 0).toFixed(0);
 };
 
-const harvestProgress = (row: any) => {
-  const target = Number(row?.season_target_mt ?? 0);
-  const proj = Number(row?.estimated_harvest_mt ?? 0);
-  if (target <= 0) return proj > 0 ? 100 : 0;
-  return Math.min(100, Math.round((proj / target) * 100));
-};
-
-const harvestAttainment = computed(() => {
-  const projected = harvestRows.value.reduce((sum: number, row: any) => (
-    sum + Number(row?.estimated_harvest_mt ?? 0)
-  ), 0);
-  const target = harvestRows.value.reduce((sum: number, row: any) => (
-    sum + Number(row?.season_target_mt ?? 0)
-  ), 0);
-  return target > 0 ? (projected / target) * 100 : 0;
-});
-
 const STAGE_COLORS: Record<string, string> = {
   seedling: '#94a3b8',
   vegetative: LGU_GREEN,
@@ -528,26 +481,6 @@ const uptakeChartData = computed(() => ({
     borderRadius: 8,
     maxBarThickness: 22,
   }],
-}));
-
-const harvestChartData = computed(() => ({
-  labels: harvestRows.value.map((row: any) => row.crop_type),
-  datasets: [
-    {
-      label: 'Projected MT',
-      data: harvestRows.value.map((row: any) => Number(row.estimated_harvest_mt ?? 0)),
-      backgroundColor: LGU_GREEN,
-      borderRadius: 6,
-      maxBarThickness: 28,
-    },
-    {
-      label: 'Target MT',
-      data: harvestRows.value.map((row: any) => Number(row.season_target_mt ?? 0)),
-      backgroundColor: LGU_GOLD,
-      borderRadius: 6,
-      maxBarThickness: 28,
-    },
-  ],
 }));
 
 const doughnutOptions = {
@@ -585,31 +518,6 @@ const barOptions = {
       grid: { color: 'rgba(26,71,49,0.08)' },
     },
     y: { ticks: { color: '#64748b', font: { size: 11 } }, grid: { display: false } },
-  },
-};
-
-const harvestChartOptions = {
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: {
-    legend: {
-      position: 'bottom' as const,
-      labels: { color: LGU_GREEN, usePointStyle: true, boxWidth: 8, font: { size: 10 } },
-    },
-    tooltip: {
-      backgroundColor: LGU_GREEN,
-      titleColor: '#fff',
-      bodyColor: '#fff',
-      callbacks: { label: (ctx: any) => `${ctx.dataset.label}: ${fmtMt(ctx.parsed.y)} MT` },
-    },
-  },
-  scales: {
-    x: { ticks: { color: '#64748b', font: { size: 10 } }, grid: { display: false } },
-    y: {
-      beginAtZero: true,
-      ticks: { color: '#94a3b8', font: { size: 10 } },
-      grid: { color: 'rgba(26,71,49,0.08)' },
-    },
   },
 };
 

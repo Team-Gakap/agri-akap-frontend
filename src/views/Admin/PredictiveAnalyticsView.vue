@@ -1,20 +1,16 @@
 <template>
-  <ion-page>
-    <AppHeader />
+  <section class="predict-panel">
+    <div v-if="loading && !summary.generated_at" class="center-state">
+      <ion-spinner name="crescent" color="primary"></ion-spinner>
+      <p>Building yield and risk forecasts&hellip;</p>
+    </div>
 
-    <ion-content class="predict-bg">
-      <div class="shell">
-        <div v-if="loading" class="center-state">
-          <ion-spinner name="crescent" color="primary"></ion-spinner>
-          <p>Building yield and risk forecasts&hellip;</p>
-        </div>
+    <div v-else-if="error && !summary.generated_at" class="center-state error">
+      <p>{{ error }}</p>
+      <ion-button @click="load">Retry</ion-button>
+    </div>
 
-        <div v-else-if="error" class="center-state error">
-          <p>{{ error }}</p>
-          <ion-button @click="load">Retry</ion-button>
-        </div>
-
-        <div v-else class="page">
+    <div v-else class="page">
           <header class="page-head">
             <div>
               <h1>Predictive Analytics</h1>
@@ -154,15 +150,13 @@
             <p v-else class="empty-note">Planting records will populate this table.</p>
             <p class="method">{{ summary.method_note }}</p>
           </section>
-        </div>
-      </div>
-    </ion-content>
-  </ion-page>
+    </div>
+  </section>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { IonPage, IonContent, IonSpinner, IonButton } from '@ionic/vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { IonSpinner, IonButton } from '@ionic/vue';
 import { Bar } from 'vue-chartjs';
 import {
   Chart as ChartJS,
@@ -174,7 +168,6 @@ import {
   LinearScale,
 } from 'chart.js';
 import apiClient from '@/utils/axios';
-import AppHeader from '@/components/Navigation/AppHeader.vue';
 
 ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale);
 
@@ -398,14 +391,17 @@ function setCommodity(option: CommodityFilter) {
   load();
 }
 
-onMounted(load);
+onMounted(() => {
+  load();
+  window.addEventListener('akap:refresh', load);
+});
+onBeforeUnmount(() => window.removeEventListener('akap:refresh', load));
 </script>
 
 <style scoped>
-.predict-bg { --background: #f4f7f5; }
-.shell { max-width: 1180px; margin: 0 auto; padding: 1.25rem 1rem 2rem; }
+.predict-panel { min-width: 0; }
 .center-state {
-  min-height: 40vh;
+  min-height: 8rem;
   display: flex;
   flex-direction: column;
   align-items: center;
