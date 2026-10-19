@@ -46,7 +46,6 @@
           <ion-select label="Crop" label-placement="stacked" interface="action-sheet" :value="form.cropType" @ionChange="onCropChange">
             <ion-select-option value="Rice">Rice</ion-select-option>
             <ion-select-option value="Corn">Corn</ion-select-option>
-            <ion-select-option value="High-Value">High-Value</ion-select-option>
           </ion-select>
           <ion-select label="Farm plot" label-placement="stacked" interface="action-sheet" :value="form.plotId" :disabled="!plots.length" @ionChange="onPlotChange">
             <ion-select-option value="">Select plot</ion-select-option>

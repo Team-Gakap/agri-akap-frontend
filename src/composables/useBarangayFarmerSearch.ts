@@ -2,7 +2,7 @@ import { ref, computed } from 'vue';
 import apiClient from '@/utils/axios';
 import { db } from '@/database/db';
 import { cacheFarmer, farmerMatchesSearchTerm, isNetworkError, isOnline } from '@/services/syncService';
-import { plotMatchesCrop } from '@/constants/hvccCatalog';
+import { plotMatchesCrop } from '@/utils/cropMatch';
 
 /** Sentinel plot id: the server creates or claims a crop plot on save. */
 export const PROVISIONAL_PLOT_ID = '__registered_farm__';
@@ -18,8 +18,7 @@ function isUnspecifiedCommodity(value: string): boolean {
   return key === '' || key === 'unspecified';
 }
 
-function cropLabel(crop: string, hvccCommodity?: string | null): string {
-  if (crop.trim().toLowerCase() === 'hvcc') return hvccCommodity?.trim() || 'High-Value Crops';
+function cropLabel(crop: string): string {
   return crop.trim();
 }
 
@@ -241,13 +240,13 @@ export function useBarangayFarmerSearch(
   };
 
   /** Plots for the selected farmer that match the active crop form. */
-  const plotsForCommodity = (commodity: string, hvccCommodity?: string | null) => {
+  const plotsForCommodity = (commodity: string) => {
     const crop = commodity.trim();
     const all = selected.value?.plots || [];
     if (!crop) return all;
-    const matches = all.filter((p) => plotMatchesCrop(p.commodity, crop, hvccCommodity));
+    const matches = all.filter((p) => plotMatchesCrop(p.commodity, crop));
     if (matches.length) return matches;
-    const label = cropLabel(crop, hvccCommodity);
+    const label = cropLabel(crop);
     const placeholders = all.filter((p) => isUnspecifiedCommodity(p.commodity));
     if (placeholders.length) {
       return placeholders.map((p) => ({ ...p, commodity: label || p.commodity }));

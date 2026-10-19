@@ -70,25 +70,18 @@
                 {{ p.location_brgy || 'Plot' }} · {{ p.commodity }} · {{ p.size_ha }} ha
               </ion-select-option>
             </ion-select>
-            <HvccCropSelector
-              v-model:crop="form.crop_type"
-              v-model:category="form.crop_category"
-              v-model:commodity="form.hvcc_commodity"
-            />
-            <VarietyField
-              v-model="form.variety"
-              :crop="form.crop_type === 'HVCC' ? (form.hvcc_commodity || 'HVCC') : form.crop_type"
-              select-class="field"
-            />
-            <ion-input
-              v-if="showHills"
+            <ion-select
               class="field"
-              type="number"
-              label="Number of Hills/Trees"
+              label="Crop Type"
               label-placement="stacked"
-              :value="form.num_hills_trees"
-              @ionInput="(e: any) => form.num_hills_trees = e.detail.value"
-            ></ion-input>
+              interface="popover"
+              :value="form.crop_type"
+              @ionChange="(e: any) => form.crop_type = e.detail.value"
+            >
+              <ion-select-option value="Rice">Rice</ion-select-option>
+              <ion-select-option value="Corn">Corn</ion-select-option>
+            </ion-select>
+            <VarietyField v-model="form.variety" :crop="form.crop_type" select-class="field" />
             <ion-input class="field" type="number" label="Area Harvested (ha)" label-placement="stacked" :value="form.area_harvested" @ionInput="onAreaHarvestedInput"></ion-input>
             <ion-input class="field" type="number" label="Total Yield Produced (kg)" label-placement="stacked" :value="form.yield_amount" @ionInput="(e: any) => form.yield_amount = e.detail.value"></ion-input>
             <ion-input class="field" type="date" label="Date of Harvest" label-placement="stacked" :value="form.date_of_harvest" @ionInput="(e: any) => form.date_of_harvest = e.detail.value"></ion-input>
@@ -169,8 +162,6 @@ import {
 } from '@/composables/useBarangayFarmerSearch';
 import ManualWalkInModal from '@/components/ManualWalkInModal.vue';
 import UnverifiedWalkInChip from '@/components/UnverifiedWalkInChip.vue';
-import HvccCropSelector from '@/components/HvccCropSelector.vue';
-import { isTreeFruitCategory } from '@/constants/hvccCatalog';
 import { useActivePlanting, isHarvestReady } from '@/composables/useActivePlanting';
 import apiClient from '@/utils/axios';
 import { toast } from '@/utils/toast';
@@ -256,9 +247,6 @@ const form = reactive({
   plot_id: '',
   farm_location: '',
   crop_type: 'Rice',
-  crop_category: '',
-  hvcc_commodity: '',
-  num_hills_trees: '',
   variety: '',
   area_harvested: '',
   yield_amount: '',
@@ -266,7 +254,6 @@ const form = reactive({
   date_of_harvest: '',
 });
 
-const showHills = computed(() => form.crop_type === 'HVCC' && isTreeFruitCategory(form.crop_category));
 const selectedPlotSize = computed(() =>
   plotSizeHa(farmerSearch.selected.value?.plots?.find((x) => x.id === form.plot_id))
 );
@@ -275,7 +262,7 @@ const onAreaHarvestedInput = (e: any) => {
 };
 
 const canAdd = computed(() =>
-  canEncode.value && !!form.farmer_id && !!form.area_harvested && !!form.yield_amount && !!form.date_of_harvest && (form.crop_type === 'HVCC' ? !!form.hvcc_commodity : !!form.variety) && !saving.value
+  canEncode.value && !!form.farmer_id && !!form.area_harvested && !!form.yield_amount && !!form.date_of_harvest && !!form.variety && !saving.value
 );
 
 
@@ -447,9 +434,6 @@ const addEntry = async () => {
       farmer_id: form.farmer_id,
       farm_plot_id: farmPlotIdForApi(form.plot_id),
       crop_type: form.crop_type,
-      crop_category: form.crop_type === 'HVCC' ? form.crop_category : null,
-      hvcc_commodity: form.crop_type === 'HVCC' ? form.hvcc_commodity : null,
-      num_hills_trees: showHills.value && form.num_hills_trees ? Number(form.num_hills_trees) : null,
       variety: form.variety.trim() || null,
       area_harvested: Number(form.area_harvested),
       total_yield: Number(form.yield_amount),

@@ -32,7 +32,6 @@
                 <option value="">All Crops</option>
                 <option value="Rice">Rice</option>
                 <option value="Corn">Corn</option>
-                <option value="High-Value">High-Value</option>
               </select>
             </div>
           </div>
@@ -209,25 +208,18 @@
                 {{ p.location_brgy || 'Plot' }} · {{ p.commodity }} · {{ p.size_ha }} ha
               </ion-select-option>
             </ion-select>
-            <HvccCropSelector
-              v-model:crop="form.crop_type"
-              v-model:category="form.crop_category"
-              v-model:commodity="form.hvcc_commodity"
-            />
-            <VarietyField
-              v-model="form.variety"
-              :crop="form.crop_type === 'HVCC' ? (form.hvcc_commodity || 'HVCC') : form.crop_type"
-              select-class="field"
-            />
-            <ion-input
-              v-if="showHills"
+            <ion-select
               class="field"
-              type="number"
-              label="Number of Hills/Trees"
+              label="Crop Type"
               label-placement="stacked"
-              :value="form.num_hills_trees"
-              @ionInput="(e: any) => form.num_hills_trees = e.detail.value"
-            ></ion-input>
+              interface="popover"
+              :value="form.crop_type"
+              @ionChange="(e: any) => form.crop_type = e.detail.value"
+            >
+              <ion-select-option value="Rice">Rice</ion-select-option>
+              <ion-select-option value="Corn">Corn</ion-select-option>
+            </ion-select>
+            <VarietyField v-model="form.variety" :crop="form.crop_type" select-class="field" />
             <ion-select
               class="field"
               label="Stage of Crop at Calamity"
@@ -327,9 +319,7 @@ import {
 } from '@/composables/useBarangayFarmerSearch';
 import ManualWalkInModal from '@/components/ManualWalkInModal.vue';
 import UnverifiedWalkInChip from '@/components/UnverifiedWalkInChip.vue';
-import HvccCropSelector from '@/components/HvccCropSelector.vue';
-import { categoryForHvccCommodity, isHvccCommodity, isTreeFruitCategory, plotMatchesCrop } from '@/constants/hvccCatalog';
-import { useActivePlanting, stageSelectValue, isHarvestReady } from '@/composables/useActivePlanting';
+import { plotMatchesCrop } from '@/utils/cropMatch';import { useActivePlanting, stageSelectValue, isHarvestReady } from '@/composables/useActivePlanting';
 import apiClient from '@/utils/axios';
 import { toast } from '@/utils/toast';
 import { storageUrl } from '@/utils/storageUrl';
@@ -452,9 +442,6 @@ const form = reactive({
   plot_id: '',
   farm_location: '',
   crop_type: 'Rice',
-  crop_category: '',
-  hvcc_commodity: '',
-  num_hills_trees: '',
   variety: '',
   crop_stage: 'Vegetative',
   area_planted: '',
@@ -462,23 +449,11 @@ const form = reactive({
   est_yield_loss_pct: '',
 });
 
-const showHills = computed(() => form.crop_type === 'HVCC' && isTreeFruitCategory(form.crop_category));
-const matchingPlots = computed(() => farmerSearch.plotsForCommodity(form.crop_type, form.hvcc_commodity));
+const matchingPlots = computed(() => farmerSearch.plotsForCommodity(form.crop_type));
 const applyCommodityToForm = (commodity?: string | null) => {
   const name = String(commodity || '');
-  if (name === 'Rice' || name === 'Corn') {
-    form.crop_type = name;
-    form.crop_category = '';
-    form.hvcc_commodity = '';
-    return;
-  }
-  if (plotMatchesCrop(name, 'HVCC') || isHvccCommodity(name)) {
-    form.crop_type = 'HVCC';
-    if (isHvccCommodity(name)) {
-      form.hvcc_commodity = name;
-      form.crop_category = categoryForHvccCommodity(name) || '';
-    }
-  }
+  if (plotMatchesCrop(name, 'Rice')) form.crop_type = 'Rice';
+  else if (plotMatchesCrop(name, 'Corn')) form.crop_type = 'Corn';
 };
 const previewEventName = computed(() => {
   const first = filteredEntries.value[0] || entries.value[0];
@@ -505,9 +480,7 @@ const autoYieldHint = computed(() => {
 const canAdd = computed(() => {
   const typeOk = !!form.calamity_type;
   const otherOk = form.calamity_type !== CALAMITY_TYPE_OTHER || !!form.calamity_other_detail.trim();
-  const cropOk = form.crop_type === 'HVCC'
-    ? !!form.hvcc_commodity.trim()
-    : !!form.variety.trim();
+  const cropOk = !!form.variety.trim();
   return canEncode.value
     && typeOk
     && otherOk
@@ -659,7 +632,7 @@ const onSelectFarmer = async (f: FarmerOption) => {
   form.variety = '';
   yieldLossManual.value = false;
   form.est_yield_loss_pct = '';
-  const plots = farmerSearch.plotsForCommodity(form.crop_type, form.hvcc_commodity);
+  const plots = farmerSearch.plotsForCommodity(form.crop_type);
   if (plots.length === 1) {
     const p = plots[0];
     form.plot_id = p.id;
@@ -745,9 +718,6 @@ const addEntry = async () => {
       calamity_type: form.calamity_type,
       calamity_name: calamityNameForSubmit(),
       crop_stage: form.crop_stage,
-      crop_category: form.crop_type === 'HVCC' ? form.crop_category : null,
-      hvcc_commodity: form.crop_type === 'HVCC' ? form.hvcc_commodity : null,
-      num_hills_trees: showHills.value && form.num_hills_trees ? Number(form.num_hills_trees) : null,
       variety: form.variety.trim() || null,
       area_destroyed_ha: Number(form.area_damaged),
       area_planted_ha: Number(form.area_planted),

@@ -32,7 +32,6 @@
                 <option value="">All Crops</option>
                 <option value="Corn">Corn</option>
                 <option value="Rice">Rice</option>
-                <option value="HVCC">HVCC</option>
               </select>
             </div>
           </div>
@@ -112,13 +111,18 @@
           </div>
         </div>
 
-        <HvccCropSelector
+        <ion-select
           v-if="showForm"
-          v-model:crop="crop"
-          v-model:category="cropCategory"
-          v-model:commodity="hvccCommodity"
-          @change="onCropChange"
-        />
+          class="field"
+          label="Crop Type"
+          label-placement="stacked"
+          interface="popover"
+          :value="crop"
+          @ionChange="(e: any) => { crop = e.detail.value; onCropChange(); }"
+        >
+          <ion-select-option value="Rice">Rice</ion-select-option>
+          <ion-select-option value="Corn">Corn</ion-select-option>
+        </ion-select>
 
         <div v-if="showForm" class="form-card">
           <h3>Add Report — {{ crop }}</h3>
@@ -179,11 +183,7 @@
               </ion-select-option>
             </ion-select>
             <ion-input class="field" type="number" label="Area Planted (ha)" label-placement="stacked" :value="form.area_planted" @ionInput="onAreaPlantedInput"></ion-input>
-            <VarietyField
-              v-model="form.variety"
-              :crop="crop === 'HVCC' ? (hvccCommodity || 'HVCC') : crop"
-              select-class="field"
-            />
+            <VarietyField v-model="form.variety" :crop="crop" select-class="field" />
             <ion-select
               class="field"
               label="Crop Stage"
@@ -262,7 +262,7 @@
     <ManualWalkInModal
       :is-open="walkInOpen"
       :initial-query="farmerSearch.query.value"
-      :commodity="crop === 'HVCC' ? (hvccCommodity || 'High-Value Crops') : crop"
+      :commodity="crop"
       :barangay-name="effectiveBarangay || ''"
       :saving="walkInSaving"
       :error="walkInError"
@@ -300,7 +300,6 @@ import {
 } from '@/composables/useBarangayFarmerSearch';
 import ManualWalkInModal from '@/components/ManualWalkInModal.vue';
 import UnverifiedWalkInChip from '@/components/UnverifiedWalkInChip.vue';
-import HvccCropSelector from '@/components/HvccCropSelector.vue';
 import { useActivePlanting, stageSelectValue, isHarvestReady } from '@/composables/useActivePlanting';
 import apiClient from '@/utils/axios';
 import { toast } from '@/utils/toast';
@@ -364,11 +363,9 @@ const {
   payloadBarangayName,
 } = useEncodingBarangay();
 const crop = ref('Corn');
-const cropCategory = ref('');
-const hvccCommodity = ref('');
 const cropFilter = ref('');
 const farmerSearch = useBarangayFarmerSearch(() => effectiveBarangay.value, {
-  commodity: () => (crop.value === 'HVCC' ? (hvccCommodity.value || 'HVCC') : crop.value),
+  commodity: () => crop.value,
 });
 const walkInOpen = ref(false);
 const walkInSaving = ref(false);
@@ -442,7 +439,7 @@ const form = reactive({
   date_of_inspection: '',
 });
 
-const matchingPlots = computed(() => farmerSearch.plotsForCommodity(crop.value, hvccCommodity.value));
+const matchingPlots = computed(() => farmerSearch.plotsForCommodity(crop.value));
 const pestOptions = computed(() => threatsForCrop(crop.value).pests);
 const diseaseOptions = computed(() => threatsForCrop(crop.value).diseases);
 const syncDamageBy = () => {
@@ -592,7 +589,7 @@ const onSelectFarmer = async (f: FarmerOption) => {
   const sel = farmerSearch.selected.value;
   if (!sel) return;
 
-  const plots = farmerSearch.plotsForCommodity(crop.value, hvccCommodity.value);
+  const plots = farmerSearch.plotsForCommodity(crop.value);
   if (!plots.length) {
     farmerSearch.clearSelection();
     await toast.warning(`This farmer has no ${crop.value} plot. Switch Crop Type or choose another farmer.`);
@@ -699,8 +696,6 @@ const addEntry = async () => {
       farmer_id: form.farmer_id,
       farm_plot_id: farmPlotIdForApi(form.plot_id),
       crop: crop.value,
-      crop_category: crop.value === 'HVCC' ? cropCategory.value : null,
-      hvcc_commodity: crop.value === 'HVCC' ? hvccCommodity.value : null,
       variety: form.variety || undefined,
       crop_stage: form.crop_stage || undefined,
       area_planted: Number(form.area_planted),

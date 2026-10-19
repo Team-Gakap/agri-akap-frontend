@@ -75,14 +75,6 @@
               <option value="">All Crops</option>
               <option value="Rice">Rice</option>
               <option value="Corn">Corn</option>
-              <option value="HVCC">HVCC</option>
-            </select>
-          </div>
-          <div v-if="filters.cropType === 'HVCC'" class="filter-group">
-            <label class="filter-label">Sub-Crop</label>
-            <select class="filter-select" v-model="filters.hvccCommodity" @change="fetchRows">
-              <option value="">All HVCC</option>
-              <option v-for="name in allHvccCommodities()" :key="name" :value="name">HVCC - {{ name }}</option>
             </select>
           </div>
           <div class="filter-group">
@@ -161,8 +153,8 @@
                   <td>{{ row.first_name || '—' }}</td>
                   <td>{{ row.middle_name || '—' }}</td>
                   <td>{{ row.farm_location }}</td>
-                  <td>{{ formatCropLabel(row) }}</td>
-                  <td>{{ formatVarietyLabel(row) }}</td>
+                  <td>{{ row.crop }}</td>
+                  <td>{{ row.variety || '—' }}</td>
                   <td class="col-num">{{ fmtNum(row.area_planted) }}</td>
                   <td class="mono">{{ fmtDate(row.date_planted) }}</td>
                   <td>{{ row.status || '—' }}</td>
@@ -217,8 +209,8 @@
                   <td>{{ row.first_name || '—' }}</td>
                   <td>{{ row.middle_name || '—' }}</td>
                   <td>{{ row.farm_location }}</td>
-                  <td>{{ formatCropLabel(row) }}</td>
-                  <td>{{ formatVarietyLabel(row) }}</td>
+                  <td>{{ row.crop }}</td>
+                  <td>{{ row.variety || '—' }}</td>
                   <td class="col-num">{{ fmtNum(row.area_harvested) }}</td>
                   <td class="col-num">{{ fmtNum(row.total_yield) }}</td>
                   <td class="mono">{{ fmtDate(row.date_harvested) }}</td>
@@ -299,7 +291,7 @@ import {
 import { addCircleOutline } from 'ionicons/icons';
 import FormExportActions from '@/components/FormExportActions.vue';
 import { exportAdminGridExcel } from '@/utils/statutoryFormExcel';
-import { allHvccCommodities, formatCropLabel, formatVarietyLabel, isHvccCrop, registryBadgeLabel } from '@/constants/hvccCatalog';
+import { registryBadgeLabel } from '@/utils/registryBadge';
 import UnverifiedWalkInChip from '@/components/UnverifiedWalkInChip.vue';
 import apiClient from '@/utils/axios';
 import ReportEncodeModal from '@/components/ReportEncodeModal.vue';
@@ -378,7 +370,6 @@ const modeLabel = computed(() => {
 const filters = reactive({
   barangay: '',
   cropType: '',
-  hvccCommodity: '',
   registryStatus: '',
   dateFrom: '',
   dateTo: '',
@@ -509,7 +500,6 @@ async function fetchRows() {
         mode:      activeMode.value,
         barangay:  filters.barangay  || undefined,
         crop_type: filters.cropType  || undefined,
-        hvcc_commodity: filters.cropType === 'HVCC' ? (filters.hvccCommodity || undefined) : undefined,
         registry_status: filters.registryStatus || undefined,
         date_from: filters.dateFrom  || undefined,
         date_to:   filters.dateTo    || undefined,
@@ -540,7 +530,6 @@ watch(() => route.query.mode, (raw) => {
 function clearFilters() {
   filters.barangay = lockedBarangay.value || '';
   filters.cropType = '';
-  filters.hvccCommodity = '';
   filters.registryStatus = '';
   filters.dateFrom = '';
   filters.dateTo   = '';
@@ -580,7 +569,6 @@ async function downloadExcel() {
           { key: 'crop', label: 'Crop' },
           { key: 'variety', label: 'Variety' },
           { key: 'area_planted', label: 'Hectares Planted' },
-          { key: 'num_hills_trees', label: 'Number of Hills/Trees' },
           { key: 'date_planted', label: 'Date Planted' },
           { key: 'status', label: 'Status' },
           { key: 'water_source', label: 'Water Source' },
@@ -596,19 +584,12 @@ async function downloadExcel() {
           { key: 'variety', label: 'Variety' },
           { key: 'area_harvested', label: 'Hectares Planted' },
           { key: 'total_yield', label: 'Yield (kg)' },
-          { key: 'num_hills_trees', label: 'Number of Hills/Trees' },
           { key: 'date_harvested', label: 'Date Harvested' },
         ],
     rows: filteredRows.value as Record<string, unknown>[],
     getCellValue(row, key, index) {
       if (key === 'no') return index + 1;
-      if (key === 'crop') return formatCropLabel(row as any);
-      if (key === 'variety') return formatVarietyLabel(row as any);
       if (key === 'rsbsa_no') return String(row.rsbsa_no || registryBadgeLabel(row as any) || 'UNREGISTERED');
-      if (key === 'num_hills_trees') {
-        if (!isHvccCrop(String(row.crop || '')) || row.num_hills_trees == null || row.num_hills_trees === '') return '';
-        return typeof row.num_hills_trees === 'number' ? row.num_hills_trees : String(row.num_hills_trees);
-      }
       if (key === 'date_planted' || key === 'date_harvested') {
         return fmtDate(String(row[key] ?? ''));
       }

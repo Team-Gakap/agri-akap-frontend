@@ -65,7 +65,6 @@
           <ion-select-option value="">All Crops</ion-select-option>
           <ion-select-option value="Rice">Rice</ion-select-option>
           <ion-select-option value="Corn">Corn</ion-select-option>
-          <ion-select-option value="High-Value">High-Value</ion-select-option>
         </ion-select>
       </div>
 

@@ -144,7 +144,7 @@ export type GeoTagGeometryType = 'polygon' | 'marker';
 export type GeoTagIncidentType = 'none' | 'pest' | 'calamity';
 
 /** DA-RSBSA commodity classification (KoboCollect parity). */
-export type GeoTagCommodity = 'Rice' | 'Corn' | 'High-Value Crops';
+export type GeoTagCommodity = 'Rice' | 'Corn';
 
 /**
  * Offline geo-tag (farm boundary polygon OR incident marker) with crop metadata

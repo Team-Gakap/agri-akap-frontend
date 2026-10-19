@@ -306,16 +306,7 @@
                 <ion-select-option value="Rice">Rice</ion-select-option>
                 <ion-select-option value="Corn">Corn</ion-select-option>
                 <ion-select-option value="Both">Rice and Corn</ion-select-option>
-                <ion-select-option value="HVCC">HVCC</ion-select-option>
               </ion-select>
-            </ion-item>
-            <ion-item v-if="createForm.target_crop === 'HVCC'" class="modal-input">
-              <ion-input
-                label="HVCC commodity"
-                label-placement="floating"
-                :value="createForm.hvcc_commodity"
-                @ionInput="(e: any) => createForm.hvcc_commodity = String(e.detail.value ?? '')"
-              ></ion-input>
             </ion-item>
           </div>
 
@@ -824,7 +815,6 @@ const blankVariety = (): VarietyDraft => ({
 const createForm = ref({
   program_name: '',
   target_crop: 'Rice',
-  hvcc_commodity: '',
   seed_class: 'Hybrid' as SeedClass,
   item_type: 'seed' as ItemType,
   items_per_hectare: 1,
@@ -1053,7 +1043,6 @@ const openCreateCampaign = (line: 'hybrid' | 'rcef' = 'hybrid') => {
       ? 'National Rice Program - 2026 Wet Season Hybrid Seeds'
       : 'PhilRice RCEF - 2026 Wet Season Certified Inbred Seeds',
     target_crop: 'Rice',
-    hvcc_commodity: '',
     seed_class: hybrid ? 'Hybrid' : 'Inbred',
     item_type: 'seed',
     items_per_hectare: bagsPerHa * bagSize,
@@ -1164,7 +1153,6 @@ const submitCreateCampaign = async () => {
     const res = await apiClient.post('/subsidies', {
       program_name: name,
       target_crop: createForm.value.target_crop,
-      hvcc_commodity: createForm.value.target_crop === 'HVCC' ? (createForm.value.hvcc_commodity.trim() || null) : null,
       seed_class: createForm.value.seed_class,
       item_type: createForm.value.item_type,
       items_per_hectare: primaryRate,

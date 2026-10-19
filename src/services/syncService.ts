@@ -1,5 +1,5 @@
 import apiClient from '@/utils/axios';
-import { isHvccCommodity } from '@/constants/hvccCatalog';
+import { plotMatchesCrop } from '@/utils/cropMatch';
 import {
   db,
   getDeviceId,
@@ -79,20 +79,13 @@ export function farmerMatchesSearchTerm(farmer: any, term: string): boolean {
   return false;
 }
 
-/** Commodity filter aligned with FarmerController (High-Value / HVC soft match). */
+/** Commodity filter aligned with FarmerController rice/corn matching. */
 export function farmerHasCommodity(farmer: any, commodity: string): boolean {
   const key = commodity.trim().toLowerCase();
   if (!key) return true;
   const plots = farmer?.farm_plots || farmer?.farmPlots || [];
   if (!Array.isArray(plots) || !plots.length) return false;
-  if (['high-value', 'high-value crops', 'hvc', 'hvcc'].includes(key) || isHvccCommodity(commodity)) {
-    return plots.some((p: any) => {
-      const c = String(p?.commodity || '').toLowerCase();
-      if (c === key) return true;
-      return c.includes('high-value') || c.includes('hvc') || c === 'hvcc';
-    });
-  }
-  return plots.some((p: any) => String(p?.commodity || '').toLowerCase() === key);
+  return plots.some((p: any) => plotMatchesCrop(String(p?.commodity || ''), commodity));
 }
 
 /* ----------------------------- Read caching ----------------------------- */

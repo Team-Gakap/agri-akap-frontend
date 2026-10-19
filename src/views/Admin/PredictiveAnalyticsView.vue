@@ -176,7 +176,7 @@ const LGU_GOLD = '#D4AF37';
 const DROUGHT = '#C2410C';
 const TYPHOON = '#1D4ED8';
 
-type CommodityFilter = 'All' | 'Rice' | 'Corn' | 'HVCC';
+type CommodityFilter = 'All' | 'Rice' | 'Corn';
 
 interface HistoryPoint {
   year: number;
@@ -231,7 +231,7 @@ interface Summary {
   bags_per_at_risk_hectare: number;
 }
 
-const commodityOptions: CommodityFilter[] = ['All', 'Rice', 'Corn', 'HVCC'];
+const commodityOptions: CommodityFilter[] = ['All', 'Rice', 'Corn'];
 const commodity = ref<CommodityFilter>('All');
 const loading = ref(true);
 const error = ref('');

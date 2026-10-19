@@ -78,7 +78,7 @@ const MOCK_POOL: MockRecord[] = [
   {
     category: 'masterlists',
     barangay: 'Annafunan',
-    crop_type: 'High-Value',
+    crop_type: 'Corn',
     report_date: '2026-07-14',
     rsbsa_no: '01-28-03-005-000091',
     last_name: 'Bautista',
@@ -165,7 +165,7 @@ const MOCK_POOL: MockRecord[] = [
   {
     category: 'damage_calamity',
     barangay: 'Soyung (Poblacion)',
-    crop_type: 'High-Value',
+    crop_type: 'Corn',
     report_date: '2026-07-20',
     rsbsa_no: '01-28-03-005-000088',
     last_name: 'Flores',

@@ -48,14 +48,6 @@
               <option value="">All</option>
               <option value="Rice">Rice</option>
               <option value="Corn">Corn</option>
-              <option value="HVCC">HVCC</option>
-            </select>
-          </div>
-          <div v-if="filters.cropType === 'HVCC'" class="filter-group">
-            <label class="filter-label">Sub-Crop</label>
-            <select class="filter-select" v-model="filters.hvccCommodity" @change="fetchRows">
-              <option value="">All HVCC</option>
-              <option v-for="name in allHvccCommodities()" :key="name" :value="name">HVCC - {{ name }}</option>
             </select>
           </div>
           <div class="filter-group">
@@ -147,8 +139,8 @@
                     <UnverifiedWalkInChip v-else show :label="registryBadgeLabel(row) || 'UNREGISTERED'" />
                   </td>
                   <td>{{ row.farm_location }}</td>
-                  <td>{{ formatCropLabel(row) }}</td>
-                  <td>{{ formatVarietyLabel(row) }}</td>
+                  <td>{{ row.crop }}</td>
+                  <td>{{ row.variety || '—' }}</td>
                   <td>{{ pestParts(row).pest || '—' }}</td>
                   <td>{{ pestParts(row).disease || '—' }}</td>
                   <td>
@@ -281,7 +273,7 @@ import { addCircleOutline } from 'ionicons/icons';
 import FormExportActions from '@/components/FormExportActions.vue';
 import { exportAdminGridExcel } from '@/utils/statutoryFormExcel';
 import apiClient from '@/utils/axios';
-import { allHvccCommodities, formatCropLabel, formatVarietyLabel, registryBadgeLabel } from '@/constants/hvccCatalog';
+import { registryBadgeLabel } from '@/utils/registryBadge';
 import UnverifiedWalkInChip from '@/components/UnverifiedWalkInChip.vue';
 import { storageUrl } from '@/utils/storageUrl';
 import ReportEncodeModal from '@/components/ReportEncodeModal.vue';
@@ -334,7 +326,6 @@ const viewingPhoto = ref<string | null>(null);
 const filters = reactive({
   barangay: '',
   cropType: '',
-  hvccCommodity: '',
   registryStatus: '',
   status: 'All',
   dateFrom: '',
@@ -465,7 +456,6 @@ async function fetchRows() {
     const params = {
       barangay:  filters.barangay  || undefined,
       crop_type: filters.cropType  || undefined,
-      hvcc_commodity: filters.cropType === 'HVCC' ? (filters.hvccCommodity || undefined) : undefined,
       registry_status: filters.registryStatus || undefined,
       status:    filters.status    || 'All',
       date_from: filters.dateFrom  || undefined,
@@ -484,7 +474,6 @@ async function fetchRows() {
 function clearFilters() {
   filters.barangay = lockedBarangay.value || '';
   filters.cropType = '';
-  filters.hvccCommodity = '';
   filters.registryStatus = '';
   filters.status   = 'All';
   filters.dateFrom = '';
@@ -534,8 +523,6 @@ async function downloadExcel() {
     rows: filteredRows.value as Record<string, unknown>[],
     getCellValue(row, key, index) {
       if (key === 'no') return index + 1;
-      if (key === 'crop') return formatCropLabel(row as any);
-      if (key === 'variety') return formatVarietyLabel(row as any);
       if (key === 'rsbsa_no') return String(row.rsbsa_no || registryBadgeLabel(row as any) || 'UNREGISTERED');
       if (key === 'date_reported') return fmtDate(String(row.date_reported ?? ''));
       if (key === 'area_affected') return fmtNum(row.area_affected as number);

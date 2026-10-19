@@ -14,12 +14,17 @@
         />
 
         <div class="mode-bar">
-          <HvccCropSelector
-            v-model:crop="crop"
-            v-model:category="cropCategory"
-            v-model:commodity="hvccCommodity"
-            @change="onCropChange"
-          />
+          <ion-select
+            class="field"
+            label="Crop Type"
+            label-placement="stacked"
+            interface="popover"
+            :value="crop"
+            @ionChange="(e: any) => { crop = e.detail.value; onCropChange(); }"
+          >
+            <ion-select-option value="Rice">Rice</ion-select-option>
+            <ion-select-option value="Corn">Corn</ion-select-option>
+          </ion-select>
           <ion-select
             class="field grow"
             label="Form Type"
@@ -98,20 +103,7 @@
               </ion-select-option>
             </ion-select>
             <ion-input class="field" type="number" label="Area Planted (ha)" label-placement="stacked" :value="form.area_planted" @ionInput="onAreaPlantedInput"></ion-input>
-            <VarietyField
-              v-model="form.variety"
-              :crop="crop === 'HVCC' ? (hvccCommodity || 'HVCC') : crop"
-              select-class="field"
-            />
-            <ion-input
-              v-if="showHills"
-              class="field"
-              type="number"
-              label="Number of Hills/Trees"
-              label-placement="stacked"
-              :value="form.num_hills_trees"
-              @ionInput="(e: any) => form.num_hills_trees = e.detail.value"
-            ></ion-input>
+            <VarietyField v-model="form.variety" :crop="crop" select-class="field" />
             <ion-input class="field" type="date" label="Date of Planting" label-placement="stacked" :value="form.date_of_planting" @ionInput="(e: any) => form.date_of_planting = e.detail.value"></ion-input>
             <ion-select class="field" label="Planting Status" label-placement="stacked" interface="popover" :value="form.planting_status" @ionChange="(e: any) => form.planting_status = e.detail.value">
               <ion-select-option value="Active">Active</ion-select-option>
@@ -186,8 +178,6 @@ import {
   IonButton, IonIcon, IonInput, IonSelect, IonSelectOption,
 } from '@ionic/vue';
 import FormExportActions from '@/components/FormExportActions.vue';
-import HvccCropSelector from '@/components/HvccCropSelector.vue';
-import { isTreeFruitCategory } from '@/constants/hvccCatalog';
 import { exportPlantingLedgerExcel } from '@/utils/statutoryFormExcel';
 import { useEncodingBarangay } from '@/composables/useEncodingBarangay';
 import EncodingBarangaySelector from '@/components/EncodingBarangaySelector.vue';
@@ -250,10 +240,8 @@ const {
   payloadBarangayName,
 } = useEncodingBarangay();
 const crop = ref('Rice');
-const cropCategory = ref('');
-const hvccCommodity = ref('');
 const farmerSearch = useBarangayFarmerSearch(() => effectiveBarangay.value, {
-  commodity: () => (crop.value === 'HVCC' ? (hvccCommodity.value || 'HVCC') : crop.value),
+  commodity: () => crop.value,
 });
 const walkInOpen = ref(false);
 const walkInSaving = ref(false);
@@ -282,12 +270,10 @@ const form = reactive({
   planting_status: 'Active',
   water_source: 'Deepwell',
   remarks: '',
-  num_hills_trees: '',
 });
 
-const showHills = computed(() => crop.value === 'HVCC' && isTreeFruitCategory(cropCategory.value));
-const walkInCommodity = computed(() => (crop.value === 'HVCC' ? (hvccCommodity.value || 'High-Value Crops') : crop.value));
-const matchingPlots = computed(() => farmerSearch.plotsForCommodity(crop.value, hvccCommodity.value));
+const walkInCommodity = computed(() => crop.value);
+const matchingPlots = computed(() => farmerSearch.plotsForCommodity(crop.value));
 const selectedPlotSize = computed(() =>
   plotSizeHa(matchingPlots.value.find((p) => p.id === form.plot_id))
 );
@@ -300,7 +286,7 @@ const canAdd = computed(() =>
   && !!form.farmer_id
   && !!form.plot_id
   && !!form.area_planted
-  && (crop.value === 'HVCC' ? !!hvccCommodity.value.trim() : !!form.variety.trim())
+  && !!form.variety.trim()
   && !!form.date_of_planting
   && !saving.value
 );
@@ -414,7 +400,7 @@ const onSelectFarmer = async (f: FarmerOption) => {
   const sel = farmerSearch.selected.value;
   if (!sel) return;
 
-  const plots = farmerSearch.plotsForCommodity(crop.value, hvccCommodity.value);
+  const plots = farmerSearch.plotsForCommodity(crop.value);
   if (!plots.length) {
     farmerSearch.clearSelection();
     await toast.warning(`This farmer has no ${crop.value} plot. Switch Crop Type or choose another farmer.`);
@@ -464,9 +450,6 @@ const addEntry = async () => {
       farmer_id: form.farmer_id,
       farm_plot_id: farmPlotIdForApi(form.plot_id),
       crop_type: crop.value,
-      crop_category: crop.value === 'HVCC' ? cropCategory.value : null,
-      hvcc_commodity: crop.value === 'HVCC' ? hvccCommodity.value : null,
-      num_hills_trees: showHills.value && form.num_hills_trees ? Number(form.num_hills_trees) : null,
       variety: form.variety.trim() || null,
       area_planted: Number(form.area_planted),
       date_planted: form.date_of_planting,

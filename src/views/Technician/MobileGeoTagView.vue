@@ -197,9 +197,8 @@
               >
                 <ion-select-option value="Rice">Rice</ion-select-option>
                 <ion-select-option value="Corn">Corn</ion-select-option>
-                <ion-select-option value="High-Value Crops">High-Value Crops</ion-select-option>
                 <ion-select-option
-                  v-if="assignedPlotCommodity && !['Rice', 'Corn', 'High-Value Crops'].includes(assignedPlotCommodity)"
+                  v-if="assignedPlotCommodity && !['Rice', 'Corn'].includes(assignedPlotCommodity)"
                   :value="assignedPlotCommodity"
                 >{{ assignedPlotCommodity }}</ion-select-option>
               </ion-select>

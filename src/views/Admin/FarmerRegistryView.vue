@@ -86,7 +86,6 @@
               <option value="">All crops</option>
               <option value="Rice">Rice</option>
               <option value="Corn">Corn</option>
-              <option value="High-Value Crops">High-Value Crops</option>
             </select>
           </div>
           <div class="filter-group">

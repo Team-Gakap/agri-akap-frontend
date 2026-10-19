@@ -70,4 +70,4 @@ export const ECHAGUE_CITY = 'Echague';
 export const ECHAGUE_PROVINCE = 'Isabela';
 export const ECHAGUE_REGION = 'Region II';
 
-export const COMMODITY_OPTIONS = ['Rice', 'Corn', 'High-Value Crops'] as const;
+export const COMMODITY_OPTIONS = ['Rice', 'Corn'] as const;

@@ -55,7 +55,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { IonModal, IonHeader, IonToolbar, IonTitle, IonButtons, IonButton, IonContent, IonInput, IonTextarea, IonSelect, IonSelectOption } from '@ionic/vue';
-import { OVERRIDE_REASONS } from '@/constants/hvccCatalog';
+import { OVERRIDE_REASONS } from '@/constants/overrideReasons';
 
 const props = defineProps<{
   isOpen: boolean;
