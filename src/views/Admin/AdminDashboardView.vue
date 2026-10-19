@@ -188,6 +188,9 @@
               </div>
               <p v-if="harvestRows.length" class="harvest-footer">
                 Estimated attainment: <strong>{{ fmtPct(harvestAttainment) }}%</strong> of target
+                <button type="button" class="kpi-link" @click="go('/admin/analytics')">
+                  Open predictive analytics
+                </button>
               </p>
             </section>
           </div>

@@ -88,7 +88,8 @@ const routes: Array<RouteRecordRaw> = [
     children: [
       { path: "", redirect: "/admin/dashboard" },
       { path: "dashboard", name: "Dashboard", component: () => import("@/views/Admin/AdminDashboardView.vue"), meta: { title: "Dashboard" } },
-      { path: "analytics", redirect: "/admin/dashboard" },
+      { path: "analytics", name: "PredictiveAnalytics", component: () => import("@/views/Admin/PredictiveAnalyticsView.vue"), meta: { title: "Predictive Analytics" } },
+      { path: "predictive-analytics", redirect: "/admin/analytics" },
       { path: "staff", name: "AdminStaff", component: () => import("@/views/Staff/UserManagementView.vue"), meta: { title: "User Accounts" } },
       { path: "users", redirect: "/admin/staff" },
       { path: "audit-logs", name: "AdminAuditLogs", component: () => import("@/views/SuperAdmin/AuditLogView.vue"), meta: { title: "Audit Logs" } },
@@ -188,7 +189,7 @@ const routes: Array<RouteRecordRaw> = [
 
   // ── Legacy flat-path redirects (role-aware, query preserved) ──────────────
   { path: "/dashboard", redirect: "/admin/dashboard" },
-  { path: "/analytics", redirect: "/admin/dashboard" },
+  { path: "/analytics", redirect: "/admin/analytics" },
   { path: "/reports", redirect: "/admin/reports/subsidies" },
   { path: "/intelligence", redirect: "/admin/intelligence" },
   { path: "/broadcasts", redirect: "/admin/broadcasts" },

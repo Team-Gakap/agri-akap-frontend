@@ -112,7 +112,7 @@ import {
   IonIcon, IonMenuToggle, IonAccordionGroup, IonAccordion,
 } from '@ionic/vue';
 import {
-  gridOutline, peopleOutline, personOutline, idCardOutline, cubeOutline,
+  gridOutline, analyticsOutline, peopleOutline, personOutline, idCardOutline, cubeOutline,
   chatboxEllipsesOutline, cloudOutline, documentTextOutline,
   homeOutline, leafOutline, bugOutline, thunderstormOutline,
   shieldCheckmarkOutline, chatbubblesOutline, briefcaseOutline, logOutOutline,
@@ -246,6 +246,7 @@ const groups = computed<NavGroup[]>(() => {
 
   const adminOps: NavItem[] = [
     { title: 'Dashboard', url: '/admin/dashboard', icon: gridOutline, exact: true },
+    { title: 'Predictive Analytics', url: '/admin/analytics', icon: analyticsOutline },
     { title: 'Farmers', url: '/admin/farmers', icon: peopleOutline },
     { title: 'ID Cards', url: '/admin/id-issuance', icon: idCardOutline },
     { title: 'Subsidies', url: '/admin/subsidies', icon: cubeOutline },
