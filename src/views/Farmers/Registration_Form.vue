@@ -172,7 +172,7 @@
               </div>
               <div class="field-wrap mt8">
                 <label class="flabel">REMARKS</label>
-                <ion-textarea v-model="farmer.masterlist_remarks" class="ftextarea" rows="2" placeholder="Optional masterlist remarks" />
+                <ion-textarea v-model="farmer.masterlist_remarks" class="ftextarea" :rows="2" placeholder="Optional masterlist remarks" />
               </div>
             </div>
           </div>
