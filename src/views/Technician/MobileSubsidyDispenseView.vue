@@ -154,7 +154,7 @@
         <ul v-if="searchResults.length" class="suggest">
           <li v-for="f in searchResults" :key="f.id" @click="selectSearchedFarmer(f)">
             <strong>{{ formatName(f) }} <UnverifiedWalkInChip :show="f.is_temporary" /></strong>
-            <span>{{ f.rsbsa_no || 'No RSBSA' }} · {{ f.permanent_brgy || f.barangay || '—' }}</span>
+            <span>{{ f.rsbsa_no || 'No RSBSA' }} · {{ f.farm_brgy || f.barangay || '—' }}</span>
           </li>
         </ul>
         <p v-else-if="searchQuery.trim().length >= 2 && !searching && !farmer" class="hint">
