@@ -356,47 +356,24 @@
           </header>
 
           <section v-if="dossierTab === 'profile'" class="card">
-            <div class="info-row"><span>Birthdate</span><strong>{{ fmtDate(selectedFarmer.birthdate) }}</strong></div>
+            <div class="info-row"><span>Suffix</span><strong>{{ selectedFarmer.ext_name || '—' }}</strong></div>
+            <div class="info-row"><span>Farmer address</span><strong>{{ selectedFarmer.permanent_brgy || '—' }}</strong></div>
+            <div class="info-row"><span>City</span><strong>{{ selectedFarmer.permanent_city || '—' }}</strong></div>
+            <div class="info-row"><span>Province</span><strong>{{ selectedFarmer.permanent_province || '—' }}</strong></div>
+            <div class="info-row"><span>Farm address</span><strong>{{ selectedFarmer.farm_brgy || '—' }}</strong></div>
+            <div class="info-row"><span>Farm city</span><strong>{{ selectedFarmer.farm_city || '—' }}</strong></div>
             <div class="info-row"><span>Sex</span><strong>{{ selectedFarmer.sex || '—' }}</strong></div>
-            <div class="info-row"><span>Civil status</span><strong>{{ selectedFarmer.civil_status || '—' }}</strong></div>
-            <div class="info-row"><span>Contact</span><strong>{{ selectedFarmer.mobile_number || '—' }}</strong></div>
-            <div class="info-row"><span>ID</span>
-              <strong>
-                {{ selectedFarmer.id_type || '—' }}
-                <template v-if="selectedFarmer.id_type === 'Others' && selectedFarmer.id_type_other">
-                  ({{ selectedFarmer.id_type_other }})
-                </template>
-                {{ selectedFarmer.id_number ? '· ' + selectedFarmer.id_number : '' }}
-              </strong>
-            </div>
-            <div class="info-row"><span>Main livelihood</span>
-              <strong>
-                {{ selectedFarmer.livelihood_type || '—' }}
-                <template v-if="selectedFarmer.livelihood_detail"> · {{ selectedFarmer.livelihood_detail }}</template>
-              </strong>
-            </div>
-            <div class="info-row"><span>Other livelihood</span>
-              <strong>
-                {{ selectedFarmer.other_livelihood_type || '—' }}
-                <template v-if="selectedFarmer.other_livelihood_detail"> · {{ selectedFarmer.other_livelihood_detail }}</template>
-              </strong>
-            </div>
-            <div class="info-row"><span>Priority</span>
-              <strong>
-                <span v-if="selectedFarmer.is_senior" class="chip gold">Senior</span>
-                <span v-if="selectedFarmer.is_pwd" class="chip gold">PWD</span>
-                <span v-if="!selectedFarmer.is_senior && !selectedFarmer.is_pwd">—</span>
-              </strong>
-            </div>
-            <div class="info-row"><span>Mobile owner</span>
-              <strong>
-                {{ selectedFarmer.is_mobile_owner ? 'Self' : [
-                  selectedFarmer.mobile_owner_first_name,
-                  selectedFarmer.mobile_owner_surname,
-                ].filter(Boolean).join(' ') || '—' }}
-              </strong>
-            </div>
-            <div class="info-row"><span>Registered area</span><strong>{{ fmtHa(selectedFarmer.total_farm_area_ha) }} ha</strong></div>
+            <div class="info-row"><span>Contact No.</span><strong>{{ selectedFarmer.mobile_number || '—' }}</strong></div>
+            <div class="info-row"><span>Birthdate</span><strong>{{ displayBirthdate(selectedFarmer.birthdate) }}</strong></div>
+            <div class="info-row"><span>Indigenous</span><strong>{{ yesNo(selectedFarmer.is_icc_ip) }}</strong></div>
+            <div class="info-row"><span>PWD</span><strong>{{ yesNo(selectedFarmer.is_pwd) }}</strong></div>
+            <div class="info-row"><span>4Ps</span><strong>{{ yesNo(selectedFarmer.is_4ps_beneficiary) }}</strong></div>
+            <div class="info-row"><span>Farm area</span><strong>{{ fmtHa(selectedFarmer.total_farm_area_ha) }} ha</strong></div>
+            <div class="info-row"><span>Commodity</span><strong>{{ selectedFarmer.commodity || '—' }}</strong></div>
+            <div class="info-row"><span>Farmer GeoCode</span><strong class="mono">{{ selectedFarmer.farmer_psgc || '—' }}</strong></div>
+            <div class="info-row"><span>Farm GeoCode</span><strong class="mono">{{ selectedFarmer.farm_psgc || '—' }}</strong></div>
+            <div class="info-row"><span>Barangay</span><strong>{{ farmBarangay(selectedFarmer) }}</strong></div>
+            <div class="info-row"><span>Remarks</span><strong>{{ selectedFarmer.masterlist_remarks || '—' }}</strong></div>
             <div class="info-row"><span>Mapped area</span><strong>{{ fmtHa(selectedFarmer.mapped_area_ha) }} ha</strong></div>
             <div class="modal-actions">
               <ion-button fill="outline" @click="editFarmer(selectedFarmer)">Edit details</ion-button>
