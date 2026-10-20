@@ -30,15 +30,29 @@
               <th>Last Name</th>
               <th>First Name</th>
               <th>Middle Name</th>
-              <th>Farm barangay</th>
-              <th>Contact</th>
-              <th>Area (ha)</th>
+              <th>Suffix</th>
+              <th>Farmer address</th>
+              <th>City</th>
+              <th>Province</th>
+              <th>Farm address</th>
+              <th>Farm city</th>
+              <th>Sex</th>
+              <th>Contact No.</th>
+              <th>Birthdate</th>
+              <th>Indigenous</th>
+              <th>PWD</th>
+              <th>Farm area</th>
+              <th>Commodity</th>
+              <th>Farmer GeoCode</th>
+              <th>Farm GeoCode</th>
+              <th>Barangay</th>
+              <th>Remarks</th>
               <th>Status</th>
             </tr>
           </thead>
           <tbody>
             <tr v-if="!printRows.length">
-              <td colspan="9" class="empty-row">No farmers match the current filters.</td>
+              <td colspan="23" class="empty-row">No farmers match the current filters.</td>
             </tr>
             <tr v-for="(f, i) in printRows" :key="f.id">
               <td class="col-no">{{ i + 1 }}</td>
@@ -46,9 +60,23 @@
               <td>{{ f.surname || '—' }}</td>
               <td>{{ f.first_name || '—' }}</td>
               <td>{{ f.middle_name || '—' }}</td>
-              <td>{{ farmBarangay(f) }}</td>
+              <td>{{ f.ext_name || '—' }}</td>
+              <td>{{ f.permanent_brgy || '—' }}</td>
+              <td>{{ f.permanent_city || '—' }}</td>
+              <td>{{ f.permanent_province || '—' }}</td>
+              <td>{{ f.farm_brgy || '—' }}</td>
+              <td>{{ f.farm_city || '—' }}</td>
+              <td>{{ f.sex || '—' }}</td>
               <td>{{ f.mobile_number || '—' }}</td>
+              <td>{{ displayBirthdate(f.birthdate) }}</td>
+              <td>{{ yesNo(f.is_icc_ip) }}</td>
+              <td>{{ yesNo(f.is_pwd) }}</td>
               <td class="col-num">{{ fmtHa(f.total_farm_area_ha) }}</td>
+              <td>{{ f.commodity || '—' }}</td>
+              <td class="mono">{{ f.farmer_psgc || '—' }}</td>
+              <td class="mono">{{ f.farm_psgc || '—' }}</td>
+              <td>{{ farmBarangay(f) }}</td>
+              <td>{{ f.masterlist_remarks || '—' }}</td>
               <td>{{ farmerStatusText(f) }}</td>
             </tr>
           </tbody>
@@ -140,7 +168,7 @@
             <button class="retry-btn" @click="fetchFarmers()">Retry</button>
           </div>
           <div v-else class="table-scroll print-surface no-print">
-            <table class="excel-table">
+            <table class="excel-table masterlist-grid">
               <thead>
                 <tr>
                   <th class="col-check no-print">
@@ -156,16 +184,30 @@
                   <th>Last Name</th>
                   <th>First Name</th>
                   <th>Middle Name</th>
-                  <th>Farm barangay</th>
-                  <th>Contact</th>
-                  <th>Area (ha)</th>
+                  <th>Suffix</th>
+                  <th>Farmer address</th>
+                  <th>City</th>
+                  <th>Province</th>
+                  <th>Farm address</th>
+                  <th>Farm city</th>
+                  <th>Sex</th>
+                  <th>Contact No.</th>
+                  <th>Birthdate</th>
+                  <th>Indigenous</th>
+                  <th>PWD</th>
+                  <th>Farm area</th>
+                  <th>Commodity</th>
+                  <th>Farmer GeoCode</th>
+                  <th>Farm GeoCode</th>
+                  <th>Barangay</th>
+                  <th>Remarks</th>
                   <th>Status</th>
                   <th class="col-actions no-print">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 <tr v-if="!farmers.length">
-                  <td :colspan="11" class="empty-row">No farmers found. Import an RSBSA Excel file or enroll a walk-in farmer.</td>
+                  <td :colspan="25" class="empty-row">No farmers found. Import an RSBSA Excel file or enroll a walk-in farmer.</td>
                 </tr>
                 <tr
                   v-for="(f, i) in farmers"
@@ -185,9 +227,23 @@
                   <td>{{ f.surname || '—' }}</td>
                   <td>{{ f.first_name || '—' }}</td>
                   <td>{{ f.middle_name || '—' }}</td>
-                  <td>{{ farmBarangay(f) }}</td>
+                  <td>{{ f.ext_name || '—' }}</td>
+                  <td>{{ f.permanent_brgy || '—' }}</td>
+                  <td>{{ f.permanent_city || '—' }}</td>
+                  <td>{{ f.permanent_province || '—' }}</td>
+                  <td>{{ f.farm_brgy || '—' }}</td>
+                  <td>{{ f.farm_city || '—' }}</td>
+                  <td>{{ f.sex || '—' }}</td>
                   <td>{{ f.mobile_number || '—' }}</td>
+                  <td>{{ displayBirthdate(f.birthdate) }}</td>
+                  <td>{{ yesNo(f.is_icc_ip) }}</td>
+                  <td>{{ yesNo(f.is_pwd) }}</td>
                   <td class="col-num">{{ fmtHa(f.total_farm_area_ha) }}</td>
+                  <td>{{ f.commodity || '—' }}</td>
+                  <td class="mono">{{ f.farmer_psgc || '—' }}</td>
+                  <td class="mono">{{ f.farm_psgc || '—' }}</td>
+                  <td>{{ farmBarangay(f) }}</td>
+                  <td class="col-remarks">{{ f.masterlist_remarks || '—' }}</td>
                   <td class="col-status">
                     <span v-if="f.verification_status === 'rts'" class="chip rts">RTS</span>
                     <span v-else-if="f.verification_status === 'approved'" class="chip ok">Approved</span>
@@ -635,6 +691,16 @@ const formatName = (f: any) => {
   return `${f.surname}, ${[f.first_name, f.middle_name, f.ext_name].filter(Boolean).join(' ')}`;
 };
 const fmtHa = (v: unknown) => Number(v ?? 0).toLocaleString('en-PH', { maximumFractionDigits: 2 });
+const yesNo = (v: unknown) => (v === true || v === 1 || v === '1' ? 'Yes' : 'No');
+const isPlaceholderBirthdate = (d: unknown) => {
+  if (!d) return true;
+  const raw = String(d);
+  return raw.startsWith('1900-01-01');
+};
+const displayBirthdate = (d: unknown) => {
+  if (isPlaceholderBirthdate(d)) return '—';
+  return fmtDate(String(d));
+};
 const fmtDate = (d: string) => {
   if (!d) return '—';
   try {
@@ -825,9 +891,23 @@ const downloadExcel = async () => {
         { key: 'surname', label: 'Last Name' },
         { key: 'first_name', label: 'First Name' },
         { key: 'middle_name', label: 'Middle Name' },
-        { key: 'barangay', label: 'Farm barangay' },
-        { key: 'contact', label: 'Contact' },
-        { key: 'area_ha', label: 'Area (ha)' },
+        { key: 'ext_name', label: 'Suffix' },
+        { key: 'permanent_brgy', label: 'Farmer address' },
+        { key: 'permanent_city', label: 'City' },
+        { key: 'permanent_province', label: 'Province' },
+        { key: 'farm_brgy', label: 'Farm address' },
+        { key: 'farm_city', label: 'Farm city' },
+        { key: 'sex', label: 'Sex' },
+        { key: 'mobile_number', label: 'Contact No.' },
+        { key: 'birthdate', label: 'Birthdate' },
+        { key: 'is_icc_ip', label: 'Indigenous' },
+        { key: 'is_pwd', label: 'PWD' },
+        { key: 'area_ha', label: 'Farm area' },
+        { key: 'commodity', label: 'Commodity' },
+        { key: 'farmer_psgc', label: 'Farmer GeoCode' },
+        { key: 'farm_psgc', label: 'Farm GeoCode' },
+        { key: 'barangay', label: 'Barangay' },
+        { key: 'masterlist_remarks', label: 'Remarks' },
         { key: 'status', label: 'Status' },
       ],
       rows,
@@ -836,9 +916,23 @@ const downloadExcel = async () => {
         if (key === 'surname') return String(row.surname ?? '');
         if (key === 'first_name') return String(row.first_name ?? '');
         if (key === 'middle_name') return String(row.middle_name ?? '');
-        if (key === 'barangay') return String(row.farm_brgy || row.permanent_brgy || '');
-        if (key === 'contact') return String(row.mobile_number ?? '');
+        if (key === 'ext_name') return String(row.ext_name ?? '');
+        if (key === 'permanent_brgy') return String(row.permanent_brgy ?? '');
+        if (key === 'permanent_city') return String(row.permanent_city ?? '');
+        if (key === 'permanent_province') return String(row.permanent_province ?? '');
+        if (key === 'farm_brgy') return String(row.farm_brgy ?? '');
+        if (key === 'farm_city') return String(row.farm_city ?? '');
+        if (key === 'sex') return String(row.sex ?? '');
+        if (key === 'mobile_number') return String(row.mobile_number ?? '');
+        if (key === 'birthdate') return isPlaceholderBirthdate(row.birthdate) ? '' : String(row.birthdate ?? '');
+        if (key === 'is_icc_ip') return yesNo(row.is_icc_ip);
+        if (key === 'is_pwd') return yesNo(row.is_pwd);
         if (key === 'area_ha') return fmtHa(row.total_farm_area_ha);
+        if (key === 'commodity') return String(row.commodity ?? '');
+        if (key === 'farmer_psgc') return String(row.farmer_psgc ?? '');
+        if (key === 'farm_psgc') return String(row.farm_psgc ?? '');
+        if (key === 'barangay') return String(row.farm_brgy || row.permanent_brgy || '');
+        if (key === 'masterlist_remarks') return String(row.masterlist_remarks ?? '');
         if (key === 'status') return farmerStatusText(row);
         return String(row[key] ?? '');
       },
@@ -1445,6 +1539,8 @@ onMounted(() => {
   color: #1e293b;
   min-width: 980px;
 }
+.excel-table.masterlist-grid { min-width: 2200px; }
+.col-remarks { min-width: 120px; max-width: 220px; white-space: normal; }
 .excel-table th, .excel-table td {
   border: 1px solid #cbd5e1;
   padding: 4px 8px;
