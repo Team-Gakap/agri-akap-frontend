@@ -132,6 +132,34 @@
               </section>
             </div>
 
+            <div class="chart-pair">
+              <section class="panel-card">
+                <header class="panel-head">
+                  <div>
+                    <h2>Registered Crop Area</h2>
+                    <p>Masterlist parcels grouped as rice, corn, or other</p>
+                  </div>
+                </header>
+                <div v-if="cropDistributionRows.length" class="chart-box">
+                  <Doughnut :data="cropChartData" :options="doughnutOptions" />
+                </div>
+                <p v-else class="empty-note">No registered farm plots yet.</p>
+              </section>
+
+              <section class="panel-card">
+                <header class="panel-head">
+                  <div>
+                    <h2>Pest Reports</h2>
+                    <p>Incidents by damage type</p>
+                  </div>
+                </header>
+                <div v-if="pestBreakdownRows.length" class="chart-box">
+                  <Bar :data="pestChartData" :options="pestBarOptions" />
+                </div>
+                <p v-else class="empty-note">No pest reports yet.</p>
+              </section>
+            </div>
+
             <section v-if="peakWeekdayBars.length" class="panel-card peak-panel">
               <header class="panel-head">
                 <div>
@@ -366,6 +394,18 @@ const go = (path: string) => router.push(path);
 
 const stageRows = computed(() => diagnostic.crop_stages ?? []);
 const distributionRows = computed(() => diagnostic.distributions_by_barangay ?? []);
+const cropDistributionRows = computed(() => diagnostic.crop_distribution ?? []);
+const pestBreakdownRows = computed(() => {
+  const totals = new Map<string, number>();
+  for (const row of diagnostic.pest_breakdown ?? []) {
+    const key = String(row?.damage_type || 'Unknown');
+    totals.set(key, (totals.get(key) || 0) + Number(row?.total || 0));
+  }
+  return Array.from(totals.entries())
+    .map(([damage_type, total]) => ({ damage_type, total }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 8);
+});
 const harvestRows = computed(() => predictive.harvest_forecast ?? []);
 const alerts = computed(() => prescriptive.alerts ?? []);
 const hasData = computed(() =>
@@ -470,6 +510,50 @@ const stageChartData = computed(() => {
     }],
   };
 });
+
+const CROP_COLORS = [LGU_GREEN, LGU_GOLD, '#b45309', '#64748b', '#0f766e', '#7c3aed'];
+const cropChartData = computed(() => ({
+  labels: cropDistributionRows.value.map((row: any) => row.commodity),
+  datasets: [{
+    data: cropDistributionRows.value.map((row: any) => Number(row.total_area_ha ?? 0)),
+    backgroundColor: cropDistributionRows.value.map((_: any, index: number) => CROP_COLORS[index % CROP_COLORS.length]),
+    borderWidth: 0,
+    hoverOffset: 6,
+  }],
+}));
+const pestChartData = computed(() => ({
+  labels: pestBreakdownRows.value.map((row) => row.damage_type),
+  datasets: [{
+    label: 'Reports',
+    data: pestBreakdownRows.value.map((row) => row.total),
+    backgroundColor: LGU_GREEN,
+    hoverBackgroundColor: LGU_GOLD,
+    borderRadius: 8,
+    maxBarThickness: 22,
+  }],
+}));
+const pestBarOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  indexAxis: 'y' as const,
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      backgroundColor: LGU_GREEN,
+      callbacks: {
+        label: (ctx: any) => `${ctx.parsed.x} reports`,
+      },
+    },
+  },
+  scales: {
+    x: {
+      beginAtZero: true,
+      ticks: { color: '#94a3b8', precision: 0 },
+      grid: { color: 'rgba(26,71,49,0.08)' },
+    },
+    y: { ticks: { color: '#64748b', font: { size: 11 } }, grid: { display: false } },
+  },
+};
 
 const uptakeChartData = computed(() => ({
   labels: distributionRows.value.map((r: any) => r.barangay),

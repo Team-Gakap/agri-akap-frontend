@@ -580,7 +580,7 @@ const smsBarangayOptions = ref<string[]>([]);
 
 // ── Mock dataset (20 farmers) — spreadsheet width/CSS preview when no
 // program is selected yet, or the live API is unreachable. ──────────────────
-const MOCK_BARANGAYS = ['San Fabian', 'Garit Norte', 'Fugu', 'Soyung (Poblacion)', 'Mabbayad', 'Magleticia', 'Angoluan', 'Aromin'];
+const MOCK_BARANGAYS = ['San Fabian', 'Garit Norte', 'Fugu', 'Soyung', 'Mabbayad', 'Magleticia', 'Angoluan', 'Aromin'];
 const MOCK_SURNAMES = ['Santos', 'Reyes', 'Cruz', 'Bautista', 'Garcia', 'Torres', 'Ramos', 'Mendoza', 'Flores', 'Aquino'];
 const MOCK_FIRST_NAMES = ['Juan', 'Maria', 'Pedro', 'Rosa', 'Antonio', 'Carmen', 'Jose', 'Elena', 'Ricardo', 'Luz'];
 

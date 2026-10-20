@@ -30,7 +30,7 @@
               <th>Last Name</th>
               <th>First Name</th>
               <th>Middle Name</th>
-              <th>Barangay</th>
+              <th>Farm barangay</th>
               <th>Contact</th>
               <th>Area (ha)</th>
               <th>Status</th>
@@ -46,7 +46,7 @@
               <td>{{ f.surname || '—' }}</td>
               <td>{{ f.first_name || '—' }}</td>
               <td>{{ f.middle_name || '—' }}</td>
-              <td>{{ f.permanent_brgy || '—' }}</td>
+              <td>{{ farmBarangay(f) }}</td>
               <td>{{ f.mobile_number || '—' }}</td>
               <td class="col-num">{{ fmtHa(f.total_farm_area_ha) }}</td>
               <td>{{ farmerStatusText(f) }}</td>
@@ -71,7 +71,7 @@
           <div class="filter-group brgy-group">
             <SearchableSelect
               variant="filter"
-              label="Farmer address"
+              label="Farm address"
               placeholder="All barangays"
               empty-label="All barangays"
               allow-empty
@@ -86,6 +86,7 @@
               <option value="">All crops</option>
               <option value="Rice">Rice</option>
               <option value="Corn">Corn</option>
+              <option value="unclassified">Unclassified crop</option>
             </select>
           </div>
           <div class="filter-group">
@@ -124,7 +125,8 @@
                 <ion-icon slot="start" :icon="addOutline"></ion-icon>
                 Enroll
               </ion-button>
-              <FormExportActions theme="admin" :print-disabled="loading || printing" @print="printReport" @excel="downloadExcel" />
+              <FormExportActions theme="admin" :print-disabled="loading || printing || !!exportProgress" @print="printReport" @excel="downloadExcel" />
+              <span v-if="exportProgress" class="export-progress">{{ exportProgress }}</span>
               <span class="row-pill">{{ meta.total.toLocaleString() }} record(s)</span>
             </div>
           </div>
@@ -154,7 +156,7 @@
                   <th>Last Name</th>
                   <th>First Name</th>
                   <th>Middle Name</th>
-                  <th>Barangay</th>
+                  <th>Farm barangay</th>
                   <th>Contact</th>
                   <th>Area (ha)</th>
                   <th>Status</th>
@@ -183,7 +185,7 @@
                   <td>{{ f.surname || '—' }}</td>
                   <td>{{ f.first_name || '—' }}</td>
                   <td>{{ f.middle_name || '—' }}</td>
-                  <td>{{ f.permanent_brgy || '—' }}</td>
+                  <td>{{ farmBarangay(f) }}</td>
                   <td>{{ f.mobile_number || '—' }}</td>
                   <td class="col-num">{{ fmtHa(f.total_farm_area_ha) }}</td>
                   <td class="col-status">
@@ -294,7 +296,7 @@
         <div class="dossier">
           <header class="dossier-head">
             <h2>{{ formatName(selectedFarmer) }}</h2>
-            <p>{{ selectedFarmer.rsbsa_no || 'No RSBSA' }} · {{ selectedFarmer.permanent_brgy || '—' }}</p>
+            <p>{{ selectedFarmer.rsbsa_no || 'No RSBSA' }} · {{ farmBarangay(selectedFarmer) }}</p>
           </header>
 
           <section v-if="dossierTab === 'profile'" class="card">
@@ -585,6 +587,7 @@ const editingPlotId = ref<string | null>(null);
 const mappingPlotId = ref<string | null>(null);
 const savingPlotId = ref<string | null>(null);
 const printing = ref(false);
+const exportProgress = ref('');
 const printRows = ref<any[]>([]);
 const technicians = ref<{ id: string; name: string }[]>([]);
 const commodityOptions = COMMODITY_OPTIONS;
@@ -784,20 +787,29 @@ const printReport = async () => {
   }
 };
 
+const farmBarangay = (farmer: any) => farmer?.farm_brgy || farmer?.permanent_brgy || '—';
+
 const collectExportRows = async () => {
   const rows: any[] = [];
   let page = 1;
   let last = 1;
-  do {
-    const res = await apiClient.get('/farmers', {
-      params: { ...listParams(), page, per_page: 50 },
-    });
-    const payload = res.data?.data;
-    rows.push(...(payload?.data ?? []));
-    last = payload?.last_page ?? 1;
-    page += 1;
-  } while (page <= last && page <= 40);
-  return rows;
+  try {
+    do {
+      exportProgress.value = last > 1
+        ? `Loading farmers, page ${page} of ${last}…`
+        : 'Loading farmers…';
+      const res = await apiClient.get('/farmers', {
+        params: { ...listParams(), page, per_page: 50 },
+      });
+      const payload = res.data?.data;
+      rows.push(...(payload?.data ?? []));
+      last = payload?.last_page ?? 1;
+      page += 1;
+    } while (page <= last);
+    return rows;
+  } finally {
+    exportProgress.value = '';
+  }
 };
 
 const downloadExcel = async () => {
@@ -813,7 +825,7 @@ const downloadExcel = async () => {
         { key: 'surname', label: 'Last Name' },
         { key: 'first_name', label: 'First Name' },
         { key: 'middle_name', label: 'Middle Name' },
-        { key: 'barangay', label: 'Barangay' },
+        { key: 'barangay', label: 'Farm barangay' },
         { key: 'contact', label: 'Contact' },
         { key: 'area_ha', label: 'Area (ha)' },
         { key: 'status', label: 'Status' },
@@ -824,7 +836,7 @@ const downloadExcel = async () => {
         if (key === 'surname') return String(row.surname ?? '');
         if (key === 'first_name') return String(row.first_name ?? '');
         if (key === 'middle_name') return String(row.middle_name ?? '');
-        if (key === 'barangay') return String(row.permanent_brgy ?? '');
+        if (key === 'barangay') return String(row.farm_brgy || row.permanent_brgy || '');
         if (key === 'contact') return String(row.mobile_number ?? '');
         if (key === 'area_ha') return fmtHa(row.total_farm_area_ha);
         if (key === 'status') return farmerStatusText(row);
@@ -1389,6 +1401,7 @@ onMounted(() => {
 }
 .grid-title { color: #d1e0d6; font-size: 0.9rem; font-weight: 700; }
 .grid-actions { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
+.export-progress { font-size: 0.75rem; color: #1a4731; }
 .row-pill {
   background: #d4af37;
   color: #1a4731;

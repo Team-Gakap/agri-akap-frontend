@@ -44,7 +44,7 @@ const MOCK_POOL: MockRecord[] = [
   },
   {
     category: 'crop_production',
-    barangay: 'Soyung (Poblacion)',
+    barangay: 'Soyung',
     crop_type: 'Rice',
     report_date: '2026-07-08',
     rsbsa_no: '01-28-03-005-000078',
@@ -113,7 +113,7 @@ const MOCK_POOL: MockRecord[] = [
   },
   {
     category: 'pest_surveillance',
-    barangay: 'Soyung (Poblacion)',
+    barangay: 'Soyung',
     crop_type: 'Corn',
     report_date: '2026-07-16',
     rsbsa_no: '01-28-03-005-000102',
@@ -164,7 +164,7 @@ const MOCK_POOL: MockRecord[] = [
   },
   {
     category: 'damage_calamity',
-    barangay: 'Soyung (Poblacion)',
+    barangay: 'Soyung',
     crop_type: 'Corn',
     report_date: '2026-07-20',
     rsbsa_no: '01-28-03-005-000088',

@@ -1,32 +1,48 @@
 /**
- * The Echague GeoJSON (public/geo/echague-barangays.geojson) is extracted
- * from the national PSA admin4 dataset, which uses short, unsuffixed names
- * for six barangays. The app's official records (tbl_barangays / weather
- * heatmap rows) use longer disambiguated names. Bridge the two here so map
- * polygons join correctly to weather rows.
+ * The Echague GeoJSON uses short PSA names for six barangays. The app stores
+ * the RSBSA masterlist spelling. Bridge the two so map polygons join weather
+ * and registry rows.
  *
- * Mirrors NAME_ALIASES in agri-akap-backend/database/seeders/BarangayCoordinateSeeder.php.
+ * Mirrors OfficialBarangays::canonicalize() in the backend.
  */
+import { ECHAGUE_BARANGAYS } from '@/data/echagueBarangays';
+
 const GEO_TO_OFFICIAL_ALIASES: Record<string, string> = {
-  'cabugao (pob.)': 'Cabugao (Poblacion)',
-  'san manuel': 'San Manuel (formerly Atelan)',
-  'silauan norte (pob.)': 'Silauan Norte (Poblacion)',
-  'silauan sur (pob.)': 'Silauan Sur (Poblacion)',
-  soyung: 'Soyung (Poblacion)',
-  taggappan: 'Taggappan (Poblacion)',
+  'cabugao pob.': 'Cabugao Pob.',
+  'cabugao (pob.)': 'Cabugao Pob.',
+  'cabugao (poblacion)': 'Cabugao Pob.',
+  cabugao: 'Cabugao Pob.',
+  'san manuel': 'San Manuel',
+  'san manuel (formerly atelan)': 'San Manuel',
+  'silauan norte pob.': 'Silauan Norte Pob.',
+  'silauan norte (pob.)': 'Silauan Norte Pob.',
+  'silauan norte (poblacion)': 'Silauan Norte Pob.',
+  'silauan norte': 'Silauan Norte Pob.',
+  'silauan sur pob.': 'Silauan Sur Pob.',
+  'silauan sur (pob.)': 'Silauan Sur Pob.',
+  'silauan sur (poblacion)': 'Silauan Sur Pob.',
+  'silauan sur': 'Silauan Sur Pob.',
+  soyung: 'Soyung',
+  'soyung (poblacion)': 'Soyung',
+  taggappan: 'Taggappan',
+  'taggappan (poblacion)': 'Taggappan',
 };
 
 function normalize(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
-/** Map a GeoJSON `adm4_name` to the official `barangay_name` used by the API. */
+/** Map a GeoJSON or sheet label to the masterlist barangay name. */
 export function toOfficialBarangayName(geoName: string): string {
   const key = normalize(geoName);
-  return GEO_TO_OFFICIAL_ALIASES[key] ?? geoName.trim();
+  if (GEO_TO_OFFICIAL_ALIASES[key]) {
+    return GEO_TO_OFFICIAL_ALIASES[key];
+  }
+  const match = ECHAGUE_BARANGAYS.find((name) => normalize(name) === key);
+  return match ?? geoName.trim();
 }
 
-/** Compact label for map overlays and tables — drop PSA disambiguators. */
+/** Compact label for map overlays — drop older PSA disambiguators. */
 export function shortBarangayName(name: string): string {
   return name.replace(' (Poblacion)', '').replace(' (formerly Atelan)', '');
 }
@@ -41,6 +57,7 @@ export function indexByOfficialName<T extends { barangay_name: string }>(
   const map = new Map<string, T>();
   for (const row of rows) {
     map.set(normalize(row.barangay_name), row);
+    map.set(normalize(toOfficialBarangayName(row.barangay_name)), row);
   }
   return map;
 }

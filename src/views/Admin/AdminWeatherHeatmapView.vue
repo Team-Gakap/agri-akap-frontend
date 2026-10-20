@@ -652,7 +652,7 @@ function buildMockBarangays(): BarangayWeather[] {
   const samples: Array<[string, number, number, number, number]> = [
     ['San Fabian', 88, 0.22, 8, 4.2],
     ['San Salvador', 22, 0.14, 6, 5.8],
-    ['Soyung (Poblacion)', 55, 0.27, 12, 3.9],
+    ['Soyung', 55, 0.27, 12, 3.9],
     ['Ipil', 72, 0.19, 16, 4.8],
     ['Annafunan', 91, 0.31, 9, 3.5],
     ['Garit Norte', 40, 0.16, 18, 5.6],
@@ -664,7 +664,7 @@ function buildMockBarangays(): BarangayWeather[] {
     ['Santa Monica', 30, 0.28, 5, 3.2],
     ['Sinabbaran', 82, 0.18, 19, 5.9],
     ['Villa Campo', 25, 0.15, 13, 5.4],
-    ['Cabugao (Poblacion)', 60, 0.26, 17, 4.0],
+    ['Cabugao Pob.', 60, 0.26, 17, 4.0],
     ['Dammang East', 70, 0.13, 21, 6.4],
   ];
 

@@ -114,7 +114,7 @@ const props = withDefaults(defineProps<{
   /** When true, acquire device GPS and show field location + spray advisories. */
   useDeviceGps?: boolean;
 }>(), {
-  defaultBarangay: 'Soyung (Poblacion)',
+  defaultBarangay: 'Soyung',
   useDeviceGps: false,
 });
 
