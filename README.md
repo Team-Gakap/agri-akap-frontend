@@ -44,6 +44,21 @@ This repository contains the client-side presentation layer for **AGRI-AKAP**. I
 
 ---
 
+## Local development
+
+Requirements: Node.js 20.19+ and npm. Start the Laravel API first (see the backend's **Local development** instructions), then from this directory run:
+
+```bash
+npm install
+npm run dev
+```
+
+Open the localhost URL printed by Vite (normally `http://localhost:5173`). In Vite development mode, API requests use `http://127.0.0.1:8000/api` instead of the production URL configured in `.env`. Set a different `VITE_API_URL` in `.env.development.local` only if you need to test against another API, then restart Vite.
+
+On localhost, the CAPTCHA widget uses Cloudflare's public test site key (`1x00000000000000000000AA`) when `VITE_TURNSTILE_SITE_KEY` is unset. Configure the matching public test secret in the backend's local `.env` as described in the backend's **Local development** instructions; otherwise a configured real secret will reject the test token. Do not use the test keys in a deployment.
+
+---
+
 ## 📂 Directory Structure
 
 ```text
